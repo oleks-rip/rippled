@@ -374,6 +374,11 @@ finalizeClaimHelper(
 
     @return map of the signer's list (AccountIDs and weights), the quorum, and
             error code
+
+    @note If the account includes a regular key or master key, it is included
+   with the signer's list with a maximum weight. If the account does not include
+   a signer's list, the threshold is set to 1 (i.e. either the master key or
+   regular key can sign)
 */
 std::tuple<std::unordered_map<AccountID, std::uint32_t>, std::uint32_t, TER>
 getSignersListAndQuorum(ApplyView& view, SLE const& sleB, beast::Journal j)
@@ -381,9 +386,37 @@ getSignersListAndQuorum(ApplyView& view, SLE const& sleB, beast::Journal j)
     std::unordered_map<AccountID, std::uint32_t> r;
     std::uint32_t q = std::numeric_limits<std::uint32_t>::max();
 
+    AccountID const thisDoor = sleB[sfAccount];
+    auto const sleDoor = [&] { return view.read(keylet::account(thisDoor)); }();
+
+    if (!sleDoor)
+    {
+        return {r, q, tecINTERNAL};  // LCOV_EXCL_LINE
+    }
+
+    auto const masterKey = [&]() -> std::optional<AccountID> {
+        if (sleDoor->isFlag(lsfDisableMaster))
+            return std::nullopt;
+        return thisDoor;
+    }();
+
+    std::optional<AccountID> regularKey = (*sleDoor)[~sfRegularKey];
+
     auto const sleS = view.read(keylet::signers(sleB[sfAccount]));
     if (!sleS)
+    {
+        if (masterKey || regularKey)
+        {
+            q = 1;
+            if (masterKey)
+                r[*masterKey] = std::numeric_limits<std::uint16_t>::max();
+            if (regularKey)
+                r[*regularKey] = std::numeric_limits<std::uint16_t>::max();
+
+            return {std::move(r), q, tesSUCCESS};
+        }
         return {r, q, tecXCHAIN_NO_SIGNERS_LIST};
+    }
     q = (*sleS)[sfSignerQuorum];
 
     auto const accountSigners = SignerEntries::deserialize(*sleS, j, "ledger");
@@ -397,6 +430,13 @@ getSignersListAndQuorum(ApplyView& view, SLE const& sleB, beast::Journal j)
     {
         r[as.account] = as.weight;
     }
+
+    // add the master and regular keys. If they are already part of the signer's
+    // list, overwrite their weights.
+    if (masterKey)
+        r[*masterKey] = std::numeric_limits<std::uint16_t>::max();
+    if (regularKey)
+        r[*regularKey] = std::numeric_limits<std::uint16_t>::max();
 
     return {std::move(r), q, tesSUCCESS};
 };
