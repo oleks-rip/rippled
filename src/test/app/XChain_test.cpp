@@ -4593,7 +4593,10 @@ private:
         }
 
         void
-        receive(jtx::Account const& acct, STAmount amt, size_t divisor = 1)
+        receive(
+            jtx::Account const& acct,
+            STAmount amt,
+            std::uint64_t divisor = 1)
         {
             if (amt.issue() != xrpIssue())
                 return;
@@ -4611,7 +4614,7 @@ private:
         }
 
         void
-        spend(jtx::Account const& acct, STAmount amt, size_t times = 1)
+        spend(jtx::Account const& acct, STAmount amt, std::uint64_t times = 1)
         {
             if (amt.issue() != xrpIssue())
                 return;
