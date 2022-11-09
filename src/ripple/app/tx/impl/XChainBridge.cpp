@@ -593,7 +593,7 @@ BridgeCreate::doApply()
         auto const page = ctx_.view().dirInsert(
             keylet::ownerDir(account), bridgeKeylet, describeOwnerDir(account));
         if (!page)
-            return tecDIR_FULL;
+            return tecDIR_FULL;  // LCOV_EXCL_LINE [greg] test doesn't hit this?
         (*sleB)[sfOwnerNode] = *page;
     }
 
@@ -831,7 +831,7 @@ XChainClaim::doApply()
         else if (thisDoor == bridgeSpec.issuingChainDoor())
             dstChain = STXChainBridge::ChainType::issuing;
         else
-            return tecINTERNAL;
+            return tecINTERNAL;  // LCOV_EXCL_LINE
     }
     STXChainBridge::ChainType const srcChain =
         STXChainBridge::otherChain(dstChain);
@@ -846,7 +846,7 @@ XChainClaim::doApply()
         getSignersListAndQuorum(ctx_.view(), *sleB, ctx_.journal);
 
     if (!isTesSuccess(slTer))
-        return slTer;
+        return slTer;  // LCOV_EXCL_LINE
 
     XChainClaimAttestations curAtts{
         sleCID->getFieldArray(sfXChainClaimAttestations)};
@@ -1049,7 +1049,7 @@ XChainCreateClaimID::preclaim(PreclaimContext const& ctx)
         // Check reserve
         auto const sle = ctx.view.read(keylet::account(account));
         if (!sle)
-            return terNO_ACCOUNT;
+            return terNO_ACCOUNT;  // LCOV_EXCL_LINE
 
         auto const balance = (*sle)[sfBalance];
         auto const reserve =
@@ -1125,7 +1125,7 @@ XChainAddAttestation::preflight(PreflightContext const& ctx)
         return temDISABLED;
 
     if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
-        return ret;
+        return ret;  // LCOV_EXCL_LINE
 
     if (ctx.tx.getFlags() & tfUniversalMask)
         return temINVALID_FLAG;
@@ -1400,7 +1400,7 @@ XChainAddAttestation::applyCreateAccountAtt(
     else if (createCID)
     {
         if (sleCID)
-            return tecINTERNAL;
+            return tecINTERNAL;  // LCOV_EXCL_LINE
 
         auto const sleCID = std::make_shared<SLE>(claimKeylet);
         (*sleCID)[sfAccount] = doorAccount;
@@ -1474,7 +1474,7 @@ XChainAddAttestation::doApply()
     sleB.reset();
 
     if (!isTesSuccess(slTer))
-        return slTer;
+        return slTer;  // LCOV_EXCL_LINE
 
     {
         auto const claimResults =
@@ -1545,7 +1545,7 @@ XChainCreateAccountCommit::preflight(PreflightContext const& ctx)
         return temDISABLED;
 
     if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
-        return ret;
+        return ret;  // LCOV_EXCL_LINE
 
     if (ctx.tx.getFlags() & tfUniversalMask)
         return temINVALID_FLAG;
@@ -1575,7 +1575,7 @@ XChainCreateAccountCommit::preclaim(PreclaimContext const& ctx)
     auto const sleB = ctx.view.read(keylet::bridge(bridgeSpec));
     if (!sleB)
     {
-        return tecNO_ENTRY;
+        return tecNO_ENTRY;  // LCOV_EXCL_LINE
     }
 
     if (reward != (*sleB)[sfSignatureReward])
@@ -1592,7 +1592,7 @@ XChainCreateAccountCommit::preclaim(PreclaimContext const& ctx)
     }
 
     if (minCreateAmount->issue() != amount.issue())
-        return tecBAD_XCHAIN_TRANSFER_ISSUE;
+        return tecBAD_XCHAIN_TRANSFER_ISSUE;  // LCOV_EXCL_LINE
 
     AccountID const thisDoor = (*sleB)[sfAccount];
     AccountID const account = ctx.tx[sfAccount];

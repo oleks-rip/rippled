@@ -486,6 +486,35 @@ struct XChain_test : public beast::unit_test::suite,
         XEnv(*this)
             .disableFeature(featureXChainBridge)
             .tx(create_bridge(mcAlice, jvb), ter(temDISABLED));
+
+        // coverage test: An attempt to create many bridge objects until
+        // we get tecDIR_FULL... but it doesn't seem to happen?
+        if (0)
+        {
+            XEnv env(*this);
+            for (uint32_t i = 5; i < 4096; ++i)
+            {
+                using namespace std::literals;
+                char curr[20];
+                snprintf(curr, 20, "%03X", i);
+                Account door{Account::master};
+                IOU mcIssue = mcAlice[curr], scIssue = door[curr];
+                auto jvb{bridge(mcDoor, mcIssue, door, scIssue)};
+                if (i < 4096)
+                {
+                    env.tx(create_bridge(Account::master, jvb));
+                    if (i % 64 == 0)
+                        env.close();
+                    assert(env.ter() == tesSUCCESS);
+                }
+                else
+                {
+                    env.tx(
+                        create_bridge(Account::master, jvb), ter(tecDIR_FULL));
+                    break;
+                }
+            }
+        }
     }
 
     void
@@ -525,7 +554,8 @@ struct XChain_test : public beast::unit_test::suite,
         // That's 42 combinations. The only combinations that should succeed
         // are:
         // - Locking chain is any IOU,
-        // - Issuing chain is IOU with issuing chain door account as the issuer
+        // - Issuing chain is IOU with issuing chain door account as the
+        // issuer
         //   Locking chain is XRP,
         // - Issuing chain is XRP with issuing chain is the root account.
         // ---------------------------------------------------------------------
@@ -943,8 +973,8 @@ struct XChain_test : public beast::unit_test::suite,
             std::uint32_t const claimID = 1;
             mcEnv.tx(xchain_commit(mcAlice, jvb, claimID, amt, dst)).close();
 
-            // change signers - claim should not be processed is the batch is
-            // signed by original signers
+            // change signers - claim should not be processed is the batch
+            // is signed by original signers
             scEnv.tx(jtx::signers(Account::master, quorum, alt_signers))
                 .close();
 
@@ -968,8 +998,8 @@ struct XChain_test : public beast::unit_test::suite,
                     .close();
             }
 
-            // make sure transfer has not happened as we sent attestations using
-            // outdated signers
+            // make sure transfer has not happened as we sent attestations
+            // using outdated signers
             BEAST_EXPECT(transfer.has_not_happened());
 
             // submit claim using current signers - should succeed
@@ -986,8 +1016,8 @@ struct XChain_test : public beast::unit_test::suite,
                     .close();
             }
 
-            // make sure the transfer went through as we sent attestations using
-            // new signers
+            // make sure the transfer went through as we sent attestations
+            // using new signers
             BEAST_EXPECT(transfer.has_happened(amt, split_reward, false));
         }
 
@@ -999,7 +1029,8 @@ struct XChain_test : public beast::unit_test::suite,
                 txflags(tfFillOrKill),
                 ter(temINVALID_FLAG));
 
-        // coverage test: bridge_modify transaction with xchain feature disabled
+        // coverage test: bridge_modify transaction with xchain feature
+        // disabled
         XEnv(*this)
             .tx(create_bridge(mcDoor, jvb))
             .disableFeature(featureXChainBridge)
@@ -1064,9 +1095,9 @@ struct XChain_test : public beast::unit_test::suite,
                 ter(tecINSUFFICIENT_RESERVE))
             .close();
 
-        // The specified reward doesn't match the reward on the bridge (test by
-        // giving the reward amount for the other side, as well as a completely
-        // non-matching reward)
+        // The specified reward doesn't match the reward on the bridge (test
+        // by giving the reward amount for the other side, as well as a
+        // completely non-matching reward)
         XEnv(*this, true)
             .tx(create_bridge(Account::master, jvb))
             .close()
@@ -1082,7 +1113,8 @@ struct XChain_test : public beast::unit_test::suite,
                 ter(temXCHAIN_BRIDGE_BAD_REWARD_AMOUNT))
             .close();
 
-        // coverage test: xchain_create_claim_id transaction with incorrect flag
+        // coverage test: xchain_create_claim_id transaction with incorrect
+        // flag
         XEnv(*this, true)
             .tx(create_bridge(Account::master, jvb))
             .close()
@@ -1091,8 +1123,8 @@ struct XChain_test : public beast::unit_test::suite,
                 ter(temINVALID_FLAG))
             .close();
 
-        // coverage test: xchain_create_claim_id transaction with xchain feature
-        // disabled
+        // coverage test: xchain_create_claim_id transaction with xchain
+        // feature disabled
         XEnv(*this, true)
             .tx(create_bridge(Account::master, jvb))
             .disableFeature(featureXChainBridge)
@@ -1138,17 +1170,17 @@ struct XChain_test : public beast::unit_test::suite,
             .tx(xchain_commit(mcAlice, jvb, 1, XRP(-1), scBob),
                 ter(temBAD_AMOUNT));
 
-        // Commit an amount whose issue that does not match the expected issue
-        // on the bridge (either LockingChainIssue or IssuingChainIssue,
-        // depending on the chain).
+        // Commit an amount whose issue that does not match the expected
+        // issue on the bridge (either LockingChainIssue or
+        // IssuingChainIssue, depending on the chain).
         XEnv(*this)
             .tx(create_bridge(mcDoor, jvb))
             .close()
             .tx(xchain_commit(mcAlice, jvb, 1, mcUSD(100), scBob),
                 ter(tecBAD_XCHAIN_TRANSFER_ISSUE));
 
-        // Commit an amount that would put the sender below the required reserve
-        // (if XRP)
+        // Commit an amount that would put the sender below the required
+        // reserve (if XRP)
         XEnv(*this)
             .tx(create_bridge(mcDoor, jvb))
             .fund(res0 + one_xrp - xrp_dust, mcuAlice)  // barely not enough
@@ -1164,7 +1196,8 @@ struct XChain_test : public beast::unit_test::suite,
             .close()
             .tx(xchain_commit(mcuAlice, jvb, 1, one_xrp, scBob));
 
-        // Commit an amount above the account's balance (for both XRP and IOUs)
+        // Commit an amount above the account's balance (for both XRP and
+        // IOUs)
         XEnv(*this)
             .tx(create_bridge(mcDoor, jvb))
             .fund(res0, mcuAlice)  // barely not enough
@@ -1198,8 +1231,8 @@ struct XChain_test : public beast::unit_test::suite,
                 ter(terNO_LINE));
 
         // commit sent from mcAlice which has no IOU balance => should fail
-        // just changed the destination to scGw (which is the door account and
-        // may not make much sense)
+        // just changed the destination to scGw (which is the door account
+        // and may not make much sense)
         XEnv(*this)
             .tx(trust(mcDoor, mcUSD(10000)))  // door needs to have a trustline
             .tx(create_bridge(mcDoor, jvb_USD))
@@ -1207,7 +1240,8 @@ struct XChain_test : public beast::unit_test::suite,
             .tx(xchain_commit(mcAlice, jvb_USD, 1, mcUSD(1), scGw),
                 ter(terNO_LINE));
 
-        // commit sent from mcAlice which has a IOU balance => should succeed
+        // commit sent from mcAlice which has a IOU balance => should
+        // succeed
         XEnv(*this)
             .tx(trust(mcDoor, mcUSD(10000)))
             .tx(trust(mcAlice, mcUSD(10000)))
@@ -1226,7 +1260,8 @@ struct XChain_test : public beast::unit_test::suite,
                 txflags(tfFillOrKill),
                 ter(temINVALID_FLAG));
 
-        // coverage test: xchain_commit transaction with xchain feature disabled
+        // coverage test: xchain_commit transaction with xchain feature
+        // disabled
         XEnv(*this)
             .tx(create_bridge(mcDoor))
             .disableFeature(featureXChainBridge)
@@ -1248,8 +1283,10 @@ struct XChain_test : public beast::unit_test::suite,
         // Add an attestation to a claim id that has already reached quorum.
         // This should succeed and share in the reward.
         // note: this is true only when either:
-        //       1. dest account is not specified, so transfer requires a clain
-        //       2. or the extra attestation is sent in the same batch as the
+        //       1. dest account is not specified, so transfer requires a
+        //       clain
+        //       2. or the extra attestation is sent in the same batch as
+        //       the
         //          one reaching quorum
         for (auto withClaim : {true})
         {
@@ -1312,8 +1349,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(transfer.has_happened(amt, split_reward));
         }
 
-        // Add a batch of attestations where one has an invalid signature. The
-        // entire transaction should fail.
+        // Add a batch of attestations where one has an invalid signature.
+        // The entire transaction should fail.
         for (auto withClaim : {false, true})
         {
             XEnv mcEnv(*this);
@@ -1384,13 +1421,14 @@ struct XChain_test : public beast::unit_test::suite,
 
         // Test combinations of the following when adding a batch of
         // attestations for different claim ids: All the claim id exist One
-        // claim id exists and other has already been claimed None of the claim
-        // ids exist When the claim ids exist, test for both reaching quorum,
-        // going over quorum, and not reaching qurorum (see following tests)
+        // claim id exists and other has already been claimed None of the
+        // claim ids exist When the claim ids exist, test for both reaching
+        // quorum, going over quorum, and not reaching qurorum (see
+        // following tests)
         // ---------------------------------------------------------------------
 
-        // Add a batch of attestations for different claim ids. All the claim id
-        // exist and reach quorum
+        // Add a batch of attestations for different claim ids. All the
+        // claim id exist and reach quorum
         for (auto withClaim : {false, true})
         {
             XEnv mcEnv(*this);
@@ -1413,8 +1451,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(!!scEnv.claimID(jvb, 2));  // claim id present
             BEAST_EXPECT(!!scEnv.claimID(jvb, 3));  // claim id present
 
-            // the xchain_commit is not really necessary for the test, as the
-            // test is really on the sidechain side
+            // the xchain_commit is not really necessary for the test, as
+            // the test is really on the sidechain side
             auto const amt = XRP(1000);
             auto dstAlice(
                 withClaim ? std::nullopt : std::optional<Account>{scAlice});
@@ -1458,7 +1496,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(scEnv.claimID(jvb) == 3);  // current idx is 3
 
             BEAST_EXPECT(attester.diff() == -tx_fee);
-            // >= because of reward drops left when dividing by 3 attestations
+            // >= because of reward drops left when dividing by 3
+            // attestations
             BEAST_EXPECT(alice.diff() >= added_amt);
             BEAST_EXPECT(bob.diff() >= added_amt);
             BEAST_EXPECT(carol.diff() == added_amt);
@@ -1488,8 +1527,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(!!scEnv.claimID(jvb, 2));  // claim id present
             BEAST_EXPECT(!!scEnv.claimID(jvb, 3));  // claim id present
 
-            // the xchain_commit is not really necessary for the test, as the
-            // test is really on the sidechain side
+            // the xchain_commit is not really necessary for the test, as
+            // the test is really on the sidechain side
             auto const amt = XRP(1000);
             auto dstAlice(
                 withClaim ? std::nullopt : std::optional<Account>{scAlice});
@@ -1551,7 +1590,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(scEnv.claimID(jvb) == 3);  // current idx is 3
 
             BEAST_EXPECT(attester.diff() == -attester_expense);
-            // >= because of reward drops left when dividing by 3 attestations
+            // >= because of reward drops left when dividing by 3
+            // attestations
             BEAST_EXPECT(alice.diff() >= added_amt);
             BEAST_EXPECT(bob.diff() >= added_amt);
             BEAST_EXPECT(carol.diff() == added_amt - carol_expense);
@@ -1571,8 +1611,8 @@ struct XChain_test : public beast::unit_test::suite,
                 .tx(jtx::signers(Account::master, red_quorum, signers))
                 .close();
 
-            // the xchain_commit is not really necessary for the test, as the
-            // test is really on the sidechain side
+            // the xchain_commit is not really necessary for the test, as
+            // the test is really on the sidechain side
             auto const amt = XRP(1000);
             auto dstAlice(
                 withClaim ? std::nullopt : std::optional<Account>{scAlice});
@@ -1623,8 +1663,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(carol.diff() == added_amt);
         }
 
-        // Add a batch of attestations for different claim ids. All the claim id
-        // exist. Test for both reaching quorum
+        // Add a batch of attestations for different claim ids. All the
+        // claim id exist. Test for both reaching quorum
         for (auto withClaim : {false, true})
         {
             XEnv mcEnv(*this);
@@ -1647,8 +1687,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(!!scEnv.claimID(jvb, 2));  // claim id present
             BEAST_EXPECT(!!scEnv.claimID(jvb, 3));  // claim id present
 
-            // the xchain_commit is not really necessary for the test, as the
-            // test is really on the sidechain side
+            // the xchain_commit is not really necessary for the test, as
+            // the test is really on the sidechain side
             auto const amt = XRP(1000);
             auto dstAlice(
                 withClaim ? std::nullopt : std::optional<Account>{scAlice});
@@ -1700,8 +1740,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(carol.diff() == added_amt);
         }
 
-        // Add a batch of attestations for different claim ids. All the claim id
-        // exist. Test for both going over quorum.
+        // Add a batch of attestations for different claim ids. All the
+        // claim id exist. Test for both going over quorum.
         for (auto withClaim : {false, true})
         {
             XEnv mcEnv(*this);
@@ -1721,8 +1761,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(!!scEnv.claimID(jvb, 1));  // claim id present
             BEAST_EXPECT(!!scEnv.claimID(jvb, 2));  // claim id present
 
-            // the xchain_commit is not really necessary for the test, as the
-            // test is really on the sidechain side
+            // the xchain_commit is not really necessary for the test, as
+            // the test is really on the sidechain side
             auto const amt = XRP(1000);
             auto dstAlice(
                 withClaim ? std::nullopt : std::optional<Account>{scAlice});
@@ -1766,8 +1806,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(bob.diff() == added_amt);
         }
 
-        // Add a batch of attestations for different claim ids. All the claim id
-        // exist. Test for one reaching quorum and not the other
+        // Add a batch of attestations for different claim ids. All the
+        // claim id exist. Test for one reaching quorum and not the other
         for (auto withClaim : {false, true})
         {
             XEnv mcEnv(*this);
@@ -1787,8 +1827,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(!!scEnv.claimID(jvb, 1));  // claim id present
             BEAST_EXPECT(!!scEnv.claimID(jvb, 2));  // claim id present
 
-            // the xchain_commit is not really necessary for the test, as the
-            // test is really on the sidechain side
+            // the xchain_commit is not really necessary for the test, as
+            // the test is really on the sidechain side
             auto const amt = XRP(1000);
             auto dstAlice(
                 withClaim ? std::nullopt : std::optional<Account>{scAlice});
@@ -1834,9 +1874,9 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(bob.diff() == added_amt);
         }
 
-        // Add attestations where some of the attestations are inconsistent with
-        // each other. The entire transaction should fail. Being inconsistent
-        // means attesting to different values.
+        // Add attestations where some of the attestations are inconsistent
+        // with each other. The entire transaction should fail. Being
+        // inconsistent means attesting to different values.
         for (auto withClaim : {false, true})
         {
             XEnv mcEnv(*this);
@@ -1859,8 +1899,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(!!scEnv.claimID(jvb, 2));  // claim id present
             BEAST_EXPECT(!!scEnv.claimID(jvb, 3));  // claim id present
 
-            // the xchain_commit is not really necessary for the test, as the
-            // test is really on the sidechain side
+            // the xchain_commit is not really necessary for the test, as
+            // the test is really on the sidechain side
             auto const amt = XRP(1000);
             auto dstAlice(
                 withClaim ? std::nullopt : std::optional<Account>{scAlice});
@@ -1924,8 +1964,8 @@ struct XChain_test : public beast::unit_test::suite,
                 added_amt -= tx_fee;
             }
 
-            // because one attestation was inconsistent, no transfer should have
-            // happened and the claim ids should remain.
+            // because one attestation was inconsistent, no transfer should
+            // have happened and the claim ids should remain.
 
             BEAST_EXPECT(!!scEnv.claimID(jvb, 1));  // claim id remains
             BEAST_EXPECT(!!scEnv.claimID(jvb, 2));  // claim id remains
@@ -1937,10 +1977,10 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(carol.diff() == added_amt);
         }
 
-        // Test that signature weights are correctly handled. Assign signature
-        // weights of 1,2,4,4 and a quorum of 7. Check that the 4,4 signatures
-        // reach a quorum, the 1,2,4, reach a quorum, but the 4,2, 4,1 and 1,2
-        // do not.
+        // Test that signature weights are correctly handled. Assign
+        // signature weights of 1,2,4,4 and a quorum of 7. Check that the
+        // 4,4 signatures reach a quorum, the 1,2,4, reach a quorum, but the
+        // 4,2, 4,1 and 1,2 do not.
 
         // 1,2,4 => should succeed
         for (auto withClaim : {false, true})
@@ -2236,8 +2276,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(transfer.has_not_happened());
         }
 
-        // Add more than the maximum number of allowed attestations (8). This
-        // should fail.
+        // Add more than the maximum number of allowed attestations (8).
+        // This should fail.
         for (auto withClaim : {false})
         {
             XEnv mcEnv(*this);
@@ -2364,14 +2404,15 @@ struct XChain_test : public beast::unit_test::suite,
                     .close();
             }
 
-            // OK, both the CreateAccount and transfer should have happened now.
+            // OK, both the CreateAccount and transfer should have happened
+            // now.
             BEAST_EXPECT(!scEnv.claimID(jvb, 1));    // claim id deleted
             BEAST_EXPECT(!scEnv.caClaimID(jvb, 1));  // ca claim id deleted
             BEAST_EXPECT(
                 scEnv.claimCount(jvb) == 1);  // claim count was incremented
 
-            // all payees (signers) received 2 split_reward, as they attested
-            // for both the account_create and the transfer
+            // all payees (signers) received 2 split_reward, as they
+            // attested for both the account_create and the transfer
             BEAST_EXPECT(transfer.payees_received(
                 multiply(split_reward, STAmount(2), split_reward.issue())));
 
@@ -2384,10 +2425,10 @@ struct XChain_test : public beast::unit_test::suite,
                 attester.diff() == -multiply(tx_fee, STAmount(2), xrpIssue()));
         }
 
-        // Confirm that account create transactions happen in the correct order.
-        // If they reach quorum out of order they should not execute until until
-        // all the previous create transactions have occurred. Re-adding an
-        // attestation should move funds.
+        // Confirm that account create transactions happen in the correct
+        // order. If they reach quorum out of order they should not execute
+        // until until all the previous create transactions have occurred.
+        // Re-adding an attestation should move funds.
         {
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
@@ -2420,8 +2461,8 @@ struct XChain_test : public beast::unit_test::suite,
                 .close();
 
             {
-                // send first batch of account create attest for all 3 account
-                // create
+                // send first batch of account create attest for all 3
+                // account create
                 Balance attester(scEnv, scAttester);
                 Balance door(scEnv, Account::master);
 
@@ -2443,8 +2484,8 @@ struct XChain_test : public beast::unit_test::suite,
             }
 
             {
-                // complete attestations for 2nd account create => should not
-                // complete
+                // complete attestations for 2nd account create => should
+                // not complete
                 Balance attester(scEnv, scAttester);
                 Balance door(scEnv, Account::master);
 
@@ -2459,8 +2500,8 @@ struct XChain_test : public beast::unit_test::suite,
             }
 
             {
-                // complete attestations for 3rd account create => should not
-                // complete
+                // complete attestations for 3rd account create => should
+                // not complete
                 Balance attester(scEnv, scAttester);
                 Balance door(scEnv, Account::master);
 
@@ -2493,8 +2534,8 @@ struct XChain_test : public beast::unit_test::suite,
             }
 
             {
-                // resend attestations for 3rd account create => still should
-                // not complete
+                // resend attestations for 3rd account create => still
+                // should not complete
                 Balance attester(scEnv, scAttester);
                 Balance door(scEnv, Account::master);
 
@@ -2543,27 +2584,6 @@ struct XChain_test : public beast::unit_test::suite,
             }
         }
 
-        // Check that creating an account with less than the minimum create
-        // amount fails.
-        {
-            XEnv mcEnv(*this);
-            auto const amt = XRP(19);
-
-            mcEnv.tx(create_bridge(mcDoor, jvb, XRP(1), XRP(20))).close();
-
-            Balance door(mcEnv, mcDoor);
-            Balance carol(mcEnv, mcCarol);
-
-            mcEnv
-                .tx(sidechain_xchain_account_create(
-                        mcCarol, jvb, scuAlice, XRP(19), reward),
-                    ter(tecXCHAIN_INSUFF_CREATE_AMOUNT))
-                .close();
-
-            BEAST_EXPECT(door.diff() == STAmount(0));
-            BEAST_EXPECT(carol.diff() == -tx_fee);
-        }
-
         // Check that creating an account with less than the minimum reserve
         // fails.
         {
@@ -2610,8 +2630,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(!scEnv.account(scuAlice));
         }
 
-        // Check that sending funds with an account create txn to an existing
-        // account works.
+        // Check that sending funds with an account create txn to an
+        // existing account works.
         {
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
@@ -2657,8 +2677,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(alice.diff() == amt);
         }
 
-        // Check that sending funds to an existing account with deposit auth set
-        // fails for account create transactions.
+        // Check that sending funds to an existing account with deposit auth
+        // set fails for account create transactions.
         {
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
@@ -2708,8 +2728,8 @@ struct XChain_test : public beast::unit_test::suite,
         // If an account is unable to pay the reserve, check that it fails.
         // [greg todo] I don't know what this should test??
 
-        // Create several accounts with a single batch attestation. This should
-        // succeed.
+        // Create several accounts with a single batch attestation. This
+        // should succeed.
         {
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
@@ -2892,8 +2912,8 @@ struct XChain_test : public beast::unit_test::suite,
                 BEAST_EXPECTS(!scEnv.caClaimID(jvb, 3), "claim id 3 deleted");
 
                 // because of the division of the rewards among attesters,
-                // sometimes a couple drops are left over unspent in the door
-                // account (here 2 drops)
+                // sometimes a couple drops are left over unspent in the
+                // door account (here 2 drops)
                 BEAST_EXPECT(
                     multiply(amt_plus_reward, STAmount(3), xrpIssue()) +
                         door.diff() <
@@ -2999,8 +3019,8 @@ struct XChain_test : public beast::unit_test::suite,
                     "processed all 3 account create");
 
                 // because of the division of the rewards among attesters,
-                // sometimes a couple drops are left over unspent in the door
-                // account (here 2 drops)
+                // sometimes a couple drops are left over unspent in the
+                // door account (here 2 drops)
                 BEAST_EXPECT(
                     multiply(amt_plus_reward, STAmount(3), xrpIssue()) +
                         door.diff() <
@@ -3014,8 +3034,8 @@ struct XChain_test : public beast::unit_test::suite,
             }
         }
 
-        // If an attestation already exists for that server and claim id, the
-        // new attestation should replace the old attestation
+        // If an attestation already exists for that server and claim id,
+        // the new attestation should replace the old attestation
         {
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
@@ -3069,8 +3089,8 @@ struct XChain_test : public beast::unit_test::suite,
                 BEAST_EXPECTS(!!scEnv.caClaimID(jvb, 2), "claim id 2 created");
                 BEAST_EXPECTS(!!scEnv.caClaimID(jvb, 3), "claim id 3 created");
 
-                // note: if we send inconsistent attestations in the same batch,
-                // the transaction errors.
+                // note: if we send inconsistent attestations in the same
+                // batch, the transaction errors.
 
                 // from now on we send correct attestations
                 atts.clear();
@@ -3123,8 +3143,8 @@ struct XChain_test : public beast::unit_test::suite,
                     scEnv.claimCount(jvb) == 3, "All 3 accounts created");
 
                 // because of the division of the rewards among attesters,
-                // sometimes a couple drops are left over unspent in the door
-                // account (here 2 drops)
+                // sometimes a couple drops are left over unspent in the
+                // door account (here 2 drops)
                 BEAST_EXPECT(
                     multiply(amt_plus_reward, STAmount(3), xrpIssue()) +
                         door.diff() <
@@ -3144,7 +3164,8 @@ struct XChain_test : public beast::unit_test::suite,
 
         // run two create account processes from the same source account,
         // attempting to create two separate accounts on the sidechain.
-        // Attestations from each signer are sent in one batch. Should succeed.
+        // Attestations from each signer are sent in one batch. Should
+        // succeed.
         {
             using namespace jtx;
 
@@ -3181,8 +3202,8 @@ struct XChain_test : public beast::unit_test::suite,
             {
                 Balance bal_master(scEnv, Account::master);
 
-                // send 4 attestations from 4 signers... account creation should
-                // occur on the last attestation.
+                // send 4 attestations from 4 signers... account creation
+                // should occur on the last attestation.
                 for (size_t i = 0; i < xrp_b.quorum; ++i)
                 {
                     auto& s = signers[i];
@@ -3332,6 +3353,44 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(transfer.has_happened(amt, split_reward));
         }
 
+        // Coverage test: Don't define signers list on door -> should
+        // get tecXCHAIN_NO_SIGNERS_LIST. It is not reachable (when I don't
+        // define a signers list the masterkey flag is set).
+        // -----------------------------------------------------------------
+        if (0)
+        {
+            XEnv mcEnv(*this);
+            XEnv scEnv(*this, true);
+
+            Account door{scCarol};
+            IOU mcIssue = mcAlice["USD"], scIssue = door["USD"];
+            auto jvb{bridge(mcDoor, mcIssue, door, scIssue)};
+
+            mcEnv.tx(create_bridge(mcDoor, jvb)).close();
+
+            scEnv.tx(create_bridge(door, jvb))
+                .close()
+                .tx(xchain_create_claim_id(scAlice, jvb, reward, mcAlice))
+                .close();
+
+            auto dst(std::optional<Account>{scBob});
+            auto const amt = mcIssue(1000);
+            std::uint32_t const claimID = 1;
+            mcEnv.tx(xchain_commit(mcAlice, jvb, claimID, amt, dst)).close();
+
+            BalanceTransfer transfer(
+                scEnv, Account::master, scBob, scAlice, payees, false);
+
+            auto batch = attestation_claim_batch(
+                jvb, mcAlice, amt, payees, true, claimID, dst, signers);
+            scEnv
+                .tx(xchain_add_attestation_batch(scAttester, batch),
+                    ter(tecXCHAIN_NO_SIGNERS_LIST))
+                .close();
+
+            BEAST_EXPECT(transfer.has_not_happened());
+        }
+
         // Claim with just one attestation signed by the Master key
         // => should succeed
         // -----------------------------------------------------------------
@@ -3342,8 +3401,9 @@ struct XChain_test : public beast::unit_test::suite,
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
-            scEnv.tx(create_bridge(Account::master, jvb))
-                .tx(jtx::signers(Account::master, quorum, signers))
+            scEnv
+                .tx(create_bridge(Account::master, jvb))
+                //.tx(jtx::signers(Account::master, quorum, signers))
                 .close()
                 .tx(xchain_create_claim_id(scAlice, jvb, reward, mcAlice))
                 .close();
@@ -3387,8 +3447,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(transfer.has_happened(amt, reward));
         }
 
-        // Claim with just one attestation signed by a regular key associated to
-        // the master account
+        // Claim with just one attestation signed by a regular key
+        // associated to the master account
         // => should succeed
         // -----------------------------------------------------------------
         for (auto withClaim : {false, true})
@@ -3398,8 +3458,9 @@ struct XChain_test : public beast::unit_test::suite,
 
             mcEnv.tx(create_bridge(mcDoor, jvb)).close();
 
-            scEnv.tx(create_bridge(Account::master, jvb))
-                .tx(jtx::signers(Account::master, quorum, signers))
+            scEnv
+                .tx(create_bridge(Account::master, jvb))
+                //.tx(jtx::signers(Account::master, quorum, signers))
                 .tx(jtx::regkey(Account::master, payees[0]))
                 .close()
                 .tx(xchain_create_claim_id(scAlice, jvb, reward, mcAlice))
@@ -3627,8 +3688,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(transfer.has_not_happened());
         }
 
-        // Claim against a claim id with attestations, but not enough to make a
-        // quorum
+        // Claim against a claim id with attestations, but not enough to
+        // make a quorum
         // --------------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
@@ -3726,8 +3787,8 @@ struct XChain_test : public beast::unit_test::suite,
 
         // Claim issue that does not match the expected issue on the bridge
         // (either LockingChainIssue or IssuingChainIssue, depending on the
-        // chain). The claim id should already have enough attestations to reach
-        // a quorum for this amount (for a different issuer).
+        // chain). The claim id should already have enough attestations to
+        // reach a quorum for this amount (for a different issuer).
         // ---------------------------------------------------------------------
         for (auto withClaim : {true})
         {
@@ -3809,8 +3870,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(transfer.has_not_happened());
         }
 
-        // Claim where the claim id owner does not have enough XRP to pay the
-        // reward
+        // Claim where the claim id owner does not have enough XRP to pay
+        // the reward
         // ------------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
@@ -3861,8 +3922,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(transfer.has_not_happened());
         }
 
-        // Claim where the claim id owner has enough XRP to pay the reward, but
-        // it would put his balance below the reserve
+        // Claim where the claim id owner has enough XRP to pay the reward,
+        // but it would put his balance below the reserve
         // --------------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
@@ -3874,7 +3935,8 @@ struct XChain_test : public beast::unit_test::suite,
             scEnv.tx(create_bridge(Account::master, jvb))
                 .tx(jtx::signers(Account::master, quorum, signers))
                 .fund(
-                    res0 + reward, scuAlice)  // just not enough because of fees
+                    res0 + reward,
+                    scuAlice)  // just not enough because of fees
                 .close()
                 .tx(xchain_create_claim_id(scuAlice, jvb, reward, mcAlice),
                     ter(tecINSUFFICIENT_RESERVE))
@@ -3964,7 +4026,8 @@ struct XChain_test : public beast::unit_test::suite,
                     .close();
 
                 // A way would be to remove deposit auth and resubmit the
-                // attestations (even though the witness servers won't do it)
+                // attestations (even though the witness servers won't do
+                // it)
                 scEnv
                     .tx(fset("scBob", 0, asfDepositAuth))  // clear deposit auth
                     .close();
@@ -4031,9 +4094,9 @@ struct XChain_test : public beast::unit_test::suite,
                         ter(tecDST_TAG_NEEDED))
                     .close();
 
-                // A way would be to remove the destination tag requirement and
-                // resubmit the attestations (even though the witness servers
-                // won't do it)
+                // A way would be to remove the destination tag requirement
+                // and resubmit the attestations (even though the witness
+                // servers won't do it)
                 scEnv
                     .tx(fset("scBob", 0, asfRequireDest))  // clear dest tag
                     .close();
@@ -4133,7 +4196,8 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(transfer.has_not_happened());
         }
 
-        // Verify that rewards are paid from the account that owns the claim id
+        // Verify that rewards are paid from the account that owns the claim
+        // id
         // --------------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
@@ -4223,10 +4287,10 @@ struct XChain_test : public beast::unit_test::suite,
                 scAlice_bal.diff() == -(claim_cost - tiny_reward_remainder));
         }
 
-        // If a reward distribution fails for one of the reward accounts (the
-        // reward account doesn't exist or has deposit auth set), then the txn
-        // should still succeed, but that portion should go to the claim id
-        // owner.
+        // If a reward distribution fails for one of the reward accounts
+        // (the reward account doesn't exist or has deposit auth set), then
+        // the txn should still succeed, but that portion should go to the
+        // claim id owner.
         // -------------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
@@ -4303,7 +4367,8 @@ struct XChain_test : public beast::unit_test::suite,
             // balance of last signer should not change (has deposit auth)
             Balance last_signer(scEnv, payees.back());
 
-            // make sure all signers except the last one get the split_reward
+            // make sure all signers except the last one get the
+            // split_reward
             BalanceTransfer transfer(
                 scEnv,
                 Account::master,
@@ -4325,8 +4390,8 @@ struct XChain_test : public beast::unit_test::suite,
             }
 
             // this also checks that only 4 * split_reward was deducted from
-            // scAlice (the payor account), since we passed payees.size() - 1 to
-            // BalanceTransfer
+            // scAlice (the payor account), since we passed payees.size() -
+            // 1 to BalanceTransfer
             BEAST_EXPECT(transfer.has_happened(amt, split_reward));
 
             // and make sure the account with deposit auth received nothing
@@ -4334,8 +4399,9 @@ struct XChain_test : public beast::unit_test::suite,
         }
 
         // Verify that if a batch of attestations brings the signatures over
-        // quorum (say the quorum is 4 and there are only 4  attestations) then
-        // the reward is split among the accounts which provided attestations.
+        // quorum (say the quorum is 4 and there are only 4  attestations)
+        // then the reward is split among the accounts which provided
+        // attestations.
         // ------------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
@@ -4391,9 +4457,9 @@ struct XChain_test : public beast::unit_test::suite,
                     .close();
             }
 
-            // this also checks that only 1/4th of the total reward was paid to
-            // each signer, and that the total reward was deducted from scAlice
-            // (the payor account)
+            // this also checks that only 1/4th of the total reward was paid
+            // to each signer, and that the total reward was deducted from
+            // scAlice (the payor account)
             BEAST_EXPECT(transfer.has_happened(
                 amt, divide(reward, STAmount(quorum), reward.issue())));
 
@@ -4434,6 +4500,7 @@ struct XChain_test : public beast::unit_test::suite,
         using namespace jtx;
 
         testcase("Bridge Create Account");
+        XRPAmount tx_fee = txFee();
 
         // coverage test: transferHelper() - dst == src
         {
@@ -4461,37 +4528,129 @@ struct XChain_test : public beast::unit_test::suite,
             BEAST_EXPECT(door.diff() == -reward);
         }
 
-        // coverage test: getSignersListAndQuorum() returns
-        // tecXCHAIN_NO_SIGNERS_LIST because no signer list was set.
+        // Check that creating an account with less than the minimum create
+        // amount fails.
         {
-            XEnv scEnv(*this, true);
+            XEnv mcEnv(*this);
 
-            auto const amt = XRP(111);
+            mcEnv.tx(create_bridge(mcDoor, jvb, XRP(1), XRP(20))).close();
 
-            scEnv.tx(create_bridge(Account::master, jvb)).close();
+            Balance door(mcEnv, mcDoor);
+            Balance carol(mcEnv, mcCarol);
 
-            scEnv
-                .tx(att_create_acct_batch1(1, amt, scAlice),
-                    ter(tecXCHAIN_NO_SIGNERS_LIST))
+            mcEnv
+                .tx(sidechain_xchain_account_create(
+                        mcCarol, jvb, scuAlice, XRP(19), reward),
+                    ter(tecXCHAIN_INSUFF_CREATE_AMOUNT))
                 .close();
+
+            BEAST_EXPECT(door.diff() == STAmount(0));
+            BEAST_EXPECT(carol.diff() == -tx_fee);
         }
 
-        // coverage test: xchain_account_create with incorrect flag
-        XEnv(*this)
-            .tx(create_bridge(Account::master, jvb))
-            .tx(sidechain_xchain_account_create(
-                    mcAlice, jvb, scuAlice, XRP(100), XRP(20)),
-                txflags(tfFillOrKill),
-                ter(temINVALID_FLAG));
+        // Check that creating an account with invalid flags fails.
+        {
+            XEnv mcEnv(*this);
 
-        // coverage test: xchain_account_create with xchain feature disabled
-        XEnv(*this)
-            .tx(create_bridge(Account::master, jvb))
-            .disableFeature(featureXChainBridge)
-            .close()
-            .tx(sidechain_xchain_account_create(
-                    mcAlice, jvb, scuAlice, XRP(100), XRP(20)),
-                ter(temDISABLED));
+            mcEnv.tx(create_bridge(mcDoor, jvb, XRP(1), XRP(20))).close();
+
+            Balance door(mcEnv, mcDoor);
+
+            mcEnv
+                .tx(sidechain_xchain_account_create(
+                        mcCarol, jvb, scuAlice, XRP(20), reward),
+                    txflags(tfFillOrKill),
+                    ter(temINVALID_FLAG))
+                .close();
+
+            BEAST_EXPECT(door.diff() == STAmount(0));
+        }
+
+        // Check that creating an account with the XChainBridge feature
+        // disabled fails.
+        {
+            XEnv mcEnv(*this);
+
+            mcEnv.tx(create_bridge(mcDoor, jvb, XRP(1), XRP(20))).close();
+
+            Balance door(mcEnv, mcDoor);
+
+            mcEnv.disableFeature(featureXChainBridge)
+                .tx(sidechain_xchain_account_create(
+                        mcCarol, jvb, scuAlice, XRP(20), reward),
+                    ter(temDISABLED))
+                .close();
+
+            BEAST_EXPECT(door.diff() == STAmount(0));
+        }
+
+        // Check that creating an account with a negative amount fails
+        {
+            XEnv mcEnv(*this);
+
+            mcEnv.tx(create_bridge(mcDoor, jvb, XRP(1), XRP(20))).close();
+
+            Balance door(mcEnv, mcDoor);
+
+            mcEnv
+                .tx(sidechain_xchain_account_create(
+                        mcCarol, jvb, scuAlice, XRP(-20), reward),
+                    ter(temBAD_AMOUNT))
+                .close();
+
+            BEAST_EXPECT(door.diff() == STAmount(0));
+        }
+
+        // Check that creating an account with a negative reward fails
+        {
+            XEnv mcEnv(*this);
+
+            mcEnv.tx(create_bridge(mcDoor, jvb, XRP(1), XRP(20))).close();
+
+            Balance door(mcEnv, mcDoor);
+
+            mcEnv
+                .tx(sidechain_xchain_account_create(
+                        mcCarol, jvb, scuAlice, XRP(20), XRP(-1)),
+                    ter(temBAD_AMOUNT))
+                .close();
+
+            BEAST_EXPECT(door.diff() == STAmount(0));
+        }
+
+        // Check that door account can't lock funds onto itself
+        {
+            XEnv mcEnv(*this);
+
+            mcEnv.tx(create_bridge(mcDoor, jvb, XRP(1), XRP(20))).close();
+
+            Balance door(mcEnv, mcDoor);
+
+            mcEnv
+                .tx(sidechain_xchain_account_create(
+                        mcDoor, jvb, scuAlice, XRP(20), XRP(1)),
+                    ter(tecXCHAIN_SELF_COMMIT))
+                .close();
+
+            BEAST_EXPECT(door.diff() == -tx_fee);
+        }
+
+        // Check that reward matches the amount specified in bridge
+        {
+            XEnv mcEnv(*this);
+
+            mcEnv.tx(create_bridge(mcDoor, jvb, XRP(1), XRP(20))).close();
+
+            Balance door(mcEnv, mcDoor);
+
+            mcEnv
+                .tx(sidechain_xchain_account_create(
+                        mcCarol, jvb, scuAlice, XRP(20), XRP(2)),
+                    ter(tecXCHAIN_REWARD_MISMATCH))
+                .close();
+
+            BEAST_EXPECT(door.diff() == STAmount(0));
+        }
     }
 
     void
@@ -4510,8 +4669,8 @@ struct XChain_test : public beast::unit_test::suite,
 
             mcEnv.tx(create_bridge(mcDoor, jvb, XRP(1), XRP(1))).close();
 
-            // We don't allow an account to be deleted if its sequence number
-            // is within 256 of the current ledger.
+            // We don't allow an account to be deleted if its sequence
+            // number is within 256 of the current ledger.
             for (size_t i = 0; i < 256; ++i)
                 mcEnv.close();
 
@@ -4531,8 +4690,8 @@ struct XChain_test : public beast::unit_test::suite,
                 .tx(xchain_create_claim_id(scAlice, jvb, reward, mcAlice))
                 .close();
 
-            // We don't allow an account to be deleted if its sequence number
-            // is within 256 of the current ledger.
+            // We don't allow an account to be deleted if its sequence
+            // number is within 256 of the current ledger.
             for (size_t i = 0; i < 256; ++i)
                 scEnv.close();
 
@@ -4554,6 +4713,7 @@ struct XChain_test : public beast::unit_test::suite,
         testXChainCommit();
         testXChainAddAttestation();
         testXChainClaim();
+        testXChainCreateAccount();
         testXChainDeleteDoor();
     }
 };
@@ -4689,8 +4849,9 @@ private:
         {
             bool callback_called;
 
-            // we have this "do {} while" loop because we want to process all
-            // the account create which can reach quorum at this time stamp.
+            // we have this "do {} while" loop because we want to process
+            // all the account create which can reach quorum at this time
+            // stamp.
             do
             {
                 callback_called = false;
@@ -4807,8 +4968,8 @@ private:
             uint32_t claim_id{0};
             uint32_t create_count{0};  // for account create. First should be 1
             uint32_t claim_count{
-                0};  // for account create. Increments after quorum for current
-                     // create_count (starts at 1) is reached.
+                0};  // for account create. Increments after quorum for
+                     // current create_count (starts at 1) is reached.
 
             uint32_t num_create_attn_sent{0};  // for current claim_count
             std::vector<size_t> signers;
@@ -5395,8 +5556,8 @@ public:
 
         // try a single account create + transfer to validate the simulation
         // engine. Do the transfer 8 time steps after the account create, to
-        // give  time enough for ua[0] to be funded now so it can reserve the
-        // claimID
+        // give  time enough for ua[0] to be funded now so it can reserve
+        // the claimID
         // -----------------------------------------------------------------
         ac(0, st, xrp_b, {a[0], ua[0], XRP(777), xrp_b.reward, true});
         xfer(8, st, xrp_b, {a[0], ua[0], a[2], XRP(3), true});
@@ -5534,8 +5695,8 @@ struct XChainCoverage_test : public beast::unit_test::suite,
         {
             Balance bal_master(scEnv, Account::master);
 
-            // send 4 attestations from 4 signers in one batch. account creation
-            // should occur when processing the batch
+            // send 4 attestations from 4 signers in one batch. account
+            // creation should occur when processing the batch
             std::vector<AttestationBatch::AttestationCreateAccount> attns;
             for (size_t i = 0; i < xrp_b.quorum; ++i)
             {
@@ -5564,8 +5725,8 @@ struct XChainCoverage_test : public beast::unit_test::suite,
             // on receiving the batch, the quorum is reached and the account
             // create is executed in XChainBridge.cpp. It executes
             // XChainAddAttestation::applyCreateAccountAtt, however
-            // finalizeClaimHelper returns an error when trying to delete the
-            // sleCID (because it never was created)
+            // finalizeClaimHelper returns an error when trying to delete
+            // the sleCID (because it never was created)
 
             BEAST_EXPECT(bal_master.diff() == -amt_plus_reward);
         }
