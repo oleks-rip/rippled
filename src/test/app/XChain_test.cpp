@@ -821,7 +821,7 @@ struct XChain_test : public beast::unit_test::suite,
                 mcAlice,
                 bridge(mcAlice, mcAlice["USD"], mcBob, mcBob["USD"]),
                 XRP(2),
-                XRP(10)),
+                std::nullopt),
             ter(tecNO_ENTRY));
 
         // must change something
@@ -2354,7 +2354,7 @@ struct XChain_test : public beast::unit_test::suite,
                 Balance door(mcEnv, mcDoor);
                 Balance carol(mcEnv, mcCarol);
 
-                mcEnv.tx(create_bridge(mcDoor, jvb))
+                mcEnv.tx(create_bridge(mcDoor, jvb, reward, XRP(20)))
                     .close()
                     .tx(sidechain_xchain_account_create(
                         mcCarol, jvb, scuAlice, amt, reward))
@@ -2364,7 +2364,7 @@ struct XChain_test : public beast::unit_test::suite,
                 BEAST_EXPECT(carol.diff() == -(amt + reward + tx_fee));
             }
 
-            scEnv.tx(create_bridge(Account::master, jvb))
+            scEnv.tx(create_bridge(Account::master, jvb, reward, XRP(20)))
                 .tx(jtx::signers(Account::master, quorum, signers))
                 .close()
                 .tx(xchain_create_claim_id(scAlice, jvb, reward, mcAlice))
@@ -2439,7 +2439,7 @@ struct XChain_test : public beast::unit_test::suite,
                 Balance door(mcEnv, mcDoor);
                 Balance carol(mcEnv, mcCarol);
 
-                mcEnv.tx(create_bridge(mcDoor, jvb))
+                mcEnv.tx(create_bridge(mcDoor, jvb, reward, XRP(20)))
                     .close()
                     .tx(sidechain_xchain_account_create(
                         mcAlice, jvb, scuAlice, amt, reward))
@@ -2456,7 +2456,7 @@ struct XChain_test : public beast::unit_test::suite,
                 BEAST_EXPECT(carol.diff() == -(amt + reward + tx_fee));
             }
 
-            scEnv.tx(create_bridge(Account::master, jvb))
+            scEnv.tx(create_bridge(Account::master, jvb, reward, XRP(20)))
                 .tx(jtx::signers(Account::master, quorum, signers))
                 .close();
 
@@ -2593,7 +2593,7 @@ struct XChain_test : public beast::unit_test::suite,
             auto const amt = res0 - XRP(1);
             auto const amt_plus_reward = amt + reward;
 
-            mcEnv.tx(create_bridge(mcDoor, jvb)).close();
+            mcEnv.tx(create_bridge(mcDoor, jvb, reward, XRP(20))).close();
 
             {
                 Balance door(mcEnv, mcDoor);
@@ -2608,7 +2608,7 @@ struct XChain_test : public beast::unit_test::suite,
                 BEAST_EXPECT(carol.diff() == -(amt_plus_reward + tx_fee));
             }
 
-            scEnv.tx(create_bridge(Account::master, jvb))
+            scEnv.tx(create_bridge(Account::master, jvb, reward, XRP(20)))
                 .tx(jtx::signers(Account::master, quorum, signers))
                 .close();
 
@@ -2639,7 +2639,7 @@ struct XChain_test : public beast::unit_test::suite,
             auto const amt = XRP(111);
             auto const amt_plus_reward = amt + reward;
 
-            mcEnv.tx(create_bridge(mcDoor, jvb)).close();
+            mcEnv.tx(create_bridge(mcDoor, jvb, reward, XRP(20))).close();
 
             {
                 Balance door(mcEnv, mcDoor);
@@ -2654,7 +2654,7 @@ struct XChain_test : public beast::unit_test::suite,
                 BEAST_EXPECT(carol.diff() == -(amt_plus_reward + tx_fee));
             }
 
-            scEnv.tx(create_bridge(Account::master, jvb))
+            scEnv.tx(create_bridge(Account::master, jvb, reward, XRP(20)))
                 .tx(jtx::signers(Account::master, quorum, signers))
                 .close();
 
@@ -2686,7 +2686,7 @@ struct XChain_test : public beast::unit_test::suite,
             auto const amt = XRP(1000);
             auto const amt_plus_reward = amt + reward;
 
-            mcEnv.tx(create_bridge(mcDoor, jvb)).close();
+            mcEnv.tx(create_bridge(mcDoor, jvb, reward, XRP(20))).close();
 
             {
                 Balance door(mcEnv, mcDoor);
@@ -2701,7 +2701,7 @@ struct XChain_test : public beast::unit_test::suite,
                 BEAST_EXPECT(carol.diff() == -(amt_plus_reward + tx_fee));
             }
 
-            scEnv.tx(create_bridge(Account::master, jvb))
+            scEnv.tx(create_bridge(Account::master, jvb, reward, XRP(20)))
                 .tx(jtx::signers(Account::master, quorum, signers))
                 .tx(fset("scAlice", asfDepositAuth))  // set deposit auth
                 .close();
@@ -2740,7 +2740,7 @@ struct XChain_test : public beast::unit_test::suite,
                 Balance door(mcEnv, mcDoor);
                 Balance carol(mcEnv, mcCarol);
 
-                mcEnv.tx(create_bridge(mcDoor, jvb))
+                mcEnv.tx(create_bridge(mcDoor, jvb, reward, XRP(20)))
                     .close()
                     .tx(sidechain_xchain_account_create(
                         mcAlice, jvb, scuAlice, amt, reward))
@@ -2760,7 +2760,7 @@ struct XChain_test : public beast::unit_test::suite,
             }
 
             std::uint32_t const red_quorum = 2;
-            scEnv.tx(create_bridge(Account::master, jvb))
+            scEnv.tx(create_bridge(Account::master, jvb, reward, XRP(20)))
                 .tx(jtx::signers(Account::master, red_quorum, signers))
                 .close();
 
@@ -2803,7 +2803,7 @@ struct XChain_test : public beast::unit_test::suite,
                 Balance door(mcEnv, mcDoor);
                 Balance carol(mcEnv, mcCarol);
 
-                mcEnv.tx(create_bridge(mcDoor, jvb))
+                mcEnv.tx(create_bridge(mcDoor, jvb, reward, XRP(20)))
                     .close()
                     .tx(sidechain_xchain_account_create(
                         mcAlice, jvb, scuAlice, amt, reward))
@@ -2823,7 +2823,7 @@ struct XChain_test : public beast::unit_test::suite,
             }
 
             std::uint32_t const red_quorum = 2;
-            scEnv.tx(create_bridge(Account::master, jvb))
+            scEnv.tx(create_bridge(Account::master, jvb, reward, XRP(20)))
                 .tx(jtx::signers(Account::master, red_quorum, signers))
                 .close();
 
@@ -2865,7 +2865,7 @@ struct XChain_test : public beast::unit_test::suite,
                 Balance door(mcEnv, mcDoor);
                 Balance carol(mcEnv, mcCarol);
 
-                mcEnv.tx(create_bridge(mcDoor, jvb))
+                mcEnv.tx(create_bridge(mcDoor, jvb, reward, XRP(20)))
                     .close()
                     .tx(sidechain_xchain_account_create(
                         mcAlice, jvb, scuAlice, amt, reward))
@@ -2885,7 +2885,7 @@ struct XChain_test : public beast::unit_test::suite,
             }
 
             std::uint32_t const red_quorum = 2;
-            scEnv.tx(create_bridge(Account::master, jvb))
+            scEnv.tx(create_bridge(Account::master, jvb, reward, XRP(20)))
                 .tx(jtx::signers(Account::master, red_quorum, signers))
                 .close();
 
@@ -2937,7 +2937,7 @@ struct XChain_test : public beast::unit_test::suite,
                 Balance door(mcEnv, mcDoor);
                 Balance carol(mcEnv, mcCarol);
 
-                mcEnv.tx(create_bridge(mcDoor, jvb))
+                mcEnv.tx(create_bridge(mcDoor, jvb, reward, XRP(20)))
                     .close()
                     .tx(sidechain_xchain_account_create(
                         mcAlice, jvb, scuAlice, amt, reward))
@@ -2957,7 +2957,7 @@ struct XChain_test : public beast::unit_test::suite,
             }
 
             std::uint32_t const red_quorum = 2;
-            scEnv.tx(create_bridge(Account::master, jvb))
+            scEnv.tx(create_bridge(Account::master, jvb, reward, XRP(20)))
                 .tx(jtx::signers(Account::master, red_quorum, signers))
                 .close();
 
@@ -3046,7 +3046,7 @@ struct XChain_test : public beast::unit_test::suite,
                 Balance door(mcEnv, mcDoor);
                 Balance carol(mcEnv, mcCarol);
 
-                mcEnv.tx(create_bridge(mcDoor, jvb))
+                mcEnv.tx(create_bridge(mcDoor, jvb, reward, XRP(20)))
                     .close()
                     .tx(sidechain_xchain_account_create(
                         mcAlice, jvb, scuAlice, amt, reward))
@@ -3066,7 +3066,7 @@ struct XChain_test : public beast::unit_test::suite,
             }
 
             std::uint32_t const red_quorum = 2;
-            scEnv.tx(create_bridge(Account::master, jvb))
+            scEnv.tx(create_bridge(Account::master, jvb, reward, XRP(20)))
                 .tx(jtx::signers(Account::master, red_quorum, signers))
                 .close();
 

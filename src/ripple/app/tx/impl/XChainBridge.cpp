@@ -483,7 +483,9 @@ BridgeCreate::preflight(PreflightContext const& ctx)
     }
 
     if (minAccountCreate &&
-        (!isXRP(*minAccountCreate) || minAccountCreate->signum() <= 0))
+        ((!isXRP(*minAccountCreate) || minAccountCreate->signum() <= 0) ||
+         !isXRP(bridge.lockingChainIssue()) ||
+         !isXRP(bridge.issuingChainIssue())))
     {
         return temXCHAIN_BRIDGE_BAD_MIN_ACCOUNT_CREATE_AMOUNT;
     }
@@ -642,7 +644,9 @@ BridgeModify::preflight(PreflightContext const& ctx)
     }
 
     if (minAccountCreate &&
-        (!isXRP(*minAccountCreate) || minAccountCreate->signum() <= 0))
+        ((!isXRP(*minAccountCreate) || minAccountCreate->signum() <= 0) ||
+         !isXRP(bridge.lockingChainIssue()) ||
+         !isXRP(bridge.issuingChainIssue())))
     {
         return temXCHAIN_BRIDGE_BAD_MIN_ACCOUNT_CREATE_AMOUNT;
     }
