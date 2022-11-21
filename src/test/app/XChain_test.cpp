@@ -344,11 +344,16 @@ struct BridgeDef
     {
         jvb = bridge(doorA, issueA, doorB, issueB);
 
-        mcEnv.tx(bridge_create(doorA, jvb, reward, minAccountCreate))
+        auto const optAccountCreate = [&]() -> std::optional<STAmount> {
+            if (issueA != xrpIssue() || issueB != xrpIssue())
+                return {};
+            return minAccountCreate;
+        }();
+        mcEnv.tx(bridge_create(doorA, jvb, reward, optAccountCreate))
             .tx(jtx::signers(doorA, quorum, signers))
             .close();
 
-        scEnv.tx(bridge_create(doorB, jvb, reward, minAccountCreate))
+        scEnv.tx(bridge_create(doorB, jvb, reward, optAccountCreate))
             .tx(jtx::signers(doorB, quorum, signers))
             .close();
     }
