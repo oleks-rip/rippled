@@ -26,6 +26,7 @@
 #include <ripple/protocol/LedgerFormats.h>
 #include <ripple/protocol/Protocol.h>
 #include <ripple/protocol/PublicKey.h>
+#include <ripple/protocol/STXChainBridge.h>
 #include <ripple/protocol/Serializer.h>
 #include <ripple/protocol/UintTypes.h>
 #include <cstdint>
@@ -264,13 +265,13 @@ Keylet
 nft_sells(uint256 const& id) noexcept;
 
 Keylet
-bridge(STXChainBridge const& sidechain);
+bridge(AccountID const& door);
 
 Keylet
-xChainClaimID(STXChainBridge const& sidechain, std::uint64_t seq);
+xChainClaimID(STXChainBridge const& bridge, std::uint64_t seq);
 
 Keylet
-xChainCreateAccountClaimID(STXChainBridge const& sidechain, std::uint64_t seq);
+xChainCreateAccountClaimID(STXChainBridge const& bridge, std::uint64_t seq);
 
 }  // namespace keylet
 

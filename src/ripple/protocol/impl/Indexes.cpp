@@ -378,16 +378,10 @@ nft_sells(uint256 const& id) noexcept
 }
 
 Keylet
-bridge(STXChainBridge const& bridge)
+bridge(AccountID const& door)
 {
-    return {
-        ltBRIDGE,
-        indexHash(
-            LedgerNameSpace::BRIDGE,
-            bridge.lockingChainDoor(),
-            bridge.lockingChainIssue(),
-            bridge.issuingChainDoor(),
-            bridge.issuingChainIssue())};
+    // There can be at most one brige per door account
+    return {ltBRIDGE, indexHash(LedgerNameSpace::BRIDGE, door)};
 }
 
 Keylet

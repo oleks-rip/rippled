@@ -71,8 +71,7 @@ class LedgerRPC_XChain_test : public beast::unit_test::suite,
         {
             // request the bridge via RPC
             Json::Value jvParams;
-            jvParams[jss::bridge] = jvXRPBridgeRPC;
-            // std::cout << to_string(jvParams) << '\n';
+            jvParams[jss::bridge_account] = mcDoor.human();
             Json::Value const jrr = mcEnv.rpc(
                 "json", "ledger_entry", to_string(jvParams))[jss::result];
 
@@ -100,26 +99,9 @@ class LedgerRPC_XChain_test : public beast::unit_test::suite,
             bridge_index = r[jss::index].asString();
         }
         {
-            // request the bridge via RPC by index
-            Json::Value jvParams;
-            jvParams[jss::bridge] = jvXRPBridgeRPC;
-            jvParams[jss::index] = bridge_index;
-            Json::Value const jrr = mcEnv.rpc(
-                "json", "ledger_entry", to_string(jvParams))[jss::result];
-
-            BEAST_EXPECT(jrr.isMember(jss::node));
-            auto r = jrr[jss::node];
-            // std::cout << to_string(r) << '\n';
-
-            BEAST_EXPECT(r.isMember(jss::Account));
-            BEAST_EXPECT(r[jss::Account] == mcDoor.human());
-        }
-        {
             // swap door accounts and make sure we get an error value
-            Json::Value reverse_bridge_def =
-                bridge(scDoor, xrpIssue(), mcDoor, xrpIssue());
             Json::Value jvParams;
-            jvParams[jss::bridge] = reverse_bridge_def;
+            jvParams[jss::bridge_account] = scDoor.human();
             jvParams[jss::ledger_hash] = ledgerHash;
             Json::Value const jrr = mcEnv.rpc(
                 "json", "ledger_entry", to_string(jvParams))[jss::result];
@@ -136,7 +118,7 @@ class LedgerRPC_XChain_test : public beast::unit_test::suite,
 
             // request the bridge via RPC
             Json::Value jvParams;
-            jvParams[jss::bridge] = jvXRPBridgeRPC;
+            jvParams[jss::bridge_account] = mcDoor.human();
             // std::cout << to_string(jvParams) << '\n';
             Json::Value const jrr = mcEnv.rpc(
                 "json", "ledger_entry", to_string(jvParams))[jss::result];

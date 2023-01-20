@@ -138,7 +138,20 @@ struct SEnv
     std::shared_ptr<SLE const>
     bridge(Json::Value const& jvb)
     {
-        return env_.le(keylet::bridge(STXChainBridge(jvb)));
+        STXChainBridge b(jvb);
+
+        auto tryGet =
+            [&](STXChainBridge::ChainType ct) -> std::shared_ptr<SLE const> {
+            if (auto r = env_.le(keylet::bridge(b.door(ct))))
+            {
+                if ((*r)[sfXChainBridge] == b)
+                    return r;
+            }
+            return nullptr;
+        };
+        if (auto r = tryGet(STXChainBridge::ChainType::locking))
+            return r;
+        return tryGet(STXChainBridge::ChainType::issuing);
     }
 
     std::uint64_t

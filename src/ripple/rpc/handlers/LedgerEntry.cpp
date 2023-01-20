@@ -345,53 +345,26 @@ doLedgerEntry(RPC::JsonContext& context)
             jvResult[jss::error] = "malformedRequest";
         }
     }
-    else if (context.params.isMember(jss::bridge))
+    else if (context.params.isMember(jss::bridge_account))
     {
         expectedType = ltBRIDGE;
-        auto& bridge = context.params[jss::bridge];
-        if (bridge.isString())
+        auto const& jsBridgeAccount = context.params[jss::bridge_account];
+        if (!jsBridgeAccount.isString())
         {
-            // we accept a node id as specifier of a bridge
-            if (!uNodeIndex.parseHex(bridge.asString()))
-            {
-                uNodeIndex = beast::zero;
-                jvResult[jss::error] = "malformedRequest";
-            }
-        }
-        else if (
-            !bridge.isObject() || !bridge.isMember(jss::IssuingChainDoor) ||
-            !bridge.isMember(jss::IssuingChainIssue) ||
-            !bridge.isMember(jss::LockingChainDoor) ||
-            !bridge.isMember(jss::LockingChainIssue))
-        {
+            uNodeIndex = beast::zero;
             jvResult[jss::error] = "malformedRequest";
+        }
+        else if (auto const account =
+                     parseBase58<AccountID>(jsBridgeAccount.asString());
+                 account && account->isNonZero())
+        {
+            Keylet keylet = keylet::bridge(*account);
+            uNodeIndex = keylet.key;
         }
         else
         {
-            // if not specified with a node id, a bridge is specified by
-            // four strings (locking_chain_door, locking_chain_issue,
-            // issuing_chain_door, issuing_chain_issue)
-            auto lcd = parseBase58<AccountID>(
-                bridge[jss::LockingChainDoor].asString());
-            auto icd = parseBase58<AccountID>(
-                bridge[jss::IssuingChainDoor].asString());
-            Issue lci, ici;
-            bool valid = lcd && icd;
-            if (valid)
-            {
-                try
-                {
-                    lci = issueFromJson(bridge[jss::LockingChainIssue]);
-                    ici = issueFromJson(bridge[jss::IssuingChainIssue]);
-                }
-                catch (std::runtime_error const& ex)
-                {
-                    valid = false;
-                }
-            }
-            STXChainBridge bridge_spec(*lcd, lci, *icd, ici);
-            Keylet keylet = keylet::bridge(bridge_spec);
-            uNodeIndex = keylet.key;
+            uNodeIndex = beast::zero;
+            jvResult[jss::error] = "malformedRequest";
         }
     }
     else if (context.params.isMember(jss::xchain_claim_id))
