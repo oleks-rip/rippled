@@ -144,6 +144,9 @@ struct AttestationClaim : AttestationBase
         std::uint64_t claimID,
         std::optional<AccountID> const& dst);
 
+    [[nodiscard]] bool
+    validAmounts() const;
+
 private:
     [[nodiscard]] std::vector<std::uint8_t>
     message(STXChainBridge const& bridge) const override;
@@ -230,6 +233,9 @@ struct AttestationCreateAccount : AttestationBase
         bool wasLockingChainSend,
         std::uint64_t createCount,
         AccountID const& dst);
+
+    [[nodiscard]] bool
+    validAmounts() const;
 
 private:
     [[nodiscard]] std::vector<std::uint8_t>

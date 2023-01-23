@@ -228,6 +228,12 @@ AttestationClaim::message(STXChainBridge const& bridge) const
 }
 
 bool
+AttestationClaim::validAmounts() const
+{
+    return isLegalNet(sendingAmount);
+}
+
+bool
 AttestationClaim::sameEvent(AttestationClaim const& rhs) const
 {
     return AttestationClaim::sameEventHelper(*this, rhs) &&
@@ -360,6 +366,12 @@ AttestationCreateAccount::message(STXChainBridge const& bridge) const
         wasLockingChainSend,
         createCount,
         toCreate);
+}
+
+bool
+AttestationCreateAccount::validAmounts() const
+{
+    return isLegalNet(rewardAmount) && isLegalNet(sendingAmount);
 }
 
 bool
@@ -685,12 +697,12 @@ STXChainAttestationBatch::validAmounts() const
 {
     for (auto const& c : creates_)
     {
-        if (!isLegalNet(c.rewardAmount) || !isLegalNet(c.sendingAmount))
+        if (!c.validAmounts())
             return false;
     }
     for (auto const& c : claims_)
     {
-        if (!isLegalNet(c.sendingAmount))
+        if (!c.validAmounts())
             return false;
     }
 

@@ -159,8 +159,13 @@ invoke_preflight(PreflightContext const& ctx)
             return invoke_preflight_helper<XChainCommit>(ctx);
         case ttXCHAIN_CLAIM:
             return invoke_preflight_helper<XChainClaim>(ctx);
-        case ttXCHAIN_ADD_ATTESTATION:
-            return invoke_preflight_helper<XChainAddAttestation>(ctx);
+        case ttXCHAIN_ADD_ATTESTATION_BATCH:
+            return invoke_preflight_helper<XChainAddAttestationBatch>(ctx);
+        case ttXCHAIN_ADD_CLAIM_ATTESTATION:
+            return invoke_preflight_helper<XChainAddClaimAttestation>(ctx);
+        case ttXCHAIN_ADD_ACCOUNT_CREATE_ATTESTATION:
+            return invoke_preflight_helper<XChainAddAccountCreateAttestation>(
+                ctx);
         case ttXCHAIN_ACCOUNT_CREATE_COMMIT:
             return invoke_preflight_helper<XChainCreateAccountCommit>(ctx);
         default:
@@ -274,8 +279,12 @@ invoke_preclaim(PreclaimContext const& ctx)
             return invoke_preclaim<XChainCommit>(ctx);
         case ttXCHAIN_CLAIM:
             return invoke_preclaim<XChainClaim>(ctx);
-        case ttXCHAIN_ADD_ATTESTATION:
-            return invoke_preclaim<XChainAddAttestation>(ctx);
+        case ttXCHAIN_ADD_ATTESTATION_BATCH:
+            return invoke_preclaim<XChainAddAttestationBatch>(ctx);
+        case ttXCHAIN_ADD_CLAIM_ATTESTATION:
+            return invoke_preclaim<XChainAddClaimAttestation>(ctx);
+        case ttXCHAIN_ADD_ACCOUNT_CREATE_ATTESTATION:
+            return invoke_preclaim<XChainAddAccountCreateAttestation>(ctx);
         case ttXCHAIN_ACCOUNT_CREATE_COMMIT:
             return invoke_preclaim<XChainCreateAccountCommit>(ctx);
         default:
@@ -351,8 +360,13 @@ invoke_calculateBaseFee(ReadView const& view, STTx const& tx)
             return XChainCommit::calculateBaseFee(view, tx);
         case ttXCHAIN_CLAIM:
             return XChainClaim::calculateBaseFee(view, tx);
-        case ttXCHAIN_ADD_ATTESTATION:
-            return XChainAddAttestation::calculateBaseFee(view, tx);
+        case ttXCHAIN_ADD_ATTESTATION_BATCH:
+            return XChainAddAttestationBatch::calculateBaseFee(view, tx);
+        case ttXCHAIN_ADD_CLAIM_ATTESTATION:
+            return XChainAddClaimAttestation::calculateBaseFee(view, tx);
+        case ttXCHAIN_ADD_ACCOUNT_CREATE_ATTESTATION:
+            return XChainAddAccountCreateAttestation::calculateBaseFee(
+                view, tx);
         case ttXCHAIN_ACCOUNT_CREATE_COMMIT:
             return XChainCreateAccountCommit::calculateBaseFee(view, tx);
         default:
@@ -527,8 +541,16 @@ invoke_apply(ApplyContext& ctx)
             XChainClaim p(ctx);
             return p();
         }
-        case ttXCHAIN_ADD_ATTESTATION: {
-            XChainAddAttestation p(ctx);
+        case ttXCHAIN_ADD_ATTESTATION_BATCH: {
+            XChainAddAttestationBatch p(ctx);
+            return p();
+        }
+        case ttXCHAIN_ADD_CLAIM_ATTESTATION: {
+            XChainAddClaimAttestation p(ctx);
+            return p();
+        }
+        case ttXCHAIN_ADD_ACCOUNT_CREATE_ATTESTATION: {
+            XChainAddAccountCreateAttestation p(ctx);
             return p();
         }
         case ttXCHAIN_ACCOUNT_CREATE_COMMIT: {

@@ -41,89 +41,91 @@ namespace jss {
    error: Common properties of RPC error responses.
 */
 
-JSS(AL_size);                     // out: GetCounts
-JSS(AL_hit_rate);                 // out: GetCounts
-JSS(Account);                     // in: TransactionSign; field.
-JSS(AccountDelete);               // transaction type.
-JSS(AccountRoot);                 // ledger type.
-JSS(AccountSet);                  // transaction type.
-JSS(Amendments);                  // ledger type.
-JSS(Amount);                      // in: TransactionSign; field.
-JSS(Check);                       // ledger type.
-JSS(CheckCancel);                 // transaction type.
-JSS(CheckCash);                   // transaction type.
-JSS(CheckCreate);                 // transaction type.
-JSS(ClearFlag);                   // field.
-JSS(XChainClaimID);               // ledger type.
-JSS(XChainCreateAccountClaimID);  // ledger type.
-JSS(DeliverMin);                  // in: TransactionSign
-JSS(DepositPreauth);              // transaction and ledger type.
-JSS(Destination);                 // in: TransactionSign; field.
-JSS(DirectoryNode);               // ledger type.
-JSS(EnableAmendment);             // transaction type.
-JSS(Escrow);                      // ledger type.
-JSS(EscrowCancel);                // transaction type.
-JSS(EscrowCreate);                // transaction type.
-JSS(EscrowFinish);                // transaction type.
-JSS(Fee);                         // in/out: TransactionSign; field.
-JSS(FeeSettings);                 // ledger type.
-JSS(Flags);                       // in/out: TransactionSign; field.
-JSS(incomplete_shards);           // out: OverlayImpl, PeerImp
-JSS(Invalid);                     //
-JSS(IssuingChainDoor);            // field.
-JSS(IssuingChainIssue);           // field.
-JSS(LastLedgerSequence);          // in: TransactionSign; field
-JSS(LedgerHashes);                // ledger type.
-JSS(LimitAmount);                 // field.
-JSS(LockingChainDoor);            // field.
-JSS(LockingChainIssue);           // field.
-JSS(NFTokenBurn);                 // transaction type.
-JSS(NFTokenMint);                 // transaction type.
-JSS(NFTokenOffer);                // ledger type.
-JSS(NFTokenAcceptOffer);          // transaction type.
-JSS(NFTokenCancelOffer);          // transaction type.
-JSS(NFTokenCreateOffer);          // transaction type.
-JSS(NFTokenPage);                 // ledger type.
-JSS(Offer);                       // ledger type.
-JSS(OfferCancel);                 // transaction type.
-JSS(OfferCreate);                 // transaction type.
-JSS(OfferSequence);               // field.
-JSS(Paths);                       // in/out: TransactionSign
-JSS(PayChannel);                  // ledger type.
-JSS(Payment);                     // transaction type.
-JSS(PaymentChannelClaim);         // transaction type.
-JSS(PaymentChannelCreate);        // transaction type.
-JSS(PaymentChannelFund);          // transaction type.
-JSS(RippleState);                 // ledger type.
-JSS(SLE_hit_rate);                // out: GetCounts.
-JSS(SetFee);                      // transaction type.
-JSS(UNLModify);                   // transaction type.
-JSS(SettleDelay);                 // in: TransactionSign
-JSS(SendMax);                     // in: TransactionSign
-JSS(Sequence);                    // in/out: TransactionSign; field.
-JSS(SetFlag);                     // field.
-JSS(SetRegularKey);               // transaction type.
-JSS(Bridge);                      // ledger type.
-JSS(XChainBridge);                // field.
-JSS(XChainCreateBridge);          // transaction type.
-JSS(XChainModifyBridge);          // transaction type.
-JSS(XChainCreateClaimID);         // transaction type.
-JSS(XChainCommit);                // transaction type.
-JSS(XChainClaim);                 // transaction type.
-JSS(XChainAddAttestation);        // transaction type.
-JSS(XChainAccountCreateCommit);   // transaction type.
-JSS(SignerList);                  // ledger type.
-JSS(SignerListSet);               // transaction type.
-JSS(SigningPubKey);               // field.
-JSS(TakerGets);                   // field.
-JSS(TakerPays);                   // field.
-JSS(Ticket);                      // ledger type.
-JSS(TicketCreate);                // transaction type.
-JSS(TxnSignature);                // field.
-JSS(TransactionType);             // in: TransactionSign.
-JSS(TransferRate);                // in: TransferRate.
-JSS(TrustSet);                    // transaction type.
-JSS(aborted);                     // out: InboundLedger
+JSS(AL_size);                            // out: GetCounts
+JSS(AL_hit_rate);                        // out: GetCounts
+JSS(Account);                            // in: TransactionSign; field.
+JSS(AccountDelete);                      // transaction type.
+JSS(AccountRoot);                        // ledger type.
+JSS(AccountSet);                         // transaction type.
+JSS(Amendments);                         // ledger type.
+JSS(Amount);                             // in: TransactionSign; field.
+JSS(Check);                              // ledger type.
+JSS(CheckCancel);                        // transaction type.
+JSS(CheckCash);                          // transaction type.
+JSS(CheckCreate);                        // transaction type.
+JSS(ClearFlag);                          // field.
+JSS(XChainClaimID);                      // ledger type.
+JSS(XChainCreateAccountClaimID);         // ledger type.
+JSS(DeliverMin);                         // in: TransactionSign
+JSS(DepositPreauth);                     // transaction and ledger type.
+JSS(Destination);                        // in: TransactionSign; field.
+JSS(DirectoryNode);                      // ledger type.
+JSS(EnableAmendment);                    // transaction type.
+JSS(Escrow);                             // ledger type.
+JSS(EscrowCancel);                       // transaction type.
+JSS(EscrowCreate);                       // transaction type.
+JSS(EscrowFinish);                       // transaction type.
+JSS(Fee);                                // in/out: TransactionSign; field.
+JSS(FeeSettings);                        // ledger type.
+JSS(Flags);                              // in/out: TransactionSign; field.
+JSS(incomplete_shards);                  // out: OverlayImpl, PeerImp
+JSS(Invalid);                            //
+JSS(IssuingChainDoor);                   // field.
+JSS(IssuingChainIssue);                  // field.
+JSS(LastLedgerSequence);                 // in: TransactionSign; field
+JSS(LedgerHashes);                       // ledger type.
+JSS(LimitAmount);                        // field.
+JSS(LockingChainDoor);                   // field.
+JSS(LockingChainIssue);                  // field.
+JSS(NFTokenBurn);                        // transaction type.
+JSS(NFTokenMint);                        // transaction type.
+JSS(NFTokenOffer);                       // ledger type.
+JSS(NFTokenAcceptOffer);                 // transaction type.
+JSS(NFTokenCancelOffer);                 // transaction type.
+JSS(NFTokenCreateOffer);                 // transaction type.
+JSS(NFTokenPage);                        // ledger type.
+JSS(Offer);                              // ledger type.
+JSS(OfferCancel);                        // transaction type.
+JSS(OfferCreate);                        // transaction type.
+JSS(OfferSequence);                      // field.
+JSS(Paths);                              // in/out: TransactionSign
+JSS(PayChannel);                         // ledger type.
+JSS(Payment);                            // transaction type.
+JSS(PaymentChannelClaim);                // transaction type.
+JSS(PaymentChannelCreate);               // transaction type.
+JSS(PaymentChannelFund);                 // transaction type.
+JSS(RippleState);                        // ledger type.
+JSS(SLE_hit_rate);                       // out: GetCounts.
+JSS(SetFee);                             // transaction type.
+JSS(UNLModify);                          // transaction type.
+JSS(SettleDelay);                        // in: TransactionSign
+JSS(SendMax);                            // in: TransactionSign
+JSS(Sequence);                           // in/out: TransactionSign; field.
+JSS(SetFlag);                            // field.
+JSS(SetRegularKey);                      // transaction type.
+JSS(Bridge);                             // ledger type.
+JSS(XChainBridge);                       // field.
+JSS(XChainCreateBridge);                 // transaction type.
+JSS(XChainModifyBridge);                 // transaction type.
+JSS(XChainCreateClaimID);                // transaction type.
+JSS(XChainCommit);                       // transaction type.
+JSS(XChainClaim);                        // transaction type.
+JSS(XChainAddAttestationBatch);          // transaction type.
+JSS(XChainAddClaimAttestation);          // transaction type.
+JSS(XChainAddAccountCreateAttestation);  // transaction type.
+JSS(XChainAccountCreateCommit);          // transaction type.
+JSS(SignerList);                         // ledger type.
+JSS(SignerListSet);                      // transaction type.
+JSS(SigningPubKey);                      // field.
+JSS(TakerGets);                          // field.
+JSS(TakerPays);                          // field.
+JSS(Ticket);                             // ledger type.
+JSS(TicketCreate);                       // transaction type.
+JSS(TxnSignature);                       // field.
+JSS(TransactionType);                    // in: TransactionSign.
+JSS(TransferRate);                       // in: TransferRate.
+JSS(TrustSet);                           // transaction type.
+JSS(aborted);                            // out: InboundLedger
 JSS(accepted);               // out: LedgerToJson, OwnerInfo, SubmitTransaction
 JSS(account);                // in/out: many
 JSS(accountState);           // out: LedgerToJson

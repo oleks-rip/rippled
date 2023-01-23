@@ -166,14 +166,14 @@ public:
 // quorum is reached, the new signature set is used and some of the currently
 // collected signatures may be removed. Also note the reward is only sent to
 // accounts that have keys on the current list.
-class XChainAddAttestation : public Transactor
+class XChainAddAttestationBatch : public Transactor
 {
 public:
     // "Normal" isn't right - as rewards are paid, but we don't know if the
     // account submitting this transaction will pay some of the rewards or not
     static constexpr ConsequencesFactoryType ConsequencesFactory{Normal};
 
-    explicit XChainAddAttestation(ApplyContext& ctx) : Transactor(ctx)
+    explicit XChainAddAttestationBatch(ApplyContext& ctx) : Transactor(ctx)
     {
     }
 
@@ -185,32 +185,49 @@ public:
 
     TER
     doApply() override;
+};
 
-private:
-    // Apply the attestations for a claim id
-    // signersList is a map from a signer's account id to its weight
-    TER
-    applyClaims(
-        STXChainAttestationBatch::TClaims::const_iterator attBegin,
-        STXChainAttestationBatch::TClaims::const_iterator attEnd,
-        STXChainBridge const& bridgeSpec,
-        STXChainBridge::ChainType const srcChain,
-        std::unordered_map<AccountID, std::uint32_t> const& signersList,
-        std::uint32_t quorum);
+class XChainAddClaimAttestation : public Transactor
+{
+public:
+    // "Normal" isn't right - as rewards are paid, but we don't know if the
+    // account submitting this transaction will pay some of the rewards or not
+    static constexpr ConsequencesFactoryType ConsequencesFactory{Normal};
 
-    // Apply an attestation for an account create
-    // signersList is a map from a signer's account id to its weight
+    explicit XChainAddClaimAttestation(ApplyContext& ctx) : Transactor(ctx)
+    {
+    }
+
+    static NotTEC
+    preflight(PreflightContext const& ctx);
+
+    static TER
+    preclaim(PreclaimContext const& ctx);
+
     TER
-    applyCreateAccountAtt(
-        STXChainAttestationBatch::TCreates::const_iterator attBegin,
-        STXChainAttestationBatch::TCreates::const_iterator attEnd,
-        AccountID const& doorAccount,
-        Keylet const& doorK,
-        STXChainBridge const& bridgeSpec,
-        Keylet const& bridgeK,
-        STXChainBridge::ChainType const srcChain,
-        std::unordered_map<AccountID, std::uint32_t> const& signersList,
-        std::uint32_t quorum);
+    doApply() override;
+};
+
+class XChainAddAccountCreateAttestation : public Transactor
+{
+public:
+    // "Normal" isn't right - as rewards are paid, but we don't know if the
+    // account submitting this transaction will pay some of the rewards or not
+    static constexpr ConsequencesFactoryType ConsequencesFactory{Normal};
+
+    explicit XChainAddAccountCreateAttestation(ApplyContext& ctx)
+        : Transactor(ctx)
+    {
+    }
+
+    static NotTEC
+    preflight(PreflightContext const& ctx);
+
+    static TER
+    preclaim(PreclaimContext const& ctx);
+
+    TER
+    doApply() override;
 };
 
 //------------------------------------------------------------------------------

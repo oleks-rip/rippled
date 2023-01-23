@@ -480,6 +480,409 @@ readBridge(ReadView const& v, STXChainBridge const& bridgeSpec)
         bridgeSpec);
 }
 
+// Precondition: all the claims in the range are consistent. They must sign for
+// the same event (amount, sending account, claim id, etc).
+template <class TIter>
+TER
+applyClaimAttestations(
+    ApplyView& view,
+    RawView& rawView,
+    TIter attBegin,
+    TIter attEnd,
+    STXChainBridge const& bridgeSpec,
+    STXChainBridge::ChainType const srcChain,
+    std::unordered_map<AccountID, std::uint32_t> const& signersList,
+    std::uint32_t quorum,
+    beast::Journal j)
+{
+    if (attBegin == attEnd)
+        return tesSUCCESS;
+
+    PaymentSandbox psb(&view);
+
+    auto const sleCID =
+        psb.peek(keylet::xChainClaimID(bridgeSpec, attBegin->claimID));
+    if (!sleCID)
+        return tecXCHAIN_NO_CLAIM_ID;
+    AccountID const cidOwner = (*sleCID)[sfAccount];
+
+    // Add claims that are part of the signer's list to the "claims" vector
+    std::vector<AttestationBatch::AttestationClaim> atts;
+    atts.reserve(std::distance(attBegin, attEnd));
+    for (auto att = attBegin; att != attEnd; ++att)
+    {
+        if (!signersList.count(calcAccountID(att->publicKey)))
+            continue;
+        atts.push_back(*att);
+    }
+
+    if (atts.empty())
+    {
+        return tecXCHAIN_PROOF_UNKNOWN_KEY;
+    }
+
+    AccountID const otherChainSource = (*sleCID)[sfOtherChainSource];
+    if (attBegin->sendingAccount != otherChainSource)
+    {
+        return tecXCHAIN_SENDING_ACCOUNT_MISMATCH;
+    }
+
+    STXChainBridge::ChainType const dstChain =
+        STXChainBridge::otherChain(srcChain);
+
+    STXChainBridge::ChainType const attDstChain =
+        STXChainBridge::dstChain(attBegin->wasLockingChainSend);
+
+    if (attDstChain != dstChain)
+    {
+        return tecXCHAIN_WRONG_CHAIN;
+    }
+
+    XChainClaimAttestations curAtts{
+        sleCID->getFieldArray(sfXChainClaimAttestations)};
+
+    auto const rewardAccounts = curAtts.onNewAttestations(
+        &atts[0], &atts[0] + atts.size(), quorum, signersList);
+
+    // update the claim id
+    sleCID->setFieldArray(sfXChainClaimAttestations, curAtts.toSTArray());
+    psb.update(sleCID);
+
+    if (rewardAccounts && attBegin->dst)
+    {
+        auto const& rewardPoolSrc = (*sleCID)[sfAccount];
+        auto const r = finalizeClaimHelper(
+            psb,
+            bridgeSpec,
+            *attBegin->dst,
+            /*dstTag*/ std::nullopt,
+            cidOwner,
+            attBegin->sendingAmount,
+            rewardPoolSrc,
+            (*sleCID)[sfSignatureReward],
+            *rewardAccounts,
+            srcChain,
+            sleCID,
+            OnTransferFail::keepClaim,
+            j);
+        if (!isTesSuccess(r))
+            return r;
+    }
+
+    psb.apply(rawView);
+
+    return tesSUCCESS;
+}
+
+template <class TIter>
+TER
+applyCreateAccountAttestations(
+    ApplyView& view,
+    RawView& rawView,
+    TIter attBegin,
+    TIter attEnd,
+    AccountID const& doorAccount,
+    Keylet const& doorK,
+    STXChainBridge const& bridgeSpec,
+    Keylet const& bridgeK,
+    STXChainBridge::ChainType const srcChain,
+    std::unordered_map<AccountID, std::uint32_t> const& signersList,
+    std::uint32_t quorum,
+    beast::Journal j)
+{
+    if (attBegin == attEnd)
+        return tesSUCCESS;
+
+    PaymentSandbox psb(&view);
+
+    auto const sleDoor = psb.peek(doorK);
+    if (!sleDoor)
+        return tecINTERNAL;
+
+    auto const sleB = psb.peek(bridgeK);
+    if (!sleB)
+        return tecINTERNAL;
+
+    std::int64_t const claimCount = (*sleB)[sfXChainAccountClaimCount];
+
+    if (attBegin->createCount <= claimCount)
+    {
+        return tecXCHAIN_ACCOUNT_CREATE_PAST;
+    }
+    if (attBegin->createCount >= claimCount + 128)
+    {
+        // Limit the number of claims on the account
+        return tecXCHAIN_ACCOUNT_CREATE_TOO_MANY;
+    }
+
+    STXChainBridge::ChainType const dstChain =
+        STXChainBridge::otherChain(srcChain);
+
+    STXChainBridge::ChainType const attDstChain =
+        STXChainBridge::dstChain(attBegin->wasLockingChainSend);
+
+    if (attDstChain != dstChain)
+    {
+        return tecXCHAIN_WRONG_CHAIN;
+    }
+
+    auto const claimKeylet =
+        keylet::xChainCreateAccountClaimID(bridgeSpec, attBegin->createCount);
+
+    // sleCID may be null. If it's null it isn't created until the end of this
+    // function (if needed)
+    auto const sleCID = psb.peek(claimKeylet);
+    bool createCID = false;
+    if (!sleCID)
+    {
+        createCID = true;
+
+        // Check reserve
+        auto const balance = (*sleDoor)[sfBalance];
+        auto const reserve =
+            psb.fees().accountReserve((*sleDoor)[sfOwnerCount] + 1);
+
+        if (balance < reserve)
+            return tecINSUFFICIENT_RESERVE;
+    }
+
+    std::vector<AttestationBatch::AttestationCreateAccount> atts;
+    atts.reserve(std::distance(attBegin, attEnd));
+    for (auto att = attBegin; att != attEnd; ++att)
+    {
+        if (!signersList.count(calcAccountID(att->publicKey)))
+            continue;
+        atts.push_back(*att);
+    }
+    if (atts.empty())
+    {
+        return tecXCHAIN_PROOF_UNKNOWN_KEY;
+    }
+
+    XChainCreateAccountAttestations curAtts = [&] {
+        if (sleCID)
+            return XChainCreateAccountAttestations{
+                sleCID->getFieldArray(sfXChainCreateAccountAttestations)};
+        return XChainCreateAccountAttestations{};
+    }();
+
+    auto const rewardAccounts = curAtts.onNewAttestations(
+        &atts[0], &atts[0] + atts.size(), quorum, signersList);
+
+    if (!createCID)
+    {
+        // Modify the object before it's potentially deleted, so the meta data
+        // will include the new attestations
+        if (!sleCID)
+            return tecINTERNAL;  // LCOV_EXCL_LINE
+        sleCID->setFieldArray(
+            sfXChainCreateAccountAttestations, curAtts.toSTArray());
+        psb.update(sleCID);
+    }
+
+    // Account create transactions must happen in order
+    if (rewardAccounts && claimCount + 1 == attBegin->createCount)
+    {
+        auto const r = finalizeClaimHelper(
+            psb,
+            bridgeSpec,
+            attBegin->toCreate,
+            /*dstTag*/ std::nullopt,
+            doorAccount,
+            attBegin->sendingAmount,
+            /*rewardPoolSrc*/ doorAccount,
+            attBegin->rewardAmount,
+            *rewardAccounts,
+            srcChain,
+            sleCID,
+            OnTransferFail::removeClaim,
+            j);
+        if (!isTesSuccess(r))
+        {
+            if (r == tecINTERNAL || r == tecINSUFFICIENT_FUNDS ||
+                isTefFailure(r))
+                return r;
+        }
+        // Move past this claim id even if it fails, so it doesn't block
+        // subsequent claim ids
+        (*sleB)[sfXChainAccountClaimCount] = attBegin->createCount;
+        psb.update(sleB);
+    }
+    else if (createCID)
+    {
+        if (sleCID)
+            return tecINTERNAL;  // LCOV_EXCL_LINE
+
+        auto const sleCID = std::make_shared<SLE>(claimKeylet);
+        (*sleCID)[sfAccount] = doorAccount;
+        (*sleCID)[sfXChainBridge] = bridgeSpec;
+        (*sleCID)[sfXChainAccountCreateCount] = attBegin->createCount;
+        sleCID->setFieldArray(
+            sfXChainCreateAccountAttestations, curAtts.toSTArray());
+
+        // Add to owner directory of the door account
+        auto const page = psb.dirInsert(
+            keylet::ownerDir(doorAccount),
+            claimKeylet,
+            describeOwnerDir(doorAccount));
+        if (!page)
+            return tecDIR_FULL;
+        (*sleCID)[sfOwnerNode] = *page;
+
+        // Reserve was already checked
+        adjustOwnerCount(psb, sleDoor, 1, j);
+        psb.insert(sleCID);
+        psb.update(sleDoor);
+    }
+
+    psb.apply(rawView);
+
+    return tesSUCCESS;
+}
+
+template <class TAttestation>
+std::optional<TAttestation>
+toClaim(STTx const& tx)
+{
+    static_assert(
+        std::is_same_v<TAttestation, AttestationBatch::AttestationClaim> ||
+        std::is_same_v<
+            TAttestation,
+            AttestationBatch::AttestationCreateAccount>);
+
+    try
+    {
+        STObject o{tx};
+        o.setAccountID(sfAccount, o[sfOtherChainSource]);
+        return TAttestation(o);
+    }
+    catch (...)
+    {
+    }
+    return std::nullopt;
+}
+
+template <class TAttestation>
+NotTEC
+attestationPreflight(PreflightContext const& ctx)
+{
+    if (!ctx.rules.enabled(featureXChainBridge))
+        return temDISABLED;
+
+    if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
+        return ret;
+
+    if (ctx.tx.getFlags() & tfUniversalMask)
+        return temINVALID_FLAG;
+
+    auto const att = toClaim<TAttestation>(ctx.tx);
+    if (!att)
+        return temMALFORMED;
+
+    STXChainBridge bridgeSpec = ctx.tx[sfXChainBridge];
+    if (!att->verify(bridgeSpec))
+        return temBAD_XCHAIN_PROOF;
+    if (!att->validAmounts())
+        return temBAD_XCHAIN_PROOF;
+
+    if (att->sendingAmount.signum() <= 0)
+        return temBAD_XCHAIN_PROOF;
+    auto const expectedIssue =
+        bridgeSpec.issue(STXChainBridge::srcChain(att->wasLockingChainSend));
+    if (att->sendingAmount.issue() != expectedIssue)
+        return temBAD_XCHAIN_PROOF;
+
+    return preflight2(ctx);
+}
+
+template <class TAttestation>
+TER
+attestationDoApply(ApplyContext& ctx)
+{
+    auto const att = toClaim<TAttestation>(ctx.tx);
+    if (!att)
+        // Should already be checked in preflight
+        return tecINTERNAL;
+
+    STXChainBridge bridgeSpec = ctx.tx[sfXChainBridge];
+
+    // Note: sle's lifetimes should not overlap calls to applyCreateAccount
+    // and applyClaims because those functions create a sandbox `sleB` is reset
+    // before those calls and should not be used after those calls are made.
+    // (it is not `const` because it is reset)
+    auto sleB = readBridge(ctx.view(), bridgeSpec);
+    if (!sleB)
+    {
+        return tecNO_ENTRY;
+    }
+    Keylet const bridgeK{ltBRIDGE, sleB->key()};
+    AccountID const thisDoor = (*sleB)[sfAccount];
+
+    STXChainBridge::ChainType dstChain = STXChainBridge::ChainType::locking;
+    {
+        if (thisDoor == bridgeSpec.lockingChainDoor())
+            dstChain = STXChainBridge::ChainType::locking;
+        else if (thisDoor == bridgeSpec.issuingChainDoor())
+            dstChain = STXChainBridge::ChainType::issuing;
+        else
+            return tecINTERNAL;
+    }
+    STXChainBridge::ChainType const srcChain =
+        STXChainBridge::otherChain(dstChain);
+
+    // signersList is a map from account id to weights
+    auto const [signersList, quorum, slTer] =
+        getSignersListAndQuorum(ctx.view(), *sleB, ctx.journal);
+    // It is difficult to reduce the scope of sleB. However, its scope should be
+    // considered to end here. It's important that sles from one view are not
+    // used after a child view is created from the view it is taken from (as
+    // applyCreateAccount and applyClaims do).
+    sleB.reset();
+
+    if (!isTesSuccess(slTer))
+        return slTer;
+
+    static_assert(
+        std::is_same_v<TAttestation, AttestationBatch::AttestationClaim> ||
+        std::is_same_v<
+            TAttestation,
+            AttestationBatch::AttestationCreateAccount>);
+
+    if constexpr (std::is_same_v<
+                      TAttestation,
+                      AttestationBatch::AttestationClaim>)
+    {
+        return applyClaimAttestations(
+            ctx.view(),
+            ctx.rawView(),
+            &*att,
+            &*att + 1,
+            bridgeSpec,
+            srcChain,
+            signersList,
+            quorum,
+            ctx.journal);
+    }
+    else if constexpr (std::is_same_v<
+                           TAttestation,
+                           AttestationBatch::AttestationCreateAccount>)
+    {
+        return applyCreateAccountAttestations(
+            ctx.view(),
+            ctx.rawView(),
+            &*att,
+            &*att + 1,
+            thisDoor,
+            keylet::account(thisDoor),
+            bridgeSpec,
+            bridgeK,
+            srcChain,
+            signersList,
+            quorum,
+            ctx.journal);
+    }
+}
+
 }  // namespace
 //------------------------------------------------------------------------------
 
@@ -1166,7 +1569,7 @@ XChainCreateClaimID::doApply()
 //------------------------------------------------------------------------------
 
 NotTEC
-XChainAddAttestation::preflight(PreflightContext const& ctx)
+XChainAddAttestationBatch::preflight(PreflightContext const& ctx)
 {
     if (!ctx.rules.enabled(featureXChainBridge))
         return temDISABLED;
@@ -1219,265 +1622,13 @@ XChainAddAttestation::preflight(PreflightContext const& ctx)
 }
 
 TER
-XChainAddAttestation::preclaim(PreclaimContext const& ctx)
+XChainAddAttestationBatch::preclaim(PreclaimContext const& ctx)
 {
     return tesSUCCESS;
 }
 
-// Precondition: all the claims in the range are consistent. They must sign for
-// the same event (amount, sending account, claim id, etc).
 TER
-XChainAddAttestation::applyClaims(
-    STXChainAttestationBatch::TClaims::const_iterator attBegin,
-    STXChainAttestationBatch::TClaims::const_iterator attEnd,
-    STXChainBridge const& bridgeSpec,
-    STXChainBridge::ChainType const srcChain,
-    std::unordered_map<AccountID, std::uint32_t> const& signersList,
-    std::uint32_t quorum)
-{
-    if (attBegin == attEnd)
-        return tesSUCCESS;
-
-    PaymentSandbox psb(&ctx_.view());
-
-    auto const sleCID =
-        psb.peek(keylet::xChainClaimID(bridgeSpec, attBegin->claimID));
-    if (!sleCID)
-        return tecXCHAIN_NO_CLAIM_ID;
-    AccountID const cidOwner = (*sleCID)[sfAccount];
-
-    // Add claims that are part of the signer's list to the "claims" vector
-    std::vector<AttestationBatch::AttestationClaim> atts;
-    atts.reserve(std::distance(attBegin, attEnd));
-    for (auto att = attBegin; att != attEnd; ++att)
-    {
-        if (!signersList.count(calcAccountID(att->publicKey)))
-            continue;
-        atts.push_back(*att);
-    }
-
-    if (atts.empty())
-    {
-        return tecXCHAIN_PROOF_UNKNOWN_KEY;
-    }
-
-    AccountID const otherChainSource = (*sleCID)[sfOtherChainSource];
-    if (attBegin->sendingAccount != otherChainSource)
-    {
-        return tecXCHAIN_SENDING_ACCOUNT_MISMATCH;
-    }
-
-    STXChainBridge::ChainType const dstChain =
-        STXChainBridge::otherChain(srcChain);
-
-    STXChainBridge::ChainType const attDstChain =
-        STXChainBridge::dstChain(attBegin->wasLockingChainSend);
-
-    if (attDstChain != dstChain)
-    {
-        return tecXCHAIN_WRONG_CHAIN;
-    }
-
-    XChainClaimAttestations curAtts{
-        sleCID->getFieldArray(sfXChainClaimAttestations)};
-
-    auto const rewardAccounts = curAtts.onNewAttestations(
-        &atts[0], &atts[0] + atts.size(), quorum, signersList);
-
-    // update the claim id
-    sleCID->setFieldArray(sfXChainClaimAttestations, curAtts.toSTArray());
-    psb.update(sleCID);
-
-    if (rewardAccounts && attBegin->dst)
-    {
-        auto const& rewardPoolSrc = (*sleCID)[sfAccount];
-        auto const r = finalizeClaimHelper(
-            psb,
-            bridgeSpec,
-            *attBegin->dst,
-            /*dstTag*/ std::nullopt,
-            cidOwner,
-            attBegin->sendingAmount,
-            rewardPoolSrc,
-            (*sleCID)[sfSignatureReward],
-            *rewardAccounts,
-            srcChain,
-            sleCID,
-            OnTransferFail::keepClaim,
-            ctx_.journal);
-        if (!isTesSuccess(r))
-            return r;
-    }
-
-    psb.apply(ctx_.rawView());
-
-    return tesSUCCESS;
-}
-
-TER
-XChainAddAttestation::applyCreateAccountAtt(
-    STXChainAttestationBatch::TCreates::const_iterator attBegin,
-    STXChainAttestationBatch::TCreates::const_iterator attEnd,
-    AccountID const& doorAccount,
-    Keylet const& doorK,
-    STXChainBridge const& bridgeSpec,
-    Keylet const& bridgeK,
-    STXChainBridge::ChainType const srcChain,
-    std::unordered_map<AccountID, std::uint32_t> const& signersList,
-    std::uint32_t quorum)
-{
-    if (attBegin == attEnd)
-        return tesSUCCESS;
-
-    PaymentSandbox psb(&ctx_.view());
-
-    auto const sleDoor = psb.peek(doorK);
-    if (!sleDoor)
-        return tecINTERNAL;  // LCOV_EXCL_LINE
-
-    auto const sleB = psb.peek(bridgeK);
-    if (!sleB)
-        return tecINTERNAL;  // LCOV_EXCL_LINE
-
-    std::int64_t const claimCount = (*sleB)[sfXChainAccountClaimCount];
-
-    if (attBegin->createCount <= claimCount)
-    {
-        return tecXCHAIN_ACCOUNT_CREATE_PAST;
-    }
-    if (attBegin->createCount >= claimCount + 128)
-    {
-        // Limit the number of claims on the account
-        return tecXCHAIN_ACCOUNT_CREATE_TOO_MANY;
-    }
-
-    STXChainBridge::ChainType const dstChain =
-        STXChainBridge::otherChain(srcChain);
-
-    STXChainBridge::ChainType const attDstChain =
-        STXChainBridge::dstChain(attBegin->wasLockingChainSend);
-
-    if (attDstChain != dstChain)
-    {
-        return tecXCHAIN_WRONG_CHAIN;
-    }
-
-    auto const claimKeylet =
-        keylet::xChainCreateAccountClaimID(bridgeSpec, attBegin->createCount);
-
-    // sleCID may be null. If it's null it isn't created until the end of this
-    // function (if needed)
-    auto const sleCID = psb.peek(claimKeylet);
-    bool createCID = false;
-    if (!sleCID)
-    {
-        createCID = true;
-
-        // Check reserve
-        auto const balance = (*sleDoor)[sfBalance];
-        auto const reserve =
-            psb.fees().accountReserve((*sleDoor)[sfOwnerCount] + 1);
-
-        if (balance < reserve)
-            return tecINSUFFICIENT_RESERVE;
-    }
-
-    std::vector<AttestationBatch::AttestationCreateAccount> atts;
-    atts.reserve(std::distance(attBegin, attEnd));
-    for (auto att = attBegin; att != attEnd; ++att)
-    {
-        if (!signersList.count(calcAccountID(att->publicKey)))
-            continue;
-        atts.push_back(*att);
-    }
-    if (atts.empty())
-    {
-        return tecXCHAIN_PROOF_UNKNOWN_KEY;
-    }
-
-    XChainCreateAccountAttestations curAtts = [&] {
-        if (sleCID)
-            return XChainCreateAccountAttestations{
-                sleCID->getFieldArray(sfXChainCreateAccountAttestations)};
-        return XChainCreateAccountAttestations{};
-    }();
-
-    auto const rewardAccounts = curAtts.onNewAttestations(
-        &atts[0], &atts[0] + atts.size(), quorum, signersList);
-
-    if (!createCID)
-    {
-        // Modify the object before it's potentially deleted, so the meta data
-        // will include the new attestations
-        if (!sleCID)
-            return tecINTERNAL;  // LCOV_EXCL_LINE
-        sleCID->setFieldArray(
-            sfXChainCreateAccountAttestations, curAtts.toSTArray());
-        psb.update(sleCID);
-    }
-
-    // Account create transactions must happen in order
-    if (rewardAccounts && claimCount + 1 == attBegin->createCount)
-    {
-        auto const r = finalizeClaimHelper(
-            psb,
-            bridgeSpec,
-            attBegin->toCreate,
-            /*dstTag*/ std::nullopt,
-            doorAccount,
-            attBegin->sendingAmount,
-            /*rewardPoolSrc*/ doorAccount,
-            attBegin->rewardAmount,
-            *rewardAccounts,
-            srcChain,
-            sleCID,
-            OnTransferFail::removeClaim,
-            ctx_.journal);
-        if (!isTesSuccess(r))
-        {
-            if (r == tecINTERNAL || r == tecINSUFFICIENT_FUNDS ||
-                isTefFailure(r))
-                return r;
-        }
-        // Move past this claim id even if it fails, so it doesn't block
-        // subsequent claim ids
-        (*sleB)[sfXChainAccountClaimCount] = attBegin->createCount;
-        psb.update(sleB);
-    }
-    else if (createCID)
-    {
-        if (sleCID)
-            return tecINTERNAL;  // LCOV_EXCL_LINE
-
-        auto const sleCID = std::make_shared<SLE>(claimKeylet);
-        (*sleCID)[sfAccount] = doorAccount;
-        (*sleCID)[sfXChainBridge] = bridgeSpec;
-        (*sleCID)[sfXChainAccountCreateCount] = attBegin->createCount;
-        sleCID->setFieldArray(
-            sfXChainCreateAccountAttestations, curAtts.toSTArray());
-
-        // Add to owner directory of the door account
-        auto const page = ctx_.view().dirInsert(
-            keylet::ownerDir(doorAccount),
-            claimKeylet,
-            describeOwnerDir(doorAccount));
-        if (!page)
-            return tecDIR_FULL;
-        (*sleCID)[sfOwnerNode] = *page;
-
-        // Reserve was already checked
-        adjustOwnerCount(psb, sleDoor, 1, ctx_.journal);
-        psb.insert(sleCID);
-        psb.update(sleDoor);
-    }
-
-    psb.apply(ctx_.rawView());
-
-    return tesSUCCESS;
-}
-
-TER
-XChainAddAttestation::doApply()
+XChainAddAttestationBatch::doApply()
 {
     STXChainAttestationBatch const batch = ctx_.tx[sfXChainAttestationBatch];
 
@@ -1486,7 +1637,7 @@ XChainAddAttestation::doApply()
 
     auto const& bridgeSpec = batch.bridge();
 
-    // Note: sle's lifetimes should not overlap calls to applyCreateAccountAtt
+    // Note: sle's lifetimes should not overlap calls to applyCreateAccount
     // and applyClaims because those functions create a sandbox `sleB` is reset
     // before those calls and should not be used after those calls are made.
     // (it is not `const` because it is reset)
@@ -1517,7 +1668,7 @@ XChainAddAttestation::doApply()
     // It is difficult to reduce the scope of sleB. However, its scope should be
     // considered to end here. It's important that sles from one view are not
     // used after a child view is created from the view it is taken from (as
-    // applyCreateAccountAtt and applyClaims do).
+    // applyCreateAccount and applyClaims do).
     sleB.reset();
 
     if (!isTesSuccess(slTer))
@@ -1530,7 +1681,9 @@ XChainAddAttestation::doApply()
                 batch.creates().end(),
                 [&, &signersList = signersList, &quorum = quorum](
                     auto batchStart, auto batchEnd) {
-                    return applyCreateAccountAtt(
+                    return applyCreateAccountAttestations(
+                        ctx_.view(),
+                        ctx_.rawView(),
                         batchStart,
                         batchEnd,
                         thisDoor,
@@ -1539,7 +1692,8 @@ XChainAddAttestation::doApply()
                         bridgeK,
                         srcChain,
                         signersList,
-                        quorum);
+                        quorum,
+                        ctx_.journal);
                 });
         auto isTecInternal = [](auto r) { return r == tecINTERNAL; };
         if (std::any_of(
@@ -1557,13 +1711,16 @@ XChainAddAttestation::doApply()
                 batch.claims().end(),
                 [&, &signersList = signersList, &quorum = quorum](
                     auto batchStart, auto batchEnd) {
-                    return applyClaims(
+                    return applyClaimAttestations(
+                        ctx_.view(),
+                        ctx_.rawView(),
                         batchStart,
                         batchEnd,
                         bridgeSpec,
                         srcChain,
                         signersList,
-                        quorum);
+                        quorum,
+                        ctx_.journal);
                 });
         auto isTecInternal = [](auto r) { return r == tecINTERNAL; };
         if (std::any_of(
@@ -1581,6 +1738,47 @@ XChainAddAttestation::doApply()
         return tesSUCCESS;
 
     return applyRestuls[0];
+}
+
+//------------------------------------------------------------------------------
+
+NotTEC
+XChainAddClaimAttestation::preflight(PreflightContext const& ctx)
+{
+    return attestationPreflight<AttestationBatch::AttestationClaim>(ctx);
+}
+
+TER
+XChainAddClaimAttestation::preclaim(PreclaimContext const& ctx)
+{
+    return tesSUCCESS;
+}
+
+TER
+XChainAddClaimAttestation::doApply()
+{
+    return attestationDoApply<AttestationBatch::AttestationClaim>(ctx_);
+}
+
+//------------------------------------------------------------------------------
+
+NotTEC
+XChainAddAccountCreateAttestation::preflight(PreflightContext const& ctx)
+{
+    return attestationPreflight<AttestationBatch::AttestationCreateAccount>(
+        ctx);
+}
+
+TER
+XChainAddAccountCreateAttestation::preclaim(PreclaimContext const& ctx)
+{
+    return tesSUCCESS;
+}
+
+TER
+XChainAddAccountCreateAttestation::doApply()
+{
+    return attestationDoApply<AttestationBatch::AttestationCreateAccount>(ctx_);
 }
 
 //------------------------------------------------------------------------------
@@ -1712,7 +1910,5 @@ XChainCreateAccountCommit::doApply()
 
     return tesSUCCESS;
 }
-
-//------------------------------------------------------------------------------
 
 }  // namespace ripple

@@ -468,7 +468,8 @@ ValidNewAccountRoot::finalize(
     if (accountSeqs_.size() != accountsCreated_)
         return false;
 
-    if (tx.getTxnType() == ttXCHAIN_ADD_ATTESTATION && result == tesSUCCESS)
+    if (tx.getTxnType() == ttXCHAIN_ADD_ATTESTATION_BATCH &&
+        result == tesSUCCESS)
     {
         // attestations can create more than one account
         std::uint32_t const startingSeq{
@@ -490,7 +491,9 @@ ValidNewAccountRoot::finalize(
     }
 
     // From this point on we know exactly one account was created.
-    if (tx.getTxnType() == ttPAYMENT && result == tesSUCCESS)
+    if ((tx.getTxnType() == ttPAYMENT ||
+         tx.getTxnType() == ttXCHAIN_ADD_ACCOUNT_CREATE_ATTESTATION) &&
+        result == tesSUCCESS)
     {
         std::uint32_t const startingSeq{
             view.rules().enabled(featureDeletableAccounts) ? view.seq() : 1};

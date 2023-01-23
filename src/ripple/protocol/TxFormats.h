@@ -155,10 +155,16 @@ enum TxType : std::uint16_t
     ttXCHAIN_ACCOUNT_CREATE_COMMIT = 44,
 
     /** This transaction adds attestations to claimid and account claim states*/
-    ttXCHAIN_ADD_ATTESTATION = 45,
+    ttXCHAIN_ADD_ATTESTATION_BATCH = 45,
+
+    /** This transaction adds an attestation to a claimid*/
+    ttXCHAIN_ADD_CLAIM_ATTESTATION = 46,
+
+    /** This transaction adds an attestation to a claimid*/
+    ttXCHAIN_ADD_ACCOUNT_CREATE_ATTESTATION = 47,
 
     /** This transactions modifies a sidechain */
-    ttXCHAIN_MODIFY_BRIDGE = 46,
+    ttXCHAIN_MODIFY_BRIDGE = 48,
 
     /** This system-generated transaction type is used to update the status of the various amendments.
 

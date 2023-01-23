@@ -202,7 +202,7 @@ xchain_add_attestation_batch(Account const& acc, Json::Value const& batch)
     jv[jss::Account] = acc.human();
     jv[sfXChainAttestationBatch.getJsonName()] = batch;
 
-    jv[jss::TransactionType] = jss::XChainAddAttestation;
+    jv[jss::TransactionType] = jss::XChainAddAttestationBatch;
     jv[jss::Flags] = tfUniversal;
     return jv;
 }
