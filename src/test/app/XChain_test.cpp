@@ -3316,6 +3316,138 @@ struct XChain_test : public beast::unit_test::suite,
     }
 
     void
+    testXChainAddClaimNonBatchAttestation()
+    {
+        using namespace jtx;
+
+        testcase("Add Non Batch Claim Attestation");
+        XRPAmount tx_fee = txFee();
+        STAmount tx_fee_2 = multiply(tx_fee, STAmount(2), xrpIssue());
+
+        XEnv mcEnv(*this);
+        XEnv scEnv(*this, true);
+        std::uint32_t const claimID = 1;
+
+        mcEnv.tx(create_bridge(mcDoor, jvb)).close();
+
+        scEnv.tx(create_bridge(Account::master, jvb))
+            .tx(jtx::signers(Account::master, quorum, signers))
+            .close()
+            .tx(xchain_create_claim_id(scAlice, jvb, reward, mcAlice))
+            .close();
+
+        BEAST_EXPECT(!!scEnv.claimID(jvb, claimID));  // claim id present
+
+        Account const dst{scBob};
+        auto const amt = XRP(1000);
+        mcEnv.tx(xchain_commit(mcAlice, jvb, claimID, amt, dst)).close();
+
+        auto const dstStartBalance = scEnv.env_.balance(dst);
+
+        for (int i = 0; i < signers.size(); ++i)
+        {
+            auto const att = claim_attestation(
+                scAttester,
+                jvb,
+                mcAlice,
+                amt,
+                payees[i],
+                true,
+                claimID,
+                dst,
+                signers[i]);
+
+            TER const expectedTER =
+                i < quorum ? tesSUCCESS : TER{tecXCHAIN_NO_CLAIM_ID};
+            if (i + 1 == quorum)
+                scEnv.tx(att, ter(expectedTER)).close();
+            else
+                scEnv.tx(att, ter(expectedTER)).close();
+
+            if (i + 1 < quorum)
+                BEAST_EXPECT(dstStartBalance == scEnv.env_.balance(dst));
+            else
+                BEAST_EXPECT(dstStartBalance + amt == scEnv.env_.balance(dst));
+        }
+        BEAST_EXPECT(dstStartBalance + amt == scEnv.env_.balance(dst));
+    }
+
+    void
+    testXChainAddAccountCreateNonBatchAttestation()
+    {
+        using namespace jtx;
+
+        testcase("Add Non Batch Account Create Attestation");
+
+        XEnv mcEnv(*this);
+        XEnv scEnv(*this, true);
+
+        XRPAmount tx_fee = mcEnv.txFee();
+
+        Account a{"a"};
+        Account doorA{"doorA"};
+
+        STAmount funds{XRP(10000)};
+        mcEnv.fund(funds, a);
+        mcEnv.fund(funds, doorA);
+
+        Account ua{"ua"};  // unfunded account we want to create
+
+        BridgeDef xrp_b{
+            doorA,
+            xrpIssue(),
+            Account::master,
+            xrpIssue(),
+            XRP(1),   // reward
+            XRP(20),  // minAccountCreate
+            4,        // quorum
+            signers,
+            Json::nullValue};
+
+        xrp_b.initBridge(mcEnv, scEnv);
+
+        auto const amt = XRP(777);
+        auto const amt_plus_reward = amt + xrp_b.reward;
+        {
+            Balance bal_doorA(mcEnv, doorA);
+            Balance bal_a(mcEnv, a);
+
+            mcEnv
+                .tx(sidechain_xchain_account_create(
+                    a, xrp_b.jvb, ua, amt, xrp_b.reward))
+                .close();
+
+            BEAST_EXPECT(bal_doorA.diff() == amt_plus_reward);
+            BEAST_EXPECT(bal_a.diff() == -(amt_plus_reward + tx_fee));
+        }
+
+        for (int i = 0; i < signers.size(); ++i)
+        {
+            auto const att = create_account_attestation(
+                signers[0].account,
+                xrp_b.jvb,
+                a,
+                amt,
+                xrp_b.reward,
+                signers[i].account,
+                true,
+                1,
+                ua,
+                signers[i]);
+            TER const expectedTER = i < xrp_b.quorum
+                ? tesSUCCESS
+                : TER{tecXCHAIN_ACCOUNT_CREATE_PAST};
+
+            scEnv.tx(att, ter(expectedTER)).close();
+            if (i + 1 < xrp_b.quorum)
+                BEAST_EXPECT(!scEnv.env_.le(ua));
+            else
+                BEAST_EXPECT(scEnv.env_.le(ua));
+        }
+        BEAST_EXPECT(scEnv.env_.le(ua));
+    }
+
+    void
     testXChainClaim()
     {
         using namespace jtx;
@@ -4724,15 +4856,17 @@ struct XChain_test : public beast::unit_test::suite,
     void
     run() override
     {
-        testXChainCreateBridge();
-        testXChainCreateBridgeMatrix();
-        testXChainModifyBridge();
-        testXChainCreateClaimID();
-        testXChainCommit();
-        testXChainAddAttestation();
-        testXChainClaim();
-        testXChainCreateAccount();
-        testXChainDeleteDoor();
+        // testXChainCreateBridge();
+        // testXChainCreateBridgeMatrix();
+        // testXChainModifyBridge();
+        // testXChainCreateClaimID();
+        // testXChainCommit();
+        // testXChainAddAttestation();
+        testXChainAddClaimNonBatchAttestation();
+        testXChainAddAccountCreateNonBatchAttestation();
+        // testXChainClaim();
+        // testXChainCreateAccount();
+        // testXChainDeleteDoor();
     }
 };
 

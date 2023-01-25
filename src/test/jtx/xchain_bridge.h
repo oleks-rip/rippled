@@ -137,6 +137,31 @@ attestation_claim_batch(
     std::optional<jtx::Account> const& dst,
     std::vector<jtx::signer> const& signers);
 
+Json::Value
+claim_attestation(
+    jtx::Account const& submittingAccount,
+    Json::Value const& jvBridge,
+    jtx::Account const& sendingAccount,
+    jtx::AnyAmount const& sendingAmount,
+    jtx::Account const& rewardAccount,
+    bool wasLockingChainSend,
+    std::uint64_t claimID,
+    std::optional<jtx::Account> const& dst,
+    jtx::signer const& signer);
+
+Json::Value
+create_account_attestation(
+    jtx::Account const& submittingAccount,
+    Json::Value const& jvBridge,
+    jtx::Account const& sendingAccount,
+    jtx::AnyAmount const& sendingAmount,
+    jtx::AnyAmount const& rewardAmount,
+    jtx::Account const& rewardAccount,
+    bool wasLockingChainSend,
+    std::uint64_t createCount,
+    jtx::Account const& dst,
+    jtx::signer const& signer);
+
 void
 create_account_batch_add_to_vector(
     std::vector<AttestationBatch::AttestationCreateAccount>& atts,

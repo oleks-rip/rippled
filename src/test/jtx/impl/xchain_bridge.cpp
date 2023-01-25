@@ -23,6 +23,7 @@
 #include <ripple/protocol/Issue.h>
 #include <ripple/protocol/SField.h>
 #include <ripple/protocol/STBase.h>
+#include <ripple/protocol/STInteger.h>
 #include <ripple/protocol/STObject.h>
 #include <ripple/protocol/STXChainAttestationBatch.h>
 #include <ripple/protocol/TxFlags.h>
@@ -205,6 +206,111 @@ xchain_add_attestation_batch(Account const& acc, Json::Value const& batch)
     jv[jss::TransactionType] = jss::XChainAddAttestationBatch;
     jv[jss::Flags] = tfUniversal;
     return jv;
+}
+
+Json::Value
+claim_attestation(
+    jtx::Account const& submittingAccount,
+    Json::Value const& jvBridge,
+    jtx::Account const& sendingAccount,
+    jtx::AnyAmount const& sendingAmount,
+    jtx::Account const& rewardAccount,
+    bool wasLockingChainSend,
+    std::uint64_t claimID,
+    std::optional<jtx::Account> const& dst,
+    jtx::signer const& signer)
+{
+    STXChainBridge const stBridge(jvBridge);
+
+    auto const& pk = signer.account.pk();
+    auto const& sk = signer.account.sk();
+    auto const sig = sign_claim_attestation(
+        pk,
+        sk,
+        stBridge,
+        sendingAccount,
+        sendingAmount.value,
+        rewardAccount,
+        wasLockingChainSend,
+        claimID,
+        dst);
+
+    Json::Value result;
+
+    result[sfAccount.getJsonName()] = submittingAccount.human();
+    result[sfXChainBridge.getJsonName()] = jvBridge;
+
+    result[sfPublicKey.getJsonName()] = strHex(pk.slice());
+    result[sfSignature.getJsonName()] = strHex(sig);
+    result[sfOtherChainSource.getJsonName()] = toBase58(sendingAccount);
+    result[sfAmount.getJsonName()] =
+        sendingAmount.value.getJson(JsonOptions::none);
+    result[sfAttestationRewardAccount.getJsonName()] = toBase58(rewardAccount);
+    result[sfWasLockingChainSend.getJsonName()] = wasLockingChainSend ? 1 : 0;
+
+    result[sfXChainClaimID.getJsonName()] =
+        STUInt64{claimID}.getJson(JsonOptions::none);
+    if (dst)
+        result[sfDestination.getJsonName()] = toBase58(*dst);
+
+    result[jss::TransactionType] = jss::XChainAddClaimAttestation;
+    result[jss::Flags] = tfUniversal;
+
+    return result;
+}
+
+Json::Value
+create_account_attestation(
+    jtx::Account const& submittingAccount,
+    Json::Value const& jvBridge,
+    jtx::Account const& sendingAccount,
+    jtx::AnyAmount const& sendingAmount,
+    jtx::AnyAmount const& rewardAmount,
+    jtx::Account const& rewardAccount,
+    bool wasLockingChainSend,
+    std::uint64_t createCount,
+    jtx::Account const& dst,
+    jtx::signer const& signer)
+{
+    STXChainBridge const stBridge(jvBridge);
+
+    auto const& pk = signer.account.pk();
+    auto const& sk = signer.account.sk();
+    auto const sig = jtx::sign_create_account_attestation(
+        pk,
+        sk,
+        stBridge,
+        sendingAccount,
+        sendingAmount.value,
+        rewardAmount.value,
+        rewardAccount,
+        wasLockingChainSend,
+        createCount,
+        dst);
+
+    Json::Value result;
+
+    result[sfAccount.getJsonName()] = submittingAccount.human();
+    result[sfXChainBridge.getJsonName()] = jvBridge;
+
+    result[sfPublicKey.getJsonName()] = strHex(pk.slice());
+    result[sfSignature.getJsonName()] = strHex(sig);
+    result[sfOtherChainSource.getJsonName()] = toBase58(sendingAccount);
+    result[sfAmount.getJsonName()] =
+        sendingAmount.value.getJson(JsonOptions::none);
+    result[sfAttestationRewardAccount.getJsonName()] = toBase58(rewardAccount);
+    result[sfWasLockingChainSend.getJsonName()] = wasLockingChainSend ? 1 : 0;
+
+    result[sfXChainAccountCreateCount.getJsonName()] =
+        STUInt64{createCount}.getJson(JsonOptions::none);
+    result[sfDestination.getJsonName()] = toBase58(dst);
+    result[sfSignatureReward.getJsonName()] =
+        rewardAmount.value.getJson(JsonOptions::none);
+
+    result[jss::TransactionType] = jss::XChainAddAccountCreateAttestation;
+    result[jss::Flags] = tfUniversal;
+
+    return result;
 }
 
 void
