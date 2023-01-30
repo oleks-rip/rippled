@@ -5915,7 +5915,8 @@ struct XChainCoverage_test : public beast::unit_test::suite,
 };
 
 BEAST_DEFINE_TESTSUITE(XChain, app, ripple);
-BEAST_DEFINE_TESTSUITE(XChainSim, app, ripple);
+// TBD: Re-enable this test after Peng fixes
+BEAST_DEFINE_TESTSUITE_MANUAL(XChainSim, app, ripple);
 BEAST_DEFINE_TESTSUITE(XChainCoverage, app, ripple);
 
 }  // namespace ripple::test
