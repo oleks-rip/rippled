@@ -196,19 +196,6 @@ sidechain_xchain_account_create(
 }
 
 Json::Value
-xchain_add_attestation_batch(Account const& acc, Json::Value const& batch)
-{
-    Json::Value jv;
-
-    jv[jss::Account] = acc.human();
-    jv[sfXChainAttestationBatch.getJsonName()] = batch;
-
-    jv[jss::TransactionType] = jss::XChainAddAttestationBatch;
-    jv[jss::Flags] = tfUniversal;
-    return jv;
-}
-
-Json::Value
 claim_attestation(
     jtx::Account const& submittingAccount,
     Json::Value const& jvBridge,

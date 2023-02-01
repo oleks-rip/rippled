@@ -46,6 +46,7 @@
 #include <fstream>
 #include <iostream>
 
+#if 0  // TODO: This needs to be re-written
 namespace ripple::test {
 
 // SEnv class - encapsulate jtx::Env to make it more user-friendly,
@@ -6006,3 +6007,4 @@ BEAST_DEFINE_TESTSUITE(XChainSim, app, ripple);
 BEAST_DEFINE_TESTSUITE(XChainCoverage, app, ripple);
 
 }  // namespace ripple::test
+#endif

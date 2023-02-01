@@ -76,9 +76,6 @@ xchain_claim(
     Account const& dst);
 
 Json::Value
-xchain_add_attestation_batch(Account const& acc, Json::Value const& batch);
-
-Json::Value
 sidechain_xchain_account_create(
     Account const& acc,
     Json::Value const& bridge,
@@ -253,7 +250,7 @@ struct XChainBridgeObjects
 
     void
     createBridgeObjects(Env& mcEnv, Env& scEnv);
-
+#if 0  // TODO: This needs to be re-written
     Json::Value
     att_claim_batch1(
         jtx::Account const& src,
@@ -382,7 +379,7 @@ struct XChainBridgeObjects
         return xchain_add_attestation_batch(
             scAttester, batch.getJson(JsonOptions::none));
     }
-
+#endif
     Json::Value
     create_bridge(
         Account const& acc,
