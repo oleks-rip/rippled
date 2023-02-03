@@ -480,6 +480,7 @@ ValidNewAccountRoot::finalize(
 
     // From this point on we know exactly one account was created.
     if ((tx.getTxnType() == ttPAYMENT ||
+         tx.getTxnType() == ttXCHAIN_ADD_CLAIM_ATTESTATION ||
          tx.getTxnType() == ttXCHAIN_ADD_ACCOUNT_CREATE_ATTESTATION) &&
         result == tesSUCCESS)
     {
