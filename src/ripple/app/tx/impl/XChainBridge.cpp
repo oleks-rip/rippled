@@ -1,7 +1,7 @@
 //------------------------------------------------------------------------------
 /*
     This file is part of rippled: https://github.com/ripple/rippled
-    Copyright (c) 2012, 2013 Ripple Labs Inc.
+    Copyright (c) 2022 Ripple Labs Inc.
 
     Permission to use, copy, modify, and/or distribute this software for any
     purpose  with  or without fee is hereby granted, provided that the above
@@ -62,7 +62,7 @@ namespace ripple {
    A good model for thinking about bridges is a box that contains an infinite
    number of "wrapped tokens". When a token from the locking chain
    (locking-chain-token) is put into the box, a wrapped token is taken out of
-   the box an put onto the issuing chain (issuing-chain-token). No one can use
+   the box and put onto the issuing chain (issuing-chain-token). No one can use
    the locking-chain-token while it remains in the box. When an
    issuing-chain-token is returned to the box, one locking-chain-token is taken
    out of the box and put back onto the locking chain.
@@ -80,7 +80,7 @@ namespace ripple {
    a locking-chain-token on the locking chain or returning an
    issuing-chain-token on the issuing chain. A set of servers called "witness
    servers" fill this role. These servers watch the ledger for these
-   transactions, and attests that the given events happened on the different
+   transactions, and attest that the given events happened on the different
    chains by signing messages with the event information.
 
    There needs to be a way to prevent the attestations from the witness
@@ -94,7 +94,7 @@ namespace ripple {
    Finally, a claim id requires that the sender has an account on the
    destination chain. For some chains, this can be a problem - especially if
    the wrapped asset represents XRP, and XRP is needed to create an account.
-   There's a bootstrap problem. To address there, there is a special transaction
+   There's a bootstrap problem. To address this, there is a special transaction
    used to create accounts. This transaction does not require a claim id.
 
    See the document "docs/bridge/spec.md" for a full description of how
@@ -160,14 +160,16 @@ transferHelper(
         auto const sleSrc = psb.peek(keylet::account(src));
         assert(sleSrc);
         if (!sleSrc)
-            return tecINTERNAL;  // LCOV_EXCL_LINE
+            return tecINTERNAL;
 
-        auto const ownerCount = sleSrc->getFieldU32(sfOwnerCount);
-        auto const reserve = psb.fees().accountReserve(ownerCount);
-
-        if ((*sleSrc)[sfBalance] < amt + reserve)
         {
-            return tecINSUFFICIENT_FUNDS;
+            auto const ownerCount = sleSrc->getFieldU32(sfOwnerCount);
+            auto const reserve = psb.fees().accountReserve(ownerCount);
+
+            if ((*sleSrc)[sfBalance] < amt + reserve)
+            {
+                return tecINSUFFICIENT_FUNDS;
+            }
         }
 
         auto sleDst = psb.peek(dstK);
@@ -176,7 +178,7 @@ transferHelper(
             if (canCreate == TransferHelperCanCreateDst::no)
             {
                 // Already checked, but OK to check again
-                return tecNO_DST;  // LCOV_EXCL_LINE
+                return tecNO_DST;
             }
             if (amt < psb.fees().accountReserve(0))
             {
@@ -217,12 +219,10 @@ transferHelper(
         /*sendmax*/ std::nullopt,
         j);
 
-    {
-        auto const r = result.result();
-        if (isTesSuccess(r) || isTecClaim(r) || isTerRetry(r))
-            return r;
-        return tecXCHAIN_PAYMENT_FAILED;
-    }
+    if (auto const r = result.result();
+        isTesSuccess(r) || isTecClaim(r) || isTerRetry(r))
+        return r;
+    return tecXCHAIN_PAYMENT_FAILED;
 }
 
 /**  Action to take when the transfer from the door account to the dst fails
@@ -250,7 +250,7 @@ enum class OnTransferFail {
     @param rewardPool Amount to split among the rewardAccounts.
     @param rewardAccounts Account to receive the reward pool.
     @param srcChain Chain where the commit event occurred.
-    @param sleCID sle for the claim id (may be NULL or XChainClaimID or
+    @param sleClaimID sle for the claim id (may be NULL or XChainClaimID or
            XChainCreateAccountClaimID). Don't read fields that aren't in common
            with those two types and always check for NULL. Remove on success (if
            not null). Remove on fail if the onTransferFail flag is removeClaim.
@@ -275,7 +275,7 @@ finalizeClaimHelper(
     STAmount const& rewardPool,
     std::vector<AccountID> const& rewardAccounts,
     STXChainBridge::ChainType const srcChain,
-    std::shared_ptr<SLE> const& sleCID,
+    std::shared_ptr<SLE> const& sleClaimID,
     OnTransferFail onTransferFail,
     beast::Journal j)
 {
@@ -303,24 +303,23 @@ finalizeClaimHelper(
         return thTer;
     }
 
-    if (sleCID)
+    if (sleClaimID)
     {
-        auto const cidOwner = (*sleCID)[sfAccount];
+        auto const cidOwner = (*sleClaimID)[sfAccount];
         {
-            // Remove the sequence number
+            // Remove the claim id
             auto const sleOwner = psb.peek(keylet::account(cidOwner));
-            auto const page = (*sleCID)[sfOwnerNode];
+            auto const page = (*sleClaimID)[sfOwnerNode];
             if (!psb.dirRemove(
-                    keylet::ownerDir(cidOwner), page, sleCID->key(), true))
+                    keylet::ownerDir(cidOwner), page, sleClaimID->key(), true))
             {
-                JLOG(j.fatal())  // LCOV_EXCL_START
+                JLOG(j.fatal())
                     << "Unable to delete xchain seq number from owner.";
                 return tefBAD_LEDGER;
-                // LCOV_EXCL_STOP
             }
 
-            // Remove the sequence number from the ledger
-            psb.erase(sleCID);
+            // Remove the claim id from the ledger
+            psb.erase(sleClaimID);
 
             adjustOwnerCount(psb, sleOwner, -1, j);
         }
@@ -336,12 +335,12 @@ finalizeClaimHelper(
             return divide(rewardPool, den, rewardPool.issue());
         }();
         STAmount distributed = rewardPool.zeroed();
-        for (auto const& ra : rewardAccounts)
+        for (auto const& rewardAccount : rewardAccounts)
         {
             auto const thTer = transferHelper(
                 psb,
                 rewardPoolSrc,
-                ra,
+                rewardAccount,
                 /*dstTag*/ std::nullopt,
                 // claim owner is not relevant to distributing rewards
                 /*claimOwner*/ std::nullopt,
@@ -360,7 +359,7 @@ finalizeClaimHelper(
         }
 
         if (distributed > rewardPool)
-            return tecINTERNAL;  // LCOV_EXCL_LINE
+            return tecINTERNAL;
     }
 
     return thTer;
@@ -369,7 +368,7 @@ finalizeClaimHelper(
 /** Get signers list corresponding to the account that owns the bridge
 
     @param view View to read the signer's list from.
-    @param sleB Sle of the bridge.
+    @param sleBridge Sle of the bridge.
     @param j Log
 
     @return map of the signer's list (AccountIDs and weights), the quorum, and
@@ -381,17 +380,20 @@ finalizeClaimHelper(
    regular key can sign)
 */
 std::tuple<std::unordered_map<AccountID, std::uint32_t>, std::uint32_t, TER>
-getSignersListAndQuorum(ApplyView& view, SLE const& sleB, beast::Journal j)
+getSignersListAndQuorum(
+    ReadView const& view,
+    SLE const& sleBridge,
+    beast::Journal j)
 {
     std::unordered_map<AccountID, std::uint32_t> r;
     std::uint32_t q = std::numeric_limits<std::uint32_t>::max();
 
-    AccountID const thisDoor = sleB[sfAccount];
+    AccountID const thisDoor = sleBridge[sfAccount];
     auto const sleDoor = [&] { return view.read(keylet::account(thisDoor)); }();
 
     if (!sleDoor)
     {
-        return {r, q, tecINTERNAL};  // LCOV_EXCL_LINE
+        return {r, q, tecINTERNAL};
     }
 
     auto const masterKey = [&]() -> std::optional<AccountID> {
@@ -402,7 +404,7 @@ getSignersListAndQuorum(ApplyView& view, SLE const& sleB, beast::Journal j)
 
     std::optional<AccountID> regularKey = (*sleDoor)[~sfRegularKey];
 
-    auto const sleS = view.read(keylet::signers(sleB[sfAccount]));
+    auto const sleS = view.read(keylet::signers(sleBridge[sfAccount]));
     if (!sleS)
     {
         if (masterKey || regularKey)
@@ -423,7 +425,7 @@ getSignersListAndQuorum(ApplyView& view, SLE const& sleB, beast::Journal j)
 
     if (!accountSigners)
     {
-        return {r, q, tecINTERNAL};  // LCOV_EXCL_LINE
+        return {r, q, tecINTERNAL};
     }
 
     for (auto const& as : *accountSigners)
@@ -500,11 +502,11 @@ applyClaimAttestations(
 
     PaymentSandbox psb(&view);
 
-    auto const sleCID =
+    auto const sleClaimID =
         psb.peek(keylet::xChainClaimID(bridgeSpec, attBegin->claimID));
-    if (!sleCID)
+    if (!sleClaimID)
         return tecXCHAIN_NO_CLAIM_ID;
-    AccountID const cidOwner = (*sleCID)[sfAccount];
+    AccountID const cidOwner = (*sleClaimID)[sfAccount];
 
     // Add claims that are part of the signer's list to the "claims" vector
     std::vector<AttestationBatch::AttestationClaim> atts;
@@ -521,36 +523,38 @@ applyClaimAttestations(
         return tecXCHAIN_PROOF_UNKNOWN_KEY;
     }
 
-    AccountID const otherChainSource = (*sleCID)[sfOtherChainSource];
+    AccountID const otherChainSource = (*sleClaimID)[sfOtherChainSource];
     if (attBegin->sendingAccount != otherChainSource)
     {
         return tecXCHAIN_SENDING_ACCOUNT_MISMATCH;
     }
 
-    STXChainBridge::ChainType const dstChain =
-        STXChainBridge::otherChain(srcChain);
-
-    STXChainBridge::ChainType const attDstChain =
-        STXChainBridge::dstChain(attBegin->wasLockingChainSend);
-
-    if (attDstChain != dstChain)
     {
-        return tecXCHAIN_WRONG_CHAIN;
+        STXChainBridge::ChainType const dstChain =
+            STXChainBridge::otherChain(srcChain);
+
+        STXChainBridge::ChainType const attDstChain =
+            STXChainBridge::dstChain(attBegin->wasLockingChainSend);
+
+        if (attDstChain != dstChain)
+        {
+            return tecXCHAIN_WRONG_CHAIN;
+        }
     }
 
     XChainClaimAttestations curAtts{
-        sleCID->getFieldArray(sfXChainClaimAttestations)};
+        sleClaimID->getFieldArray(sfXChainClaimAttestations)};
 
     auto const rewardAccounts = curAtts.onNewAttestations(
         &atts[0], &atts[0] + atts.size(), quorum, signersList);
 
     // update the claim id
-    sleCID->setFieldArray(sfXChainClaimAttestations, curAtts.toSTArray());
-    psb.update(sleCID);
+    sleClaimID->setFieldArray(sfXChainClaimAttestations, curAtts.toSTArray());
+    psb.update(sleClaimID);
 
     if (rewardAccounts && attBegin->dst)
     {
-        auto const& rewardPoolSrc = (*sleCID)[sfAccount];
+        auto const& rewardPoolSrc = (*sleClaimID)[sfAccount];
         auto const r = finalizeClaimHelper(
             psb,
             bridgeSpec,
@@ -559,10 +563,10 @@ applyClaimAttestations(
             cidOwner,
             attBegin->sendingAmount,
             rewardPoolSrc,
-            (*sleCID)[sfSignatureReward],
+            (*sleClaimID)[sfSignatureReward],
             *rewardAccounts,
             srcChain,
-            sleCID,
+            sleClaimID,
             OnTransferFail::keepClaim,
             j);
         if (!isTesSuccess(r))
@@ -599,11 +603,11 @@ applyCreateAccountAttestations(
     if (!sleDoor)
         return tecINTERNAL;
 
-    auto const sleB = psb.peek(bridgeK);
-    if (!sleB)
+    auto const sleBridge = psb.peek(bridgeK);
+    if (!sleBridge)
         return tecINTERNAL;
 
-    std::int64_t const claimCount = (*sleB)[sfXChainAccountClaimCount];
+    std::int64_t const claimCount = (*sleBridge)[sfXChainAccountClaimCount];
 
     if (attBegin->createCount <= claimCount)
     {
@@ -615,25 +619,27 @@ applyCreateAccountAttestations(
         return tecXCHAIN_ACCOUNT_CREATE_TOO_MANY;
     }
 
-    STXChainBridge::ChainType const dstChain =
-        STXChainBridge::otherChain(srcChain);
-
-    STXChainBridge::ChainType const attDstChain =
-        STXChainBridge::dstChain(attBegin->wasLockingChainSend);
-
-    if (attDstChain != dstChain)
     {
-        return tecXCHAIN_WRONG_CHAIN;
+        STXChainBridge::ChainType const dstChain =
+            STXChainBridge::otherChain(srcChain);
+
+        STXChainBridge::ChainType const attDstChain =
+            STXChainBridge::dstChain(attBegin->wasLockingChainSend);
+
+        if (attDstChain != dstChain)
+        {
+            return tecXCHAIN_WRONG_CHAIN;
+        }
     }
 
     auto const claimKeylet =
         keylet::xChainCreateAccountClaimID(bridgeSpec, attBegin->createCount);
 
-    // sleCID may be null. If it's null it isn't created until the end of this
-    // function (if needed)
-    auto const sleCID = psb.peek(claimKeylet);
+    // sleClaimID may be null. If it's null it isn't created until the end of
+    // this function (if needed)
+    auto const sleClaimID = psb.peek(claimKeylet);
     bool createCID = false;
-    if (!sleCID)
+    if (!sleClaimID)
     {
         createCID = true;
 
@@ -660,9 +666,9 @@ applyCreateAccountAttestations(
     }
 
     XChainCreateAccountAttestations curAtts = [&] {
-        if (sleCID)
+        if (sleClaimID)
             return XChainCreateAccountAttestations{
-                sleCID->getFieldArray(sfXChainCreateAccountAttestations)};
+                sleClaimID->getFieldArray(sfXChainCreateAccountAttestations)};
         return XChainCreateAccountAttestations{};
     }();
 
@@ -673,11 +679,11 @@ applyCreateAccountAttestations(
     {
         // Modify the object before it's potentially deleted, so the meta data
         // will include the new attestations
-        if (!sleCID)
-            return tecINTERNAL;  // LCOV_EXCL_LINE
-        sleCID->setFieldArray(
+        if (!sleClaimID)
+            return tecINTERNAL;
+        sleClaimID->setFieldArray(
             sfXChainCreateAccountAttestations, curAtts.toSTArray());
-        psb.update(sleCID);
+        psb.update(sleClaimID);
     }
 
     // Account create transactions must happen in order
@@ -694,7 +700,7 @@ applyCreateAccountAttestations(
             attBegin->rewardAmount,
             *rewardAccounts,
             srcChain,
-            sleCID,
+            sleClaimID,
             OnTransferFail::removeClaim,
             j);
         if (!isTesSuccess(r))
@@ -705,19 +711,20 @@ applyCreateAccountAttestations(
         }
         // Move past this claim id even if it fails, so it doesn't block
         // subsequent claim ids
-        (*sleB)[sfXChainAccountClaimCount] = attBegin->createCount;
-        psb.update(sleB);
+        (*sleBridge)[sfXChainAccountClaimCount] = attBegin->createCount;
+        psb.update(sleBridge);
     }
     else if (createCID)
     {
-        if (sleCID)
-            return tecINTERNAL;  // LCOV_EXCL_LINE
+        if (sleClaimID)
+            return tecINTERNAL;
 
-        auto const sleCID = std::make_shared<SLE>(claimKeylet);
-        (*sleCID)[sfAccount] = doorAccount;
-        (*sleCID)[sfXChainBridge] = bridgeSpec;
-        (*sleCID)[sfXChainAccountCreateCount] = attBegin->createCount;
-        sleCID->setFieldArray(
+        auto const createdSleClaimID = std::make_shared<SLE>(claimKeylet);
+        (*createdSleClaimID)[sfAccount] = doorAccount;
+        (*createdSleClaimID)[sfXChainBridge] = bridgeSpec;
+        (*createdSleClaimID)[sfXChainAccountCreateCount] =
+            attBegin->createCount;
+        createdSleClaimID->setFieldArray(
             sfXChainCreateAccountAttestations, curAtts.toSTArray());
 
         // Add to owner directory of the door account
@@ -727,11 +734,11 @@ applyCreateAccountAttestations(
             describeOwnerDir(doorAccount));
         if (!page)
             return tecDIR_FULL;
-        (*sleCID)[sfOwnerNode] = *page;
+        (*createdSleClaimID)[sfOwnerNode] = *page;
 
         // Reserve was already checked
         adjustOwnerCount(psb, sleDoor, 1, j);
-        psb.insert(sleCID);
+        psb.insert(createdSleClaimID);
         psb.update(sleDoor);
     }
 
@@ -779,7 +786,7 @@ attestationPreflight(PreflightContext const& ctx)
     if (!att)
         return temMALFORMED;
 
-    STXChainBridge bridgeSpec = ctx.tx[sfXChainBridge];
+    STXChainBridge const bridgeSpec = ctx.tx[sfXChainBridge];
     if (!att->verify(bridgeSpec))
         return temBAD_XCHAIN_PROOF;
     if (!att->validAmounts())
@@ -804,19 +811,19 @@ attestationDoApply(ApplyContext& ctx)
         // Should already be checked in preflight
         return tecINTERNAL;
 
-    STXChainBridge bridgeSpec = ctx.tx[sfXChainBridge];
+    STXChainBridge const bridgeSpec = ctx.tx[sfXChainBridge];
 
     // Note: sle's lifetimes should not overlap calls to applyCreateAccount
-    // and applyClaims because those functions create a sandbox `sleB` is reset
-    // before those calls and should not be used after those calls are made.
-    // (it is not `const` because it is reset)
-    auto sleB = readBridge(ctx.view(), bridgeSpec);
-    if (!sleB)
+    // and applyClaims because those functions create a sandbox `sleBridge` is
+    // reset before those calls and should not be used after those calls are
+    // made. (it is not `const` because it is reset)
+    auto sleBridge = readBridge(ctx.view(), bridgeSpec);
+    if (!sleBridge)
     {
         return tecNO_ENTRY;
     }
-    Keylet const bridgeK{ltBRIDGE, sleB->key()};
-    AccountID const thisDoor = (*sleB)[sfAccount];
+    Keylet const bridgeK{ltBRIDGE, sleBridge->key()};
+    AccountID const thisDoor = (*sleBridge)[sfAccount];
 
     STXChainBridge::ChainType dstChain = STXChainBridge::ChainType::locking;
     {
@@ -832,12 +839,12 @@ attestationDoApply(ApplyContext& ctx)
 
     // signersList is a map from account id to weights
     auto const [signersList, quorum, slTer] =
-        getSignersListAndQuorum(ctx.view(), *sleB, ctx.journal);
-    // It is difficult to reduce the scope of sleB. However, its scope should be
-    // considered to end here. It's important that sles from one view are not
-    // used after a child view is created from the view it is taken from (as
-    // applyCreateAccount and applyClaims do).
-    sleB.reset();
+        getSignersListAndQuorum(ctx.view(), *sleBridge, ctx.journal);
+    // It is difficult to reduce the scope of sleBridge. However, its scope
+    // should be considered to end here. It's important that sles from one view
+    // are not used after a child view is created from the view it is taken from
+    // (as applyCreateAccount and applyClaims do).
+    sleBridge.reset();
 
     if (!isTesSuccess(slTer))
         return slTer;
@@ -887,13 +894,13 @@ attestationDoApply(ApplyContext& ctx)
 //------------------------------------------------------------------------------
 
 NotTEC
-BridgeCreate::preflight(PreflightContext const& ctx)
+XChainCreateBridge::preflight(PreflightContext const& ctx)
 {
     if (!ctx.rules.enabled(featureXChainBridge))
         return temDISABLED;
 
     if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
-        return ret;  // LCOV_EXCL_LINE
+        return ret;
 
     if (ctx.tx.getFlags() & tfUniversalMask)
         return temINVALID_FLAG;
@@ -901,39 +908,41 @@ BridgeCreate::preflight(PreflightContext const& ctx)
     auto const account = ctx.tx[sfAccount];
     auto const reward = ctx.tx[sfSignatureReward];
     auto const minAccountCreate = ctx.tx[~sfMinAccountCreateAmount];
-    auto const bridge = ctx.tx[sfXChainBridge];
-    if (bridge.lockingChainDoor() == bridge.issuingChainDoor())
+    auto const bridgeSpec = ctx.tx[sfXChainBridge];
+    // Doors must be distinct to help prevent transaction replay attacks
+    if (bridgeSpec.lockingChainDoor() == bridgeSpec.issuingChainDoor())
     {
         return temEQUAL_DOOR_ACCOUNTS;
     }
 
-    if (bridge.lockingChainDoor() != account &&
-        bridge.issuingChainDoor() != account)
+    if (bridgeSpec.lockingChainDoor() != account &&
+        bridgeSpec.issuingChainDoor() != account)
     {
         return temSIDECHAIN_NONDOOR_OWNER;
     }
 
-    if (isXRP(bridge.lockingChainIssue()) != isXRP(bridge.issuingChainIssue()))
+    if (isXRP(bridgeSpec.lockingChainIssue()) !=
+        isXRP(bridgeSpec.issuingChainIssue()))
     {
         // Because ious and xrp have different numeric ranges, both the src and
         // dst issues must be both XRP or both IOU.
         return temSIDECHAIN_BAD_ISSUES;
     }
 
-    if (!isXRP(reward) || reward.signum() <= 0)
+    if (!isXRP(reward) || reward.signum() < 0)
     {
         return temXCHAIN_BRIDGE_BAD_REWARD_AMOUNT;
     }
 
     if (minAccountCreate &&
         ((!isXRP(*minAccountCreate) || minAccountCreate->signum() <= 0) ||
-         !isXRP(bridge.lockingChainIssue()) ||
-         !isXRP(bridge.issuingChainIssue())))
+         !isXRP(bridgeSpec.lockingChainIssue()) ||
+         !isXRP(bridgeSpec.issuingChainIssue())))
     {
         return temXCHAIN_BRIDGE_BAD_MIN_ACCOUNT_CREATE_AMOUNT;
     }
 
-    if (isXRP(bridge.issuingChainIssue()))
+    if (isXRP(bridgeSpec.issuingChainIssue()))
     {
         // Issuing account must be the root account for XRP (which presumably
         // owns all the XRP). This is done so the issuing account can't "run
@@ -942,7 +951,7 @@ BridgeCreate::preflight(PreflightContext const& ctx)
             generateKeyPair(
                 KeyType::secp256k1, generateSeed("masterpassphrase"))
                 .first);
-        if (bridge.issuingChainDoor() != rootAccount)
+        if (bridgeSpec.issuingChainDoor() != rootAccount)
         {
             return temSIDECHAIN_BAD_ISSUES;
         }
@@ -951,7 +960,8 @@ BridgeCreate::preflight(PreflightContext const& ctx)
     {
         // Issuing account must be the issuer for non-XRP. This is done so the
         // issuing account can't "run out" of wrapped tokens.
-        if (bridge.issuingChainDoor() != bridge.issuingChainIssue().account)
+        if (bridgeSpec.issuingChainDoor() !=
+            bridgeSpec.issuingChainIssue().account)
         {
             return temSIDECHAIN_BAD_ISSUES;
         }
@@ -961,26 +971,26 @@ BridgeCreate::preflight(PreflightContext const& ctx)
 }
 
 TER
-BridgeCreate::preclaim(PreclaimContext const& ctx)
+XChainCreateBridge::preclaim(PreclaimContext const& ctx)
 {
     auto const account = ctx.tx[sfAccount];
-    auto const bridge = ctx.tx[sfXChainBridge];
+    auto const bridgeSpec = ctx.tx[sfXChainBridge];
 
     // The bridge can't already exist on this ledger, and the bridge for the
     // locking chain and issuing chain can't live on the same ledger.
-    if (ctx.view.read(
-            keylet::bridge(bridge.door(STXChainBridge::ChainType::locking))) ||
-        ctx.view.read(
-            keylet::bridge(bridge.door(STXChainBridge::ChainType::issuing))))
+    if (ctx.view.read(keylet::bridge(
+            bridgeSpec.door(STXChainBridge::ChainType::locking))) ||
+        ctx.view.read(keylet::bridge(
+            bridgeSpec.door(STXChainBridge::ChainType::issuing))))
     {
         return tecDUPLICATE;
     }
 
     STXChainBridge::ChainType const chainType =
-        STXChainBridge::srcChain(account == bridge.lockingChainDoor());
+        STXChainBridge::srcChain(account == bridgeSpec.lockingChainDoor());
 
-    if (!isXRP(bridge.issue(chainType)) &&
-        !ctx.view.read(keylet::account(bridge.issue(chainType).account)))
+    if (!isXRP(bridgeSpec.issue(chainType)) &&
+        !ctx.view.read(keylet::account(bridgeSpec.issue(chainType).account)))
     {
         return tecNO_ISSUER;
     }
@@ -989,7 +999,7 @@ BridgeCreate::preclaim(PreclaimContext const& ctx)
         // Check reserve
         auto const sle = ctx.view.read(keylet::account(account));
         if (!sle)
-            return terNO_ACCOUNT;  // LCOV_EXCL_LINE unreachable after preflight
+            return terNO_ACCOUNT;
 
         auto const balance = (*sle)[sfBalance];
         auto const reserve =
@@ -1003,45 +1013,45 @@ BridgeCreate::preclaim(PreclaimContext const& ctx)
 }
 
 TER
-BridgeCreate::doApply()
+XChainCreateBridge::doApply()
 {
     auto const account = ctx_.tx[sfAccount];
-    auto const bridge = ctx_.tx[sfXChainBridge];
+    auto const bridgeSpec = ctx_.tx[sfXChainBridge];
     auto const reward = ctx_.tx[sfSignatureReward];
     auto const minAccountCreate = ctx_.tx[~sfMinAccountCreateAmount];
 
-    auto const sleAcc = ctx_.view().peek(keylet::account(account));
-    if (!sleAcc)
-        return tecINTERNAL;  // LCOV_EXCL_LINE
+    auto const sleAcct = ctx_.view().peek(keylet::account(account));
+    if (!sleAcct)
+        return tecINTERNAL;
 
     STXChainBridge::ChainType const chainType =
-        STXChainBridge::srcChain(account == bridge.lockingChainDoor());
+        STXChainBridge::srcChain(account == bridgeSpec.lockingChainDoor());
 
-    Keylet const bridgeKeylet = keylet::bridge(bridge.door(chainType));
-    auto const sleB = std::make_shared<SLE>(bridgeKeylet);
+    Keylet const bridgeKeylet = keylet::bridge(bridgeSpec.door(chainType));
+    auto const sleBridge = std::make_shared<SLE>(bridgeKeylet);
 
-    (*sleB)[sfAccount] = account;
-    (*sleB)[sfSignatureReward] = reward;
+    (*sleBridge)[sfAccount] = account;
+    (*sleBridge)[sfSignatureReward] = reward;
     if (minAccountCreate)
-        (*sleB)[sfMinAccountCreateAmount] = *minAccountCreate;
-    (*sleB)[sfXChainBridge] = bridge;
-    (*sleB)[sfXChainClaimID] = 0;
-    (*sleB)[sfXChainAccountCreateCount] = 0;
-    (*sleB)[sfXChainAccountClaimCount] = 0;
+        (*sleBridge)[sfMinAccountCreateAmount] = *minAccountCreate;
+    (*sleBridge)[sfXChainBridge] = bridgeSpec;
+    (*sleBridge)[sfXChainClaimID] = 0;
+    (*sleBridge)[sfXChainAccountCreateCount] = 0;
+    (*sleBridge)[sfXChainAccountClaimCount] = 0;
 
     // Add to owner directory
     {
         auto const page = ctx_.view().dirInsert(
             keylet::ownerDir(account), bridgeKeylet, describeOwnerDir(account));
         if (!page)
-            return tecDIR_FULL;  // LCOV_EXCL_LINE [greg] test doesn't hit this?
-        (*sleB)[sfOwnerNode] = *page;
+            return tecDIR_FULL;
+        (*sleBridge)[sfOwnerNode] = *page;
     }
 
-    adjustOwnerCount(ctx_.view(), sleAcc, 1, ctx_.journal);
+    adjustOwnerCount(ctx_.view(), sleAcct, 1, ctx_.journal);
 
-    ctx_.view().insert(sleB);
-    ctx_.view().update(sleAcc);
+    ctx_.view().insert(sleBridge);
+    ctx_.view().update(sleAcct);
 
     return tesSUCCESS;
 }
@@ -1055,7 +1065,7 @@ BridgeModify::preflight(PreflightContext const& ctx)
         return temDISABLED;
 
     if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
-        return ret;  // LCOV_EXCL_LINE
+        return ret;
 
     if (ctx.tx.getFlags() & tfUniversalMask)
         return temINVALID_FLAG;
@@ -1063,7 +1073,7 @@ BridgeModify::preflight(PreflightContext const& ctx)
     auto const account = ctx.tx[sfAccount];
     auto const reward = ctx.tx[~sfSignatureReward];
     auto const minAccountCreate = ctx.tx[~sfMinAccountCreateAmount];
-    auto const bridge = ctx.tx[sfXChainBridge];
+    auto const bridgeSpec = ctx.tx[sfXChainBridge];
 
     if (!reward && !minAccountCreate)
     {
@@ -1071,21 +1081,21 @@ BridgeModify::preflight(PreflightContext const& ctx)
         return temMALFORMED;
     }
 
-    if (bridge.lockingChainDoor() != account &&
-        bridge.issuingChainDoor() != account)
+    if (bridgeSpec.lockingChainDoor() != account &&
+        bridgeSpec.issuingChainDoor() != account)
     {
         return temSIDECHAIN_NONDOOR_OWNER;
     }
 
-    if (reward && (!isXRP(*reward) || reward->signum() <= 0))
+    if (reward && (!isXRP(*reward) || reward->signum() < 0))
     {
         return temXCHAIN_BRIDGE_BAD_REWARD_AMOUNT;
     }
 
     if (minAccountCreate &&
         ((!isXRP(*minAccountCreate) || minAccountCreate->signum() <= 0) ||
-         !isXRP(bridge.lockingChainIssue()) ||
-         !isXRP(bridge.issuingChainIssue())))
+         !isXRP(bridgeSpec.lockingChainIssue()) ||
+         !isXRP(bridgeSpec.issuingChainIssue())))
     {
         return temXCHAIN_BRIDGE_BAD_MIN_ACCOUNT_CREATE_AMOUNT;
     }
@@ -1097,12 +1107,12 @@ TER
 BridgeModify::preclaim(PreclaimContext const& ctx)
 {
     auto const account = ctx.tx[sfAccount];
-    auto const bridge = ctx.tx[sfXChainBridge];
+    auto const bridgeSpec = ctx.tx[sfXChainBridge];
 
     STXChainBridge::ChainType const chainType =
-        STXChainBridge::srcChain(account == bridge.lockingChainDoor());
+        STXChainBridge::srcChain(account == bridgeSpec.lockingChainDoor());
 
-    if (!ctx.view.read(keylet::bridge(bridge.door(chainType))))
+    if (!ctx.view.read(keylet::bridge(bridgeSpec.door(chainType))))
     {
         return tecNO_ENTRY;
     }
@@ -1114,29 +1124,30 @@ TER
 BridgeModify::doApply()
 {
     auto const account = ctx_.tx[sfAccount];
-    auto const bridge = ctx_.tx[sfXChainBridge];
+    auto const bridgeSpec = ctx_.tx[sfXChainBridge];
     auto const reward = ctx_.tx[~sfSignatureReward];
     auto const minAccountCreate = ctx_.tx[~sfMinAccountCreateAmount];
 
-    auto const sleAcc = ctx_.view().peek(keylet::account(account));
-    if (!sleAcc)
-        return tecINTERNAL;  // LCOV_EXCL_LINE
+    auto const sleAcct = ctx_.view().peek(keylet::account(account));
+    if (!sleAcct)
+        return tecINTERNAL;
 
     STXChainBridge::ChainType const chainType =
-        STXChainBridge::srcChain(account == bridge.lockingChainDoor());
+        STXChainBridge::srcChain(account == bridgeSpec.lockingChainDoor());
 
-    auto const sleB = ctx_.view().peek(keylet::bridge(bridge.door(chainType)));
-    if (!sleB)
-        return tecINTERNAL;  // LCOV_EXCL_LINE
+    auto const sleBridge =
+        ctx_.view().peek(keylet::bridge(bridgeSpec.door(chainType)));
+    if (!sleBridge)
+        return tecINTERNAL;
 
     if (reward)
-        (*sleB)[sfSignatureReward] = *reward;
+        (*sleBridge)[sfSignatureReward] = *reward;
     if (minAccountCreate)
     {
         // TODO: How do I modify minAccountCreate to clear it? With a flag?
-        (*sleB)[sfMinAccountCreateAmount] = *minAccountCreate;
+        (*sleBridge)[sfMinAccountCreateAmount] = *minAccountCreate;
     }
-    ctx_.view().update(sleB);
+    ctx_.view().update(sleBridge);
 
     return tesSUCCESS;
 }
@@ -1150,7 +1161,7 @@ XChainClaim::preflight(PreflightContext const& ctx)
         return temDISABLED;
 
     if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
-        return ret;  // LCOV_EXCL_LINE
+        return ret;
 
     if (ctx.tx.getFlags() & tfUniversalMask)
         return temINVALID_FLAG;
@@ -1172,12 +1183,12 @@ TER
 XChainClaim::preclaim(PreclaimContext const& ctx)
 {
     AccountID const account = ctx.tx[sfAccount];
-    STXChainBridge bridgeSpec = ctx.tx[sfXChainBridge];
+    STXChainBridge const bridgeSpec = ctx.tx[sfXChainBridge];
     STAmount const& thisChainAmount = ctx.tx[sfAmount];
     auto const claimID = ctx.tx[sfXChainClaimID];
 
-    auto const sleB = readBridge(ctx.view, bridgeSpec);
-    if (!sleB)
+    auto const sleBridge = readBridge(ctx.view, bridgeSpec);
+    if (!sleBridge)
     {
         return tecNO_ENTRY;
     }
@@ -1187,7 +1198,7 @@ XChainClaim::preclaim(PreclaimContext const& ctx)
         return tecNO_DST;
     }
 
-    auto const thisDoor = (*sleB)[sfAccount];
+    auto const thisDoor = (*sleBridge)[sfAccount];
     bool isLockingChain = false;
     {
         if (thisDoor == bridgeSpec.lockingChainDoor())
@@ -1195,7 +1206,7 @@ XChainClaim::preclaim(PreclaimContext const& ctx)
         else if (thisDoor == bridgeSpec.issuingChainDoor())
             isLockingChain = false;
         else
-            return tecINTERNAL;  // LCOV_EXCL_LINE
+            return tecINTERNAL;
     }
 
     {
@@ -1204,14 +1215,12 @@ XChainClaim::preclaim(PreclaimContext const& ctx)
         if (isLockingChain)
         {
             if (bridgeSpec.lockingChainIssue() != thisChainAmount.issue())
-                return tecBAD_XCHAIN_TRANSFER_ISSUE;  // LCOV_EXCL_LINE -
-                                                      // checked in preflight
+                return tecBAD_XCHAIN_TRANSFER_ISSUE;
         }
         else
         {
             if (bridgeSpec.issuingChainIssue() != thisChainAmount.issue())
-                return tecBAD_XCHAIN_TRANSFER_ISSUE;  // LCOV_EXCL_LINE -
-                                                      // checked in preflight
+                return tecBAD_XCHAIN_TRANSFER_ISSUE;
         }
     }
 
@@ -1221,7 +1230,7 @@ XChainClaim::preclaim(PreclaimContext const& ctx)
         // Should have been caught when creating the bridge
         // Detect here so `otherChainAmount` doesn't switch from IOU -> XRP
         // and the numeric issues that need to be addressed with that.
-        return tecINTERNAL;  // LCOV_EXCL_LINE
+        return tecINTERNAL;
     }
 
     auto const otherChainAmount = [&]() -> STAmount {
@@ -1233,17 +1242,17 @@ XChainClaim::preclaim(PreclaimContext const& ctx)
         return r;
     }();
 
-    auto const sleCID =
+    auto const sleClaimID =
         ctx.view.read(keylet::xChainClaimID(bridgeSpec, claimID));
     {
         // Check that the sequence number is owned by the sender of this
         // transaction
-        if (!sleCID)
+        if (!sleClaimID)
         {
             return tecXCHAIN_NO_CLAIM_ID;
         }
 
-        if ((*sleCID)[sfAccount] != account)
+        if ((*sleClaimID)[sfAccount] != account)
         {
             // Sequence number isn't owned by the sender of this transaction
             return tecXCHAIN_BAD_CLAIM_ID;
@@ -1261,18 +1270,19 @@ XChainClaim::doApply()
 
     AccountID const account = ctx_.tx[sfAccount];
     auto const dst = ctx_.tx[sfDestination];
-    STXChainBridge bridgeSpec = ctx_.tx[sfXChainBridge];
+    STXChainBridge const bridgeSpec = ctx_.tx[sfXChainBridge];
     STAmount const& thisChainAmount = ctx_.tx[sfAmount];
     auto const claimID = ctx_.tx[sfXChainClaimID];
 
-    auto const sleAcc = psb.peek(keylet::account(account));
-    auto const sleB = peekBridge(psb, bridgeSpec);
-    auto const sleCID = psb.peek(keylet::xChainClaimID(bridgeSpec, claimID));
+    auto const sleAcct = psb.peek(keylet::account(account));
+    auto const sleBridge = peekBridge(psb, bridgeSpec);
+    auto const sleClaimID =
+        psb.peek(keylet::xChainClaimID(bridgeSpec, claimID));
 
-    if (!(sleB && sleCID && sleAcc))
-        return tecINTERNAL;  // LCOV_EXCL_LINE
+    if (!(sleBridge && sleClaimID && sleAcct))
+        return tecINTERNAL;
 
-    AccountID const thisDoor = (*sleB)[sfAccount];
+    AccountID const thisDoor = (*sleBridge)[sfAccount];
 
     STXChainBridge::ChainType dstChain = STXChainBridge::ChainType::locking;
     {
@@ -1281,7 +1291,7 @@ XChainClaim::doApply()
         else if (thisDoor == bridgeSpec.issuingChainDoor())
             dstChain = STXChainBridge::ChainType::issuing;
         else
-            return tecINTERNAL;  // LCOV_EXCL_LINE
+            return tecINTERNAL;
     }
     STXChainBridge::ChainType const srcChain =
         STXChainBridge::otherChain(dstChain);
@@ -1293,15 +1303,15 @@ XChainClaim::doApply()
     }();
 
     auto const [signersList, quorum, slTer] =
-        getSignersListAndQuorum(ctx_.view(), *sleB, ctx_.journal);
+        getSignersListAndQuorum(ctx_.view(), *sleBridge, ctx_.journal);
 
     if (!isTesSuccess(slTer))
-        return slTer;  // LCOV_EXCL_LINE
+        return slTer;
 
     XChainClaimAttestations curAtts{
-        sleCID->getFieldArray(sfXChainClaimAttestations)};
+        sleClaimID->getFieldArray(sfXChainClaimAttestations)};
 
-    auto claimR = curAtts.onClaim(
+    auto const claimR = curAtts.onClaim(
         sendingAmount,
         /*wasLockingChainSend*/ srcChain == STXChainBridge::ChainType::locking,
         quorum,
@@ -1310,9 +1320,9 @@ XChainClaim::doApply()
         return claimR.error();
 
     auto const& rewardAccounts = claimR.value();
-    auto const& rewardPoolSrc = (*sleCID)[sfAccount];
+    auto const& rewardPoolSrc = (*sleClaimID)[sfAccount];
 
-    std::optional<std::uint32_t> dstTag = ctx_.tx[~sfDestinationTag];
+    std::optional<std::uint32_t> const dstTag = ctx_.tx[~sfDestinationTag];
 
     auto const r = finalizeClaimHelper(
         psb,
@@ -1322,10 +1332,10 @@ XChainClaim::doApply()
         /*claimOwner*/ account,
         sendingAmount,
         rewardPoolSrc,
-        (*sleCID)[sfSignatureReward],
+        (*sleClaimID)[sfSignatureReward],
         rewardAccounts,
         srcChain,
-        sleCID,
+        sleClaimID,
         OnTransferFail::keepClaim,
         ctx_.journal);
     if (!isTesSuccess(r))
@@ -1358,7 +1368,7 @@ XChainCommit::preflight(PreflightContext const& ctx)
         return temDISABLED;
 
     if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
-        return ret;  // LCOV_EXCL_LINE
+        return ret;
 
     if (ctx.tx.getFlags() & tfUniversalMask)
         return temINVALID_FLAG;
@@ -1374,16 +1384,16 @@ XChainCommit::preflight(PreflightContext const& ctx)
 TER
 XChainCommit::preclaim(PreclaimContext const& ctx)
 {
-    auto const bridge = ctx.tx[sfXChainBridge];
+    auto const bridgeSpec = ctx.tx[sfXChainBridge];
     auto const amount = ctx.tx[sfAmount];
 
-    auto const sleB = readBridge(ctx.view, bridge);
-    if (!sleB)
+    auto const sleBridge = readBridge(ctx.view, bridgeSpec);
+    if (!sleBridge)
     {
         return tecNO_ENTRY;
     }
 
-    AccountID const thisDoor = (*sleB)[sfAccount];
+    AccountID const thisDoor = (*sleBridge)[sfAccount];
     AccountID const account = ctx.tx[sfAccount];
 
     if (thisDoor == account)
@@ -1394,22 +1404,22 @@ XChainCommit::preclaim(PreclaimContext const& ctx)
 
     bool isLockingChain = false;
     {
-        if (thisDoor == bridge.lockingChainDoor())
+        if (thisDoor == bridgeSpec.lockingChainDoor())
             isLockingChain = true;
-        else if (thisDoor == bridge.issuingChainDoor())
+        else if (thisDoor == bridgeSpec.issuingChainDoor())
             isLockingChain = false;
         else
-            return tecINTERNAL;  // LCOV_EXCL_LINE
+            return tecINTERNAL;
     }
 
     if (isLockingChain)
     {
-        if (bridge.lockingChainIssue() != ctx.tx[sfAmount].issue())
+        if (bridgeSpec.lockingChainIssue() != ctx.tx[sfAmount].issue())
             return tecBAD_XCHAIN_TRANSFER_ISSUE;
     }
     else
     {
-        if (bridge.issuingChainIssue() != ctx.tx[sfAmount].issue())
+        if (bridgeSpec.issuingChainIssue() != ctx.tx[sfAmount].issue())
             return tecBAD_XCHAIN_TRANSFER_ISSUE;
     }
 
@@ -1423,17 +1433,16 @@ XChainCommit::doApply()
 
     auto const account = ctx_.tx[sfAccount];
     auto const amount = ctx_.tx[sfAmount];
-    auto const bridge = ctx_.tx[sfXChainBridge];
+    auto const bridgeSpec = ctx_.tx[sfXChainBridge];
 
-    auto const sle = psb.peek(keylet::account(account));
-    if (!sle)
-        return tecINTERNAL;  // LCOV_EXCL_LINE
+    if (!psb.read(keylet::account(account)))
+        return tecINTERNAL;
 
-    auto const sleB = readBridge(psb, bridge);
-    if (!sleB)
-        return tecINTERNAL;  // LCOV_EXCL_LINE
+    auto const sleBridge = readBridge(psb, bridgeSpec);
+    if (!sleBridge)
+        return tecINTERNAL;
 
-    auto const dst = (*sleB)[sfAccount];
+    auto const dst = (*sleBridge)[sfAccount];
 
     auto const thTer = transferHelper(
         psb,
@@ -1462,7 +1471,7 @@ XChainCreateClaimID::preflight(PreflightContext const& ctx)
         return temDISABLED;
 
     if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
-        return ret;  // LCOV_EXCL_LINE
+        return ret;
 
     if (ctx.tx.getFlags() & tfUniversalMask)
         return temINVALID_FLAG;
@@ -1480,9 +1489,9 @@ XChainCreateClaimID::preclaim(PreclaimContext const& ctx)
 {
     auto const account = ctx.tx[sfAccount];
     auto const bridgeSpec = ctx.tx[sfXChainBridge];
-    auto const bridge = readBridge(ctx.view, bridgeSpec);
+    auto const sleBridge = readBridge(ctx.view, bridgeSpec);
 
-    if (!bridge)
+    if (!sleBridge)
     {
         return tecNO_ENTRY;
     }
@@ -1490,7 +1499,7 @@ XChainCreateClaimID::preclaim(PreclaimContext const& ctx)
     // Check that the reward matches
     auto const reward = ctx.tx[sfSignatureReward];
 
-    if (reward != (*bridge)[sfSignatureReward])
+    if (reward != (*sleBridge)[sfSignatureReward])
     {
         return tecXCHAIN_REWARD_MISMATCH;
     }
@@ -1499,7 +1508,7 @@ XChainCreateClaimID::preclaim(PreclaimContext const& ctx)
         // Check reserve
         auto const sle = ctx.view.read(keylet::account(account));
         if (!sle)
-            return terNO_ACCOUNT;  // LCOV_EXCL_LINE
+            return terNO_ACCOUNT;
 
         auto const balance = (*sle)[sfBalance];
         auto const reserve =
@@ -1516,52 +1525,54 @@ TER
 XChainCreateClaimID::doApply()
 {
     auto const account = ctx_.tx[sfAccount];
-    auto const bridge = ctx_.tx[sfXChainBridge];
+    auto const bridgeSpec = ctx_.tx[sfXChainBridge];
     auto const reward = ctx_.tx[sfSignatureReward];
     auto const otherChainSrc = ctx_.tx[sfOtherChainSource];
 
-    auto const sleAcc = ctx_.view().peek(keylet::account(account));
-    if (!sleAcc)
-        return tecINTERNAL;  // LCOV_EXCL_LINE
+    auto const sleAcct = ctx_.view().peek(keylet::account(account));
+    if (!sleAcct)
+        return tecINTERNAL;
 
-    auto const sleB = peekBridge(ctx_.view(), bridge);
-    if (!sleB)
-        return tecINTERNAL;  // LCOV_EXCL_LINE
+    auto const sleBridge = peekBridge(ctx_.view(), bridgeSpec);
+    if (!sleBridge)
+        return tecINTERNAL;
 
-    std::uint32_t const claimID = (*sleB)[sfXChainClaimID] + 1;
+    std::uint32_t const claimID = (*sleBridge)[sfXChainClaimID] + 1;
     if (claimID == 0)
-        return tecINTERNAL;  // overflow  - LCOV_EXCL_LINE
+        return tecINTERNAL;  // overflow
 
-    (*sleB)[sfXChainClaimID] = claimID;
+    (*sleBridge)[sfXChainClaimID] = claimID;
 
-    Keylet const seqKeylet = keylet::xChainClaimID(bridge, claimID);
-    if (ctx_.view().read(seqKeylet))
-        return tecINTERNAL;  // already checked out!?!   - LCOV_EXCL_LINE
+    Keylet const claimIDKeylet = keylet::xChainClaimID(bridgeSpec, claimID);
+    if (ctx_.view().exists(claimIDKeylet))
+        return tecINTERNAL;  // already checked out!?!
 
-    auto const sleQ = std::make_shared<SLE>(seqKeylet);
+    auto const sleClaimID = std::make_shared<SLE>(claimIDKeylet);
 
-    (*sleQ)[sfAccount] = account;
-    (*sleQ)[sfXChainBridge] = bridge;
-    (*sleQ)[sfXChainClaimID] = claimID;
-    (*sleQ)[sfOtherChainSource] = otherChainSrc;
-    (*sleQ)[sfSignatureReward] = reward;
-    sleQ->setFieldArray(
+    (*sleClaimID)[sfAccount] = account;
+    (*sleClaimID)[sfXChainBridge] = bridgeSpec;
+    (*sleClaimID)[sfXChainClaimID] = claimID;
+    (*sleClaimID)[sfOtherChainSource] = otherChainSrc;
+    (*sleClaimID)[sfSignatureReward] = reward;
+    sleClaimID->setFieldArray(
         sfXChainClaimAttestations, STArray{sfXChainClaimAttestations});
 
     // Add to owner directory
     {
         auto const page = ctx_.view().dirInsert(
-            keylet::ownerDir(account), seqKeylet, describeOwnerDir(account));
+            keylet::ownerDir(account),
+            claimIDKeylet,
+            describeOwnerDir(account));
         if (!page)
             return tecDIR_FULL;
-        (*sleQ)[sfOwnerNode] = *page;
+        (*sleClaimID)[sfOwnerNode] = *page;
     }
 
-    adjustOwnerCount(ctx_.view(), sleAcc, 1, ctx_.journal);
+    adjustOwnerCount(ctx_.view(), sleAcct, 1, ctx_.journal);
 
-    ctx_.view().insert(sleQ);
-    ctx_.view().update(sleB);
-    ctx_.view().update(sleAcc);
+    ctx_.view().insert(sleClaimID);
+    ctx_.view().update(sleBridge);
+    ctx_.view().update(sleAcct);
 
     return tesSUCCESS;
 }
@@ -1616,7 +1627,7 @@ XChainCreateAccountCommit::preflight(PreflightContext const& ctx)
         return temDISABLED;
 
     if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
-        return ret;  // LCOV_EXCL_LINE
+        return ret;
 
     if (ctx.tx.getFlags() & tfUniversalMask)
         return temINVALID_FLAG;
@@ -1627,7 +1638,7 @@ XChainCreateAccountCommit::preflight(PreflightContext const& ctx)
         return temBAD_AMOUNT;
 
     auto const reward = ctx.tx[sfSignatureReward];
-    if (reward.signum() <= 0 || !reward.native())
+    if (reward.signum() < 0 || !reward.native())
         return temBAD_AMOUNT;
 
     if (reward.issue() != amount.issue())
@@ -1643,19 +1654,19 @@ XChainCreateAccountCommit::preclaim(PreclaimContext const& ctx)
     STAmount const amount = ctx.tx[sfAmount];
     STAmount const reward = ctx.tx[sfSignatureReward];
 
-    auto const sleB = readBridge(ctx.view, bridgeSpec);
-    if (!sleB)
+    auto const sleBridge = readBridge(ctx.view, bridgeSpec);
+    if (!sleBridge)
     {
-        return tecNO_ENTRY;  // LCOV_EXCL_LINE
+        return tecNO_ENTRY;
     }
 
-    if (reward != (*sleB)[sfSignatureReward])
+    if (reward != (*sleBridge)[sfSignatureReward])
     {
         return tecXCHAIN_REWARD_MISMATCH;
     }
 
-    std::optional<STAmount> minCreateAmount =
-        (*sleB)[~sfMinAccountCreateAmount];
+    std::optional<STAmount> const minCreateAmount =
+        (*sleBridge)[~sfMinAccountCreateAmount];
 
     if (!minCreateAmount || amount < *minCreateAmount)
     {
@@ -1663,9 +1674,9 @@ XChainCreateAccountCommit::preclaim(PreclaimContext const& ctx)
     }
 
     if (minCreateAmount->issue() != amount.issue())
-        return tecBAD_XCHAIN_TRANSFER_ISSUE;  // LCOV_EXCL_LINE
+        return tecBAD_XCHAIN_TRANSFER_ISSUE;
 
-    AccountID const thisDoor = (*sleB)[sfAccount];
+    AccountID const thisDoor = (*sleBridge)[sfAccount];
     AccountID const account = ctx.tx[sfAccount];
     if (thisDoor == account)
     {
@@ -1680,7 +1691,7 @@ XChainCreateAccountCommit::preclaim(PreclaimContext const& ctx)
         else if (thisDoor == bridgeSpec.issuingChainDoor())
             srcChain = STXChainBridge::ChainType::issuing;
         else
-            return tecINTERNAL;  // LCOV_EXCL_LINE
+            return tecINTERNAL;
     }
     STXChainBridge::ChainType const dstChain =
         STXChainBridge::otherChain(srcChain);
@@ -1706,13 +1717,13 @@ XChainCreateAccountCommit::doApply()
 
     auto const sle = psb.peek(keylet::account(account));
     if (!sle)
-        return tecINTERNAL;  // LCOV_EXCL_LINE
+        return tecINTERNAL;
 
-    auto const sleB = peekBridge(psb, bridge);
-    if (!sleB)
-        return tecINTERNAL;  // LCOV_EXCL_LINE
+    auto const sleBridge = peekBridge(psb, bridge);
+    if (!sleBridge)
+        return tecINTERNAL;
 
-    auto const dst = (*sleB)[sfAccount];
+    auto const dst = (*sleBridge)[sfAccount];
 
     STAmount const toTransfer = amount + reward;
     auto const thTer = transferHelper(
@@ -1728,9 +1739,9 @@ XChainCreateAccountCommit::doApply()
     if (!isTesSuccess(thTer))
         return thTer;
 
-    (*sleB)[sfXChainAccountCreateCount] =
-        (*sleB)[sfXChainAccountCreateCount] + 1;
-    psb.update(sleB);
+    (*sleBridge)[sfXChainAccountCreateCount] =
+        (*sleBridge)[sfXChainAccountCreateCount] + 1;
+    psb.update(sleBridge);
 
     psb.apply(ctx_.rawView());
 

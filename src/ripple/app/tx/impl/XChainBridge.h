@@ -32,12 +32,12 @@ struct AttestationClaim;
 
 // Attach a new bridge to a door account. Once this is done, the cross-chain
 // transfer transactions may be used to transfer funds from this account.
-class BridgeCreate : public Transactor
+class XChainCreateBridge : public Transactor
 {
 public:
     static constexpr ConsequencesFactoryType ConsequencesFactory{Normal};
 
-    explicit BridgeCreate(ApplyContext& ctx) : Transactor(ctx)
+    explicit XChainCreateBridge(ApplyContext& ctx) : Transactor(ctx)
     {
     }
 
@@ -223,7 +223,7 @@ public:
 //
 // IMPORTANT: This transaction should only be enabled if the witness
 // attestations will be reliably delivered to the destination chain. If the
-// signatures are not delivered (for example, the chain relies on use accounts
+// signatures are not delivered (for example, the chain relies on user wallets
 // to collect signatures) then account creation would be blocked for all
 // transactions that happened after the one waiting on attestations. This could
 // be used maliciously. To disable this transaction on XRP to XRP bridges, the

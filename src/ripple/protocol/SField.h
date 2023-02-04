@@ -496,7 +496,6 @@ extern SF_AMOUNT const sfMinimumOffer;
 extern SF_AMOUNT const sfRippleEscrow;
 extern SF_AMOUNT const sfDeliveredAmount;
 extern SF_AMOUNT const sfNFTokenBrokerFee;
-extern SF_AMOUNT const sfXChainFee;
 extern SF_AMOUNT const sfSignatureReward;
 extern SF_AMOUNT const sfMinAccountCreateAmount;
 
@@ -541,7 +540,6 @@ extern SF_ACCOUNT const sfEmitCallback;
 
 // account (uncommon)
 extern SF_ACCOUNT const sfHookAccount;
-extern SF_ACCOUNT const sfThisChainAccount;
 extern SF_ACCOUNT const sfOtherChainSource;
 extern SF_ACCOUNT const sfOtherChainDestination;
 extern SF_ACCOUNT const sfAttestationSignerAccount;
@@ -594,10 +592,8 @@ extern SField const sfHookParameter;
 extern SField const sfHookGrant;
 extern SField const sfXChainClaimProofSig;
 extern SField const sfXChainCreateAccountProofSig;
-extern SField const sfXChainAttestationBatchElement;
 extern SField const sfXChainClaimAttestationBatchElement;
 extern SField const sfXChainCreateAccountAttestationBatchElement;
-extern SField const sfXChainAttestationBatchInner;
 
 // array of objects (common)
 // ARRAY/1 is reserved for end of array
@@ -618,7 +614,6 @@ extern SField const sfDisabledValidators;
 extern SField const sfHookExecutions;
 extern SField const sfHookParameters;
 extern SField const sfHookGrants;
-extern SField const sfXChainProofSigs;
 extern SField const sfXChainClaimAttestationBatch;
 extern SField const sfXChainCreateAccountAttestationBatch;
 extern SField const sfXChainClaimAttestations;

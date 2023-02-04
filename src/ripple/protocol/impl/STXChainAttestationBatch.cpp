@@ -134,7 +134,13 @@ AttestationClaim::AttestationClaim(
     bool wasLockingChainSend_,
     std::uint64_t claimID_,
     std::optional<AccountID> const& dst_)
-    : AttestationBase{publicKey_, std::move(signature_), sendingAccount_, sendingAmount_, rewardAccount_, wasLockingChainSend_}
+    : AttestationBase(
+          publicKey_,
+          std::move(signature_),
+          sendingAccount_,
+          sendingAmount_,
+          rewardAccount_,
+          wasLockingChainSend_)
     , claimID{claimID_}
     , dst{dst_}
 {
@@ -247,12 +253,6 @@ operator==(AttestationClaim const& lhs, AttestationClaim const& rhs)
         tie(lhs.claimID, lhs.dst) == tie(rhs.claimID, rhs.dst);
 }
 
-bool
-operator!=(AttestationClaim const& lhs, AttestationClaim const& rhs)
-{
-    return !(lhs == rhs);
-}
-
 AttestationCreateAccount::AttestationCreateAccount(STObject const& o)
     : AttestationBase(o)
     , createCount{o[sfXChainAccountCreateCount]}
@@ -281,7 +281,13 @@ AttestationCreateAccount::AttestationCreateAccount(
     bool wasLockingChainSend_,
     std::uint64_t createCount_,
     AccountID const& toCreate_)
-    : AttestationBase{publicKey_, std::move(signature_), sendingAccount_, sendingAmount_, rewardAccount_, wasLockingChainSend_}
+    : AttestationBase(
+          publicKey_,
+          std::move(signature_),
+          sendingAccount_,
+          sendingAmount_,
+          rewardAccount_,
+          wasLockingChainSend_)
     , createCount{createCount_}
     , toCreate{toCreate_}
     , rewardAmount{rewardAmount_}
@@ -392,14 +398,6 @@ operator==(
         std::tie(rhs.createCount, rhs.toCreate, rhs.rewardAmount);
 }
 
-bool
-operator!=(
-    AttestationCreateAccount const& lhs,
-    AttestationCreateAccount const& rhs)
-{
-    return !(lhs == rhs);
-}
-
 }  // namespace AttestationBatch
 
 bool
@@ -409,14 +407,6 @@ operator==(
 {
     return std::tie(lhs.bridge_, lhs.claims_, lhs.creates_) ==
         std::tie(rhs.bridge_, rhs.claims_, rhs.creates_);
-}
-
-bool
-operator!=(
-    STXChainAttestationBatch const& lhs,
-    STXChainAttestationBatch const& rhs)
-{
-    return !operator==(lhs, rhs);
 }
 
 STXChainAttestationBatch::STXChainAttestationBatch()
@@ -672,17 +662,16 @@ STXChainAttestationBatch::noConflicts() const
     };
 
     {
-        // Check that all the claim batches attest to the same thing
-        auto r = for_each_create_batch<bool>(
-            creates_.begin(), creates_.end(), isConsistent);
+        auto r = for_each_claim_batch<bool>(
+            claims_.begin(), claims_.end(), isConsistent);
         if (!std::all_of(r.begin(), r.end(), [](bool v) { return v; }))
         {
             return false;
         }
     }
     {
-        auto r = for_each_claim_batch<bool>(
-            claims_.begin(), claims_.end(), isConsistent);
+        auto r = for_each_create_batch<bool>(
+            creates_.begin(), creates_.end(), isConsistent);
         if (!std::all_of(r.begin(), r.end(), [](bool v) { return v; }))
         {
             return false;

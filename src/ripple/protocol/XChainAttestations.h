@@ -43,9 +43,9 @@ struct AttestationCreateAccount;
 // Result when checking when two attestation match.
 enum class AttestationMatch {
     // One of the fields doesn't match, and it isn't the dst field
-    non_dst_mismatch,
+    nonDstMatch,
     // all of the fields match, except the dst field
-    match_except_dst,
+    matchExceptDst,
     // all of the fields match
     match
 };
@@ -99,7 +99,7 @@ struct XChainClaimAttestation
     AttestationMatch
     match(MatchFields const& rhs) const;
 
-    STObject
+    [[nodiscard]] STObject
     toSTObject() const;
 
     friend bool
@@ -148,7 +148,7 @@ struct XChainCreateAccountAttestation
 
     explicit XChainCreateAccountAttestation(Json::Value const& v);
 
-    STObject
+    [[nodiscard]] STObject
     toSTObject() const;
 
     AttestationMatch
@@ -186,13 +186,13 @@ public:
     XChainAttestationsBase&
     operator=(XChainAttestationsBase const& rhs) = default;
 
-    XChainAttestationsBase(AttCollection&& sigs);
+    explicit XChainAttestationsBase(AttCollection&& sigs);
 
     explicit XChainAttestationsBase(Json::Value const& v);
 
     explicit XChainAttestationsBase(STArray const& arr);
 
-    STArray
+    [[nodiscard]] STArray
     toSTArray() const;
 
     /**
@@ -249,7 +249,7 @@ public:
     attestations() const;
 
     // verify that all the signatures attest to transaction data.
-    bool
+    [[nodiscard]] bool
     verify() const;
 
 protected:
@@ -274,7 +274,7 @@ protected:
 
     // Return the message that was expected to be signed by the attesters given
     // the data to be proved.
-    std::vector<std::uint8_t>
+    [[nodiscard]] std::vector<std::uint8_t>
     message() const;
 };
 
