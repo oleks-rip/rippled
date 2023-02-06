@@ -50,7 +50,6 @@ class STBitString;
 template <class>
 class STInteger;
 class STXChainBridge;
-class STXChainAttestationBatch;
 class STVector256;
 
 enum SerializedTypeID {
@@ -82,7 +81,6 @@ enum SerializedTypeID {
     STI_UINT512 = 23,
     STI_ISSUE = 24,
     STI_XCHAIN_BRIDGE = 25,
-    STI_XCHAIN_ATTESTATION_BATCH = 26,
 
     // high level types
     // cannot be serialized inside other types
@@ -329,7 +327,6 @@ using SF_ISSUE = TypedField<STIssue>;
 using SF_VL = TypedField<STBlob>;
 using SF_VECTOR256 = TypedField<STVector256>;
 using SF_XCHAIN_BRIDGE = TypedField<STXChainBridge>;
-using SF_XCHAIN_ATTESTATION_BATCH = TypedField<STXChainAttestationBatch>;
 
 //------------------------------------------------------------------------------
 
@@ -552,9 +549,6 @@ extern SField const sfPaths;
 
 // bridge
 extern SF_XCHAIN_BRIDGE const sfXChainBridge;
-
-// attestation batch
-extern SF_XCHAIN_ATTESTATION_BATCH const sfXChainAttestationBatch;
 
 // issues
 extern SF_ISSUE const sfLockingChainIssue;

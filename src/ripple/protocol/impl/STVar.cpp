@@ -168,9 +168,6 @@ STVar::STVar(SerialIter& sit, SField const& name, int depth)
         case STI_XCHAIN_BRIDGE:
             construct<STXChainBridge>(sit, name);
             return;
-        case STI_XCHAIN_ATTESTATION_BATCH:
-            construct<STXChainAttestationBatch>(sit, name);
-            return;
         default:
             Throw<std::runtime_error>("Unknown object type");
     }
@@ -231,9 +228,6 @@ STVar::STVar(SerializedTypeID id, SField const& name)
             return;
         case STI_XCHAIN_BRIDGE:
             construct<STXChainBridge>(name);
-            return;
-        case STI_XCHAIN_ATTESTATION_BATCH:
-            construct<STXChainAttestationBatch>(name);
             return;
         default:
             Throw<std::runtime_error>("Unknown object type");

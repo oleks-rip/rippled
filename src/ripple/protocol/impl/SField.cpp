@@ -307,12 +307,6 @@ CONSTRUCT_TYPED_SFIELD(sfIssuingChainIssue,      "IssuingChainIssue",   ISSUE, 2
 CONSTRUCT_TYPED_SFIELD(sfXChainBridge,           "XChainBridge",        XCHAIN_BRIDGE,
                                                                                1);
 
-// Attestation batch
-CONSTRUCT_TYPED_SFIELD(sfXChainAttestationBatch,
-                                                 "XChainAttestationBatch",
-                                                                         XCHAIN_ATTESTATION_BATCH,
-                                                                               1);
-
 // inner object
 // OBJECT/1 is reserved for end of object
 CONSTRUCT_UNTYPED_SFIELD(sfTransactionMetaData, "TransactionMetaData",  OBJECT,     2);
