@@ -39,10 +39,6 @@ namespace ripple {
 
 namespace Attestations {
 
-// Changing this value is transaction breaking
-// The max allowed number of attestations (equal is Ok. Greater is not.)
-constexpr std::size_t maxAttestations = 8;
-
 struct AttestationBase
 {
     // Public key from the witness server attesting to the event
