@@ -52,7 +52,7 @@ enum class AttestationMatch {
 
 struct XChainClaimAttestation
 {
-    using TBatchAttestation = AttestationBatch::AttestationClaim;
+    using TBatchAttestation = Attestations::AttestationClaim;
     static SField const& ArrayFieldName;
 
     AccountID keyAccount;
@@ -114,7 +114,7 @@ struct XChainClaimAttestation
 
 struct XChainCreateAccountAttestation
 {
-    using TBatchAttestation = AttestationBatch::AttestationCreateAccount;
+    using TBatchAttestation = Attestations::AttestationCreateAccount;
     static SField const& ArrayFieldName;
 
     AccountID keyAccount;

@@ -35,7 +35,7 @@
 
 namespace ripple {
 
-namespace AttestationBatch {
+namespace Attestations {
 
 AttestationBase::AttestationBase(
     PublicKey const& publicKey_,
@@ -398,5 +398,5 @@ operator==(
         std::tie(rhs.createCount, rhs.toCreate, rhs.rewardAmount);
 }
 
-}  // namespace AttestationBatch
+}  // namespace Attestations
 }  // namespace ripple

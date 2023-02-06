@@ -41,7 +41,7 @@ sign_claim_attestation(
     std::uint64_t claimID,
     std::optional<AccountID> const& dst)
 {
-    auto const toSign = AttestationBatch::AttestationClaim::message(
+    auto const toSign = Attestations::AttestationClaim::message(
         bridge,
         sendingAccount,
         sendingAmount,
@@ -65,7 +65,7 @@ sign_create_account_attestation(
     std::uint64_t createCount,
     AccountID const& dst)
 {
-    auto const toSign = AttestationBatch::AttestationCreateAccount::message(
+    auto const toSign = Attestations::AttestationCreateAccount::message(
         bridge,
         sendingAccount,
         sendingAmount,

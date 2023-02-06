@@ -37,7 +37,7 @@
 
 namespace ripple {
 
-namespace AttestationBatch {
+namespace Attestations {
 
 // Changing this value is transaction breaking
 // The max allowed number of attestations (equal is Ok. Greater is not.)
@@ -245,7 +245,7 @@ struct CmpByCreateCount
     }
 };
 
-};  // namespace AttestationBatch
+};  // namespace Attestations
 
 }  // namespace ripple
 
