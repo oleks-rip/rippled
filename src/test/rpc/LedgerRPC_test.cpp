@@ -204,7 +204,6 @@ class LedgerRPC_XChain_test : public beast::unit_test::suite,
     void
     testLedgerEntryCreateAccountClaimID()
     {
-#if 0  // TODO: This needs to be re-written
         testcase("ledger_entry: xchain_create_account_claim_id");
         using namespace test::jtx;
 
@@ -237,7 +236,7 @@ class LedgerRPC_XChain_test : public beast::unit_test::suite,
             scCarol,
             signers,
             UT_XCHAIN_DEFAULT_NUM_SIGNERS);
-        for(size_t i = 0; i < num_attest; ++i )
+        for (size_t i = 0; i < num_attest; ++i)
         {
             scEnv(attestations[i]);
         }
@@ -309,7 +308,7 @@ class LedgerRPC_XChain_test : public beast::unit_test::suite,
 
         // complete attestations quorum - CreateAccountClaimID should not be
         // present anymore
-        for(size_t i = num_attest; i < UT_XCHAIN_DEFAULT_NUM_SIGNERS; ++i )
+        for (size_t i = num_attest; i < UT_XCHAIN_DEFAULT_NUM_SIGNERS; ++i)
         {
             scEnv(attestations[i]);
         }
@@ -325,7 +324,6 @@ class LedgerRPC_XChain_test : public beast::unit_test::suite,
                 "json", "ledger_entry", to_string(jvParams))[jss::result];
             checkErrorValue(jrr, "entryNotFound", "");
         }
-#endif
     }
 
 public:
