@@ -69,13 +69,9 @@ JSS(FeeSettings);                        // ledger type.
 JSS(Flags);                              // in/out: TransactionSign; field.
 JSS(incomplete_shards);                  // out: OverlayImpl, PeerImp
 JSS(Invalid);                            //
-JSS(IssuingChainDoor);                   // field.
-JSS(IssuingChainIssue);                  // field.
 JSS(LastLedgerSequence);                 // in: TransactionSign; field
 JSS(LedgerHashes);                       // ledger type.
 JSS(LimitAmount);                        // field.
-JSS(LockingChainDoor);                   // field.
-JSS(LockingChainIssue);                  // field.
 JSS(NegativeUNL);                        // out: ValidatorList; ledger type
 JSS(NFTokenBurn);                        // transaction type.
 JSS(NFTokenMint);                        // transaction type.
@@ -117,7 +113,6 @@ JSS(TrustSet);                           // transaction type.
 JSS(XChainAddAccountCreateAttestation);  // transaction type.
 JSS(XChainAddClaimAttestation);          // transaction type.
 JSS(XChainAccountCreateCommit);          // transaction type.
-JSS(XChainBridge);                       // field.
 JSS(XChainClaim);                        // transaction type.
 JSS(XChainClaimID);                      // ledger type.
 JSS(XChainCommit);                       // transaction type.

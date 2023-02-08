@@ -382,12 +382,12 @@ doLedgerEntry(RPC::JsonContext& context)
         }
         else if (
             !claim_id.isObject() ||
-            !(claim_id.isMember(jss::IssuingChainDoor) &&
-              claim_id[jss::IssuingChainDoor].isString()) ||
-            !(claim_id.isMember(jss::LockingChainDoor) &&
-              claim_id[jss::LockingChainDoor].isString()) ||
-            !claim_id.isMember(jss::IssuingChainIssue) ||
-            !claim_id.isMember(jss::LockingChainIssue) ||
+            !(claim_id.isMember(sfIssuingChainDoor.getJsonName()) &&
+              claim_id[sfIssuingChainDoor.getJsonName()].isString()) ||
+            !(claim_id.isMember(sfLockingChainDoor.getJsonName()) &&
+              claim_id[sfLockingChainDoor.getJsonName()].isString()) ||
+            !claim_id.isMember(sfIssuingChainIssue.getJsonName()) ||
+            !claim_id.isMember(sfLockingChainIssue.getJsonName()) ||
             !claim_id.isMember(jss::xchain_claim_id))
         {
             jvResult[jss::error] = "malformedRequest";
@@ -399,19 +399,19 @@ doLedgerEntry(RPC::JsonContext& context)
             // locking_chain_issue, issuing_chain_door, issuing_chain_issue) and
             // the claim id sequence number.
             auto lockingChainDoor = parseBase58<AccountID>(
-                claim_id[jss::LockingChainDoor].asString());
+                claim_id[sfLockingChainDoor.getJsonName()].asString());
             auto issuingChainDoor = parseBase58<AccountID>(
-                claim_id[jss::IssuingChainDoor].asString());
+                claim_id[sfIssuingChainDoor.getJsonName()].asString());
             Issue lockingChainIssue, issuingChainIssue;
             bool valid = lockingChainDoor && issuingChainDoor;
             if (valid)
             {
                 try
                 {
-                    lockingChainIssue =
-                        issueFromJson(claim_id[jss::LockingChainIssue]);
-                    issuingChainIssue =
-                        issueFromJson(claim_id[jss::IssuingChainIssue]);
+                    lockingChainIssue = issueFromJson(
+                        claim_id[sfLockingChainIssue.getJsonName()]);
+                    issuingChainIssue = issueFromJson(
+                        claim_id[sfIssuingChainIssue.getJsonName()]);
                 }
                 catch (std::runtime_error const& ex)
                 {
@@ -451,12 +451,12 @@ doLedgerEntry(RPC::JsonContext& context)
         }
         else if (
             !claim_id.isObject() ||
-            !(claim_id.isMember(jss::IssuingChainDoor) &&
-              claim_id[jss::IssuingChainDoor].isString()) ||
-            !(claim_id.isMember(jss::LockingChainDoor) &&
-              claim_id[jss::LockingChainDoor].isString()) ||
-            !claim_id.isMember(jss::IssuingChainIssue) ||
-            !claim_id.isMember(jss::LockingChainIssue) ||
+            !(claim_id.isMember(sfIssuingChainDoor.getJsonName()) &&
+              claim_id[sfIssuingChainDoor.getJsonName()].isString()) ||
+            !(claim_id.isMember(sfLockingChainDoor.getJsonName()) &&
+              claim_id[sfLockingChainDoor.getJsonName()].isString()) ||
+            !claim_id.isMember(sfIssuingChainIssue.getJsonName()) ||
+            !claim_id.isMember(sfLockingChainIssue.getJsonName()) ||
             !claim_id.isMember(jss::xchain_create_account_claim_id))
         {
             jvResult[jss::error] = "malformedRequest";
@@ -469,19 +469,19 @@ doLedgerEntry(RPC::JsonContext& context)
             // issuing_chain_issue) and the create account claim id sequence
             // number.
             auto lockingChainDoor = parseBase58<AccountID>(
-                claim_id[jss::LockingChainDoor].asString());
+                claim_id[sfLockingChainDoor.getJsonName()].asString());
             auto issuingChainDoor = parseBase58<AccountID>(
-                claim_id[jss::IssuingChainDoor].asString());
+                claim_id[sfIssuingChainDoor.getJsonName()].asString());
             Issue lockingChainIssue, issuingChainIssue;
             bool valid = lockingChainDoor && issuingChainDoor;
             if (valid)
             {
                 try
                 {
-                    lockingChainIssue =
-                        issueFromJson(claim_id[jss::LockingChainIssue]);
-                    issuingChainIssue =
-                        issueFromJson(claim_id[jss::IssuingChainIssue]);
+                    lockingChainIssue = issueFromJson(
+                        claim_id[sfLockingChainIssue.getJsonName()]);
+                    issuingChainIssue = issueFromJson(
+                        claim_id[sfIssuingChainIssue.getJsonName()]);
                 }
                 catch (std::runtime_error const& ex)
                 {
