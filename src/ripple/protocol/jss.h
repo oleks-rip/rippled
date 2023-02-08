@@ -114,12 +114,12 @@ JSS(XChainAddAccountCreateAttestation);  // transaction type.
 JSS(XChainAddClaimAttestation);          // transaction type.
 JSS(XChainAccountCreateCommit);          // transaction type.
 JSS(XChainClaim);                        // transaction type.
-JSS(XChainClaimID);                      // ledger type.
 JSS(XChainCommit);                       // transaction type.
-JSS(XChainCreateAccountClaimID);         // ledger type.
 JSS(XChainCreateBridge);                 // transaction type.
 JSS(XChainCreateClaimID);                // transaction type.
 JSS(XChainModifyBridge);                 // transaction type.
+JSS(XChainOwnedClaimID);                 // ledger type.
+JSS(XChainOwnedCreateAccountClaimID);    // ledger type.
 JSS(aborted);                            // out: InboundLedger
 JSS(accepted);               // out: LedgerToJson, OwnerInfo, SubmitTransaction
 JSS(account);                // in/out: many
