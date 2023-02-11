@@ -1332,7 +1332,7 @@ struct XChain_test : public beast::unit_test::suite,
             .tx(create_bridge(mcDoor, jvb))
             .close()
             .tx(xchain_commit(mcAlice, jvb, 1, mcUSD(100), scBob),
-                ter(tecBAD_XCHAIN_TRANSFER_ISSUE));
+                ter(temBAD_ISSUER));
 
         // Commit an amount that would put the sender below the required
         // reserve (if XRP)

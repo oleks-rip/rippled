@@ -1368,9 +1368,14 @@ XChainCommit::preflight(PreflightContext const& ctx)
         return temINVALID_FLAG;
 
     auto const amount = ctx.tx[sfAmount];
+    auto const bridgeSpec = ctx.tx[sfXChainBridge];
 
     if (amount.signum() <= 0 || !isLegalNet(amount))
         return temBAD_AMOUNT;
+
+    if (amount.issue() != bridgeSpec.lockingChainIssue() &&
+        amount.issue() != bridgeSpec.issuingChainIssue())
+        return temBAD_ISSUER;
 
     return preflight2(ctx);
 }
