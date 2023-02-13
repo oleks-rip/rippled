@@ -315,9 +315,14 @@ XChainAttestationsBase<TAttestation>::XChainAttestationsBase(
             "Json "
             "value");
     }
-    // TODO: Throw if too many signatures
+
     attestations_ = [&] {
         auto const jAtts = v[jss::attestations];
+
+        if (jAtts.size() > maxAttestations)
+            Throw<std::runtime_error>(
+                "XChainAttestationsBase exceeded max number of attestations");
+
         std::vector<TAttestation> r;
         r.reserve(jAtts.size());
         for (auto const& a : jAtts)
@@ -329,6 +334,10 @@ XChainAttestationsBase<TAttestation>::XChainAttestationsBase(
 template <class TAttestation>
 XChainAttestationsBase<TAttestation>::XChainAttestationsBase(STArray const& arr)
 {
+    if (arr.size() > maxAttestations)
+        Throw<std::runtime_error>(
+            "XChainAttestationsBase exceeded max number of attestations");
+
     attestations_.reserve(arr.size());
     for (auto const& o : arr)
         attestations_.emplace_back(o);
