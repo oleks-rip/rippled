@@ -1061,17 +1061,25 @@ BridgeModify::preflight(PreflightContext const& ctx)
     if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
         return ret;
 
-    if (ctx.tx.getFlags() & tfUniversalMask)
+    if (ctx.tx.getFlags() & tfBridgeModiryMask)
         return temINVALID_FLAG;
 
     auto const account = ctx.tx[sfAccount];
     auto const reward = ctx.tx[~sfSignatureReward];
     auto const minAccountCreate = ctx.tx[~sfMinAccountCreateAmount];
     auto const bridgeSpec = ctx.tx[sfXChainBridge];
+    bool const clearAccountCreate =
+        ctx.tx.getFlags() & tfClearAccountCreateAmount;
 
-    if (!reward && !minAccountCreate)
+    if (!reward && !minAccountCreate && !clearAccountCreate)
     {
         // Must change something
+        return temMALFORMED;
+    }
+
+    if (minAccountCreate && clearAccountCreate)
+    {
+        // Can't both clear and set account create in the same txn
         return temMALFORMED;
     }
 
@@ -1121,6 +1129,8 @@ BridgeModify::doApply()
     auto const bridgeSpec = ctx_.tx[sfXChainBridge];
     auto const reward = ctx_.tx[~sfSignatureReward];
     auto const minAccountCreate = ctx_.tx[~sfMinAccountCreateAmount];
+    bool const clearAccountCreate =
+        ctx_.tx.getFlags() & tfClearAccountCreateAmount;
 
     auto const sleAcct = ctx_.view().peek(keylet::account(account));
     if (!sleAcct)
@@ -1138,8 +1148,11 @@ BridgeModify::doApply()
         (*sleBridge)[sfSignatureReward] = *reward;
     if (minAccountCreate)
     {
-        // TODO: How do I modify minAccountCreate to clear it? With a flag?
         (*sleBridge)[sfMinAccountCreateAmount] = *minAccountCreate;
+    }
+    if (clearAccountCreate && (*sleBridge)[~sfMinAccountCreateAmount])
+    {
+        sleBridge->makeFieldAbsent(sfMinAccountCreateAmount);
     }
     ctx_.view().update(sleBridge);
 
