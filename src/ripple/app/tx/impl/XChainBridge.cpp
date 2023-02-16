@@ -1588,11 +1588,11 @@ XChainCreateClaimID::doApply()
     if (!sleBridge)
         return tecINTERNAL;
 
-    std::uint32_t const claimID = (*sleBridge)[sfXChainClaimID];
-    if (claimID == std::numeric_limits<std::uint32_t>::max())
+    std::uint32_t const claimID = (*sleBridge)[sfXChainClaimID] + 1;
+    if (claimID == 0)
         return tecINTERNAL;  // overflow
 
-    (*sleBridge)[sfXChainClaimID] = claimID + 1;
+    (*sleBridge)[sfXChainClaimID] = claimID;
 
     Keylet const claimIDKeylet = keylet::xChainClaimID(bridgeSpec, claimID);
     if (ctx_.view().exists(claimIDKeylet))
