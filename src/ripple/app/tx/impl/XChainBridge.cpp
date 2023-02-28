@@ -259,13 +259,58 @@ enum class OnTransferFail {
            are removed so they don't block future txns.
     @param j Log
 
-    @return tesSUCCESS if payment succeeds, otherwise the error code for the
-            failure reason. Note that failure to distribute rewards is still
-            considered success.
+    @return FinalizeClaimHelperResult. See the comments in this struct for what
+            the fields mean. The individual ters need to be returned instead of
+            an overall ter because the caller needs this information if the
+            attestation list changed or not.
  */
-TER
+
+struct FinalizeClaimHelperResult
+{
+    /// Ter for transfering the payment funds
+    std::optional<TER> mainFundsTer;
+    // Ter for transfering the reward funds
+    std::optional<TER> rewardTer;
+    // Ter for removing the sle (if is sle is to be removed)
+    std::optional<TER> rmSleTer;
+
+    // Helper to check for overall success. If there wasn't overall success the
+    // individual ters can be used to decide what needs to be done.
+    bool
+    isTesSuccess() const
+    {
+        return mainFundsTer == tesSUCCESS && rewardTer == tesSUCCESS &&
+            (!rmSleTer || *rmSleTer == tesSUCCESS);
+    }
+
+    TER
+    ter() const
+    {
+        // if any phase return a tecINTERNAL or a tef, prefer returning those
+        // codes
+        if (mainFundsTer &&
+            (isTefFailure(*mainFundsTer) || *mainFundsTer == tecINTERNAL))
+            return *mainFundsTer;
+        if (rewardTer &&
+            (isTefFailure(*rewardTer) || *rewardTer == tecINTERNAL))
+            return *rewardTer;
+        if (rmSleTer && (isTefFailure(*rmSleTer) || *rmSleTer == tecINTERNAL))
+            return *rmSleTer;
+
+        // Only after the tecINTERNAL and tef are checked, return the first
+        // non-success error code.
+        if (mainFundsTer && mainFundsTer != tesSUCCESS)
+            return *mainFundsTer;
+        if (rewardTer && rewardTer != tesSUCCESS)
+            return *rewardTer;
+        if (rmSleTer && rmSleTer != tesSUCCESS)
+            return *rmSleTer;
+        return tesSUCCESS;
+    }
+};
+FinalizeClaimHelperResult
 finalizeClaimHelper(
-    PaymentSandbox& psb,
+    PaymentSandbox& outerSb,
     STXChainBridge const& bridgeSpec,
     AccountID const& dst,
     std::optional<std::uint32_t> const& dstTag,
@@ -275,10 +320,12 @@ finalizeClaimHelper(
     STAmount const& rewardPool,
     std::vector<AccountID> const& rewardAccounts,
     STXChainBridge::ChainType const srcChain,
-    std::shared_ptr<SLE> const& sleClaimID,
+    Keylet const& claimIDKeylet,
     OnTransferFail onTransferFail,
     beast::Journal j)
 {
+    FinalizeClaimHelperResult result;
+
     STXChainBridge::ChainType const dstChain =
         STXChainBridge::otherChain(srcChain);
     STAmount const thisChainAmount = [&] {
@@ -288,81 +335,117 @@ finalizeClaimHelper(
     }();
     auto const& thisDoor = bridgeSpec.door(dstChain);
 
-    auto const thTer = transferHelper(
-        psb,
-        thisDoor,
-        dst,
-        dstTag,
-        claimOwner,
-        thisChainAmount,
-        TransferHelperCanCreateDst::yes,
-        j);
-
-    if (!isTesSuccess(thTer) && onTransferFail == OnTransferFail::keepClaim)
     {
-        return thTer;
+        PaymentSandbox innerSb{&outerSb};
+        // If distributing the reward pool fails, the mainFunds transfer should
+        // be rolled back
+        //
+        // If the claimid is removed, the rewards should be distributed
+        // even if the mainFunds fails.
+        //
+        // The claim should be removed even if the
+        // rewards can not be distributed if "remove on fail" is true.
+
+        // transfer funds to the dst
+        result.mainFundsTer = transferHelper(
+            innerSb,
+            thisDoor,
+            dst,
+            dstTag,
+            claimOwner,
+            thisChainAmount,
+            TransferHelperCanCreateDst::yes,
+            j);
+
+        if (!isTesSuccess(*result.mainFundsTer) &&
+            onTransferFail == OnTransferFail::keepClaim)
+        {
+            return result;
+        }
+
+        // handle the reward pool
+        result.rewardTer = [&]() -> TER {
+            if (rewardAccounts.empty())
+                return tesSUCCESS;
+
+            // distribute the reward pool
+            // if the transfer failed, distribute the pool for "OnTransferFail"
+            // cases (the attesters did their job)
+            STAmount const share = [&] {
+                STAmount const den{rewardAccounts.size()};
+                return divide(rewardPool, den, rewardPool.issue());
+            }();
+            STAmount distributed = rewardPool.zeroed();
+            for (auto const& rewardAccount : rewardAccounts)
+            {
+                auto const thTer = transferHelper(
+                    innerSb,
+                    rewardPoolSrc,
+                    rewardAccount,
+                    /*dstTag*/ std::nullopt,
+                    // claim owner is not relevant to distributing rewards
+                    /*claimOwner*/ std::nullopt,
+                    share,
+                    TransferHelperCanCreateDst::no,
+                    j);
+
+                if (thTer == tecINSUFFICIENT_FUNDS || thTer == tecINTERNAL)
+                    return thTer;
+
+                if (isTesSuccess(thTer))
+                    distributed += share;
+
+                // let txn succeed if error distributing rewards (other than
+                // inability to pay)
+            }
+
+            if (distributed > rewardPool)
+                return tecINTERNAL;
+
+            return tesSUCCESS;
+        }();
+
+        if (!isTesSuccess(*result.rewardTer) &&
+            (onTransferFail == OnTransferFail::keepClaim ||
+             *result.rewardTer == tecINTERNAL))
+        {
+            return result;
+        }
+
+        if (!isTesSuccess(*result.mainFundsTer) ||
+            isTesSuccess(*result.rewardTer))
+        {
+            // Note: if the mainFunds transfer succeeds and the result transfer
+            // fails, we don't apply the inner sandbox (i.e. the mainTransfer is
+            // rolled back)
+            innerSb.apply(outerSb);
+        }
     }
 
-    if (sleClaimID)
+    if (auto const sleClaimID = outerSb.peek(claimIDKeylet))
     {
         auto const cidOwner = (*sleClaimID)[sfAccount];
         {
             // Remove the claim id
-            auto const sleOwner = psb.peek(keylet::account(cidOwner));
+            auto const sleOwner = outerSb.peek(keylet::account(cidOwner));
             auto const page = (*sleClaimID)[sfOwnerNode];
-            if (!psb.dirRemove(
+            if (!outerSb.dirRemove(
                     keylet::ownerDir(cidOwner), page, sleClaimID->key(), true))
             {
                 JLOG(j.fatal())
                     << "Unable to delete xchain seq number from owner.";
-                return tefBAD_LEDGER;
+                result.rmSleTer = tefBAD_LEDGER;
+                return result;
             }
 
             // Remove the claim id from the ledger
-            psb.erase(sleClaimID);
+            outerSb.erase(sleClaimID);
 
-            adjustOwnerCount(psb, sleOwner, -1, j);
+            adjustOwnerCount(outerSb, sleOwner, -1, j);
         }
     }
 
-    if (!rewardAccounts.empty())
-    {
-        // distribute the reward pool
-        // if the transfer failed, distribute the pool for "OnTransferFail"
-        // cases (the attesters did their job)
-        STAmount const share = [&] {
-            STAmount const den{rewardAccounts.size()};
-            return divide(rewardPool, den, rewardPool.issue());
-        }();
-        STAmount distributed = rewardPool.zeroed();
-        for (auto const& rewardAccount : rewardAccounts)
-        {
-            auto const thTer = transferHelper(
-                psb,
-                rewardPoolSrc,
-                rewardAccount,
-                /*dstTag*/ std::nullopt,
-                // claim owner is not relevant to distributing rewards
-                /*claimOwner*/ std::nullopt,
-                share,
-                TransferHelperCanCreateDst::no,
-                j);
-
-            if (thTer == tecINSUFFICIENT_FUNDS || thTer == tecINTERNAL)
-                return thTer;
-
-            if (isTesSuccess(thTer))
-                distributed += share;
-
-            // let txn succeed if error distributing rewards (other than
-            // inability to pay)
-        }
-
-        if (distributed > rewardPool)
-            return tecINTERNAL;
-    }
-
-    return thTer;
+    return result;
 }
 
 /** Get signers list corresponding to the account that owns the bridge
@@ -502,59 +585,83 @@ applyClaimAttestations(
 
     PaymentSandbox psb(&view);
 
-    auto const sleClaimID =
-        psb.peek(keylet::xChainClaimID(bridgeSpec, attBegin->claimID));
-    if (!sleClaimID)
-        return tecXCHAIN_NO_CLAIM_ID;
-    AccountID const cidOwner = (*sleClaimID)[sfAccount];
+    auto const claimIDKeylet =
+        keylet::xChainClaimID(bridgeSpec, attBegin->claimID);
 
-    // Add claims that are part of the signer's list to the "claims" vector
-    std::vector<Attestations::AttestationClaim> atts;
-    atts.reserve(std::distance(attBegin, attEnd));
-    for (auto att = attBegin; att != attEnd; ++att)
+    struct ScopeResult
     {
-        if (!signersList.contains(att->attestationSignerAccount))
-            continue;
-        atts.push_back(*att);
-    }
+        XChainClaimAttestations::OnNewAttestationResult newAttResult;
+        STAmount rewardAmount;
+        AccountID cidOwner;
+    };
 
-    if (atts.empty())
-    {
-        return tecXCHAIN_PROOF_UNKNOWN_KEY;
-    }
+    auto const scopeResult = [&]() -> Expected<ScopeResult, TER> {
+        // This lambda is ugly - admittedly. The purpose of this lambda is to
+        // limit the scope of sles so they don't overlap with
+        // `finalizeClaimHelper`. Since `finalizeClaimHelper` can create child
+        // views, it's important that the sle's lifetime doesn't overlap.
+        auto const sleClaimID = psb.peek(claimIDKeylet);
+        if (!sleClaimID)
+            return Unexpected(tecXCHAIN_NO_CLAIM_ID);
 
-    AccountID const otherChainSource = (*sleClaimID)[sfOtherChainSource];
-    if (attBegin->sendingAccount != otherChainSource)
-    {
-        return tecXCHAIN_SENDING_ACCOUNT_MISMATCH;
-    }
-
-    {
-        STXChainBridge::ChainType const dstChain =
-            STXChainBridge::otherChain(srcChain);
-
-        STXChainBridge::ChainType const attDstChain =
-            STXChainBridge::dstChain(attBegin->wasLockingChainSend);
-
-        if (attDstChain != dstChain)
+        // Add claims that are part of the signer's list to the "claims" vector
+        std::vector<Attestations::AttestationClaim> atts;
+        atts.reserve(std::distance(attBegin, attEnd));
+        for (auto att = attBegin; att != attEnd; ++att)
         {
-            return tecXCHAIN_WRONG_CHAIN;
+            if (!signersList.contains(att->attestationSignerAccount))
+                continue;
+            atts.push_back(*att);
         }
-    }
 
-    XChainClaimAttestations curAtts{
-        sleClaimID->getFieldArray(sfXChainClaimAttestations)};
+        if (atts.empty())
+        {
+            return Unexpected(tecXCHAIN_PROOF_UNKNOWN_KEY);
+        }
 
-    auto const rewardAccounts = curAtts.onNewAttestations(
-        view, &atts[0], &atts[0] + atts.size(), quorum, signersList, j);
+        AccountID const otherChainSource = (*sleClaimID)[sfOtherChainSource];
+        if (attBegin->sendingAccount != otherChainSource)
+        {
+            return Unexpected(tecXCHAIN_SENDING_ACCOUNT_MISMATCH);
+        }
 
-    // update the claim id
-    sleClaimID->setFieldArray(sfXChainClaimAttestations, curAtts.toSTArray());
-    psb.update(sleClaimID);
+        {
+            STXChainBridge::ChainType const dstChain =
+                STXChainBridge::otherChain(srcChain);
 
+            STXChainBridge::ChainType const attDstChain =
+                STXChainBridge::dstChain(attBegin->wasLockingChainSend);
+
+            if (attDstChain != dstChain)
+            {
+                return Unexpected(tecXCHAIN_WRONG_CHAIN);
+            }
+        }
+
+        XChainClaimAttestations curAtts{
+            sleClaimID->getFieldArray(sfXChainClaimAttestations)};
+
+        auto const newAttResult = curAtts.onNewAttestations(
+            view, &atts[0], &atts[0] + atts.size(), quorum, signersList, j);
+
+        // update the claim id
+        sleClaimID->setFieldArray(
+            sfXChainClaimAttestations, curAtts.toSTArray());
+        psb.update(sleClaimID);
+
+        return ScopeResult{
+            newAttResult,
+            (*sleClaimID)[sfSignatureReward],
+            (*sleClaimID)[sfAccount]};
+    }();
+
+    if (!scopeResult.has_value())
+        return scopeResult.error();
+
+    auto const& [newAttResult, rewardAmount, cidOwner] = scopeResult.value();
+    auto const& [rewardAccounts, attListChanged] = newAttResult;
     if (rewardAccounts && attBegin->dst)
     {
-        auto const& rewardPoolSrc = (*sleClaimID)[sfAccount];
         auto const r = finalizeClaimHelper(
             psb,
             bridgeSpec,
@@ -562,15 +669,19 @@ applyClaimAttestations(
             /*dstTag*/ std::nullopt,
             cidOwner,
             attBegin->sendingAmount,
-            rewardPoolSrc,
-            (*sleClaimID)[sfSignatureReward],
+            cidOwner,
+            rewardAmount,
             *rewardAccounts,
             srcChain,
-            sleClaimID,
+            claimIDKeylet,
             OnTransferFail::keepClaim,
             j);
-        if (!isTesSuccess(r))
-            return r;
+
+        auto const rTer = r.ter();
+
+        if (!isTesSuccess(rTer) &&
+            (!attListChanged || rTer == tecINTERNAL || rTer == tefBAD_LEDGER))
+            return rTer;
     }
 
     psb.apply(rawView);
@@ -599,15 +710,18 @@ applyCreateAccountAttestations(
 
     PaymentSandbox psb(&view);
 
-    auto const sleDoor = psb.peek(doorK);
-    if (!sleDoor)
-        return tecINTERNAL;
+    auto const claimCountResult = [&]() -> Expected<std::uint64_t, TER> {
+        auto const sleBridge = psb.peek(bridgeK);
+        if (!sleBridge)
+            return Unexpected(tecINTERNAL);
 
-    auto const sleBridge = psb.peek(bridgeK);
-    if (!sleBridge)
-        return tecINTERNAL;
+        return (*sleBridge)[sfXChainAccountClaimCount];
+    }();
 
-    std::int64_t const claimCount = (*sleBridge)[sfXChainAccountClaimCount];
+    if (!claimCountResult.has_value())
+        return claimCountResult.error();
+
+    std::uint64_t const claimCount = claimCountResult.value();
 
     if (attBegin->createCount <= claimCount)
     {
@@ -632,59 +746,85 @@ applyCreateAccountAttestations(
         }
     }
 
-    auto const claimKeylet =
+    auto const claimIDKeylet =
         keylet::xChainCreateAccountClaimID(bridgeSpec, attBegin->createCount);
 
-    // sleClaimID may be null. If it's null it isn't created until the end of
-    // this function (if needed)
-    auto const sleClaimID = psb.peek(claimKeylet);
-    bool createCID = false;
-    if (!sleClaimID)
+    struct ScopeResult
     {
-        createCID = true;
+        XChainCreateAccountAttestations::OnNewAttestationResult newAttResult;
+        bool createCID;
+        XChainCreateAccountAttestations curAtts;
+    };
 
-        // Check reserve
-        auto const balance = (*sleDoor)[sfBalance];
-        auto const reserve =
-            psb.fees().accountReserve((*sleDoor)[sfOwnerCount] + 1);
+    auto const scopeResult = [&]() -> Expected<ScopeResult, TER> {
+        // This lambda is ugly - admittedly. The purpose of this lambda is to
+        // limit the scope of sles so they don't overlap with
+        // `finalizeClaimHelper`. Since `finalizeClaimHelper` can create child
+        // views, it's important that the sle's lifetime doesn't overlap.
 
-        if (balance < reserve)
-            return tecINSUFFICIENT_RESERVE;
-    }
+        // sleClaimID may be null. If it's null it isn't created until the end
+        // of this function (if needed)
+        auto const sleClaimID = psb.peek(claimIDKeylet);
+        bool createCID = false;
+        if (!sleClaimID)
+        {
+            createCID = true;
 
-    std::vector<Attestations::AttestationCreateAccount> atts;
-    atts.reserve(std::distance(attBegin, attEnd));
-    for (auto att = attBegin; att != attEnd; ++att)
-    {
-        if (!signersList.contains(att->attestationSignerAccount))
-            continue;
-        atts.push_back(*att);
-    }
-    if (atts.empty())
-    {
-        return tecXCHAIN_PROOF_UNKNOWN_KEY;
-    }
+            auto const sleDoor = psb.peek(doorK);
+            if (!sleDoor)
+                return Unexpected(tecINTERNAL);
 
-    XChainCreateAccountAttestations curAtts = [&] {
-        if (sleClaimID)
-            return XChainCreateAccountAttestations{
-                sleClaimID->getFieldArray(sfXChainCreateAccountAttestations)};
-        return XChainCreateAccountAttestations{};
+            // Check reserve
+            auto const balance = (*sleDoor)[sfBalance];
+            auto const reserve =
+                psb.fees().accountReserve((*sleDoor)[sfOwnerCount] + 1);
+
+            if (balance < reserve)
+                return Unexpected(tecINSUFFICIENT_RESERVE);
+        }
+
+        std::vector<Attestations::AttestationCreateAccount> atts;
+        atts.reserve(std::distance(attBegin, attEnd));
+        for (auto att = attBegin; att != attEnd; ++att)
+        {
+            if (!signersList.contains(att->attestationSignerAccount))
+                continue;
+            atts.push_back(*att);
+        }
+        if (atts.empty())
+        {
+            return Unexpected(tecXCHAIN_PROOF_UNKNOWN_KEY);
+        }
+
+        XChainCreateAccountAttestations curAtts = [&] {
+            if (sleClaimID)
+                return XChainCreateAccountAttestations{
+                    sleClaimID->getFieldArray(
+                        sfXChainCreateAccountAttestations)};
+            return XChainCreateAccountAttestations{};
+        }();
+
+        auto const newAttResult = curAtts.onNewAttestations(
+            view, &atts[0], &atts[0] + atts.size(), quorum, signersList, j);
+
+        if (!createCID)
+        {
+            // Modify the object before it's potentially deleted, so the meta
+            // data will include the new attestations
+            if (!sleClaimID)
+                return Unexpected(tecINTERNAL);
+            sleClaimID->setFieldArray(
+                sfXChainCreateAccountAttestations, curAtts.toSTArray());
+            psb.update(sleClaimID);
+        }
+        return ScopeResult{newAttResult, createCID, curAtts};
     }();
 
-    auto const rewardAccounts = curAtts.onNewAttestations(
-        view, &atts[0], &atts[0] + atts.size(), quorum, signersList, j);
+    if (!scopeResult.has_value())
+        return scopeResult.error();
 
-    if (!createCID)
-    {
-        // Modify the object before it's potentially deleted, so the meta data
-        // will include the new attestations
-        if (!sleClaimID)
-            return tecINTERNAL;
-        sleClaimID->setFieldArray(
-            sfXChainCreateAccountAttestations, curAtts.toSTArray());
-        psb.update(sleClaimID);
-    }
+    auto const& [attResult, createCID, curAtts] = scopeResult.value();
+    auto const& [rewardAccounts, attListChanged] = attResult;
 
     // Account create transactions must happen in order
     if (rewardAccounts && claimCount + 1 == attBegin->createCount)
@@ -700,26 +840,29 @@ applyCreateAccountAttestations(
             attBegin->rewardAmount,
             *rewardAccounts,
             srcChain,
-            sleClaimID,
+            claimIDKeylet,
             OnTransferFail::removeClaim,
             j);
-        if (!isTesSuccess(r))
+
+        auto const rTer = r.ter();
+
+        if (!isTesSuccess(rTer))
         {
-            if (r == tecINTERNAL || r == tecINSUFFICIENT_FUNDS ||
-                isTefFailure(r))
-                return r;
+            if (rTer == tecINTERNAL || rTer == tecINSUFFICIENT_FUNDS ||
+                isTefFailure(rTer))
+                return rTer;
         }
         // Move past this claim id even if it fails, so it doesn't block
         // subsequent claim ids
+        auto const sleBridge = psb.peek(bridgeK);
+        if (!sleBridge)
+            return tecINTERNAL;
         (*sleBridge)[sfXChainAccountClaimCount] = attBegin->createCount;
         psb.update(sleBridge);
     }
     else if (createCID)
     {
-        if (sleClaimID)
-            return tecINTERNAL;
-
-        auto const createdSleClaimID = std::make_shared<SLE>(claimKeylet);
+        auto const createdSleClaimID = std::make_shared<SLE>(claimIDKeylet);
         (*createdSleClaimID)[sfAccount] = doorAccount;
         (*createdSleClaimID)[sfXChainBridge] = bridgeSpec;
         (*createdSleClaimID)[sfXChainAccountCreateCount] =
@@ -730,11 +873,15 @@ applyCreateAccountAttestations(
         // Add to owner directory of the door account
         auto const page = psb.dirInsert(
             keylet::ownerDir(doorAccount),
-            claimKeylet,
+            claimIDKeylet,
             describeOwnerDir(doorAccount));
         if (!page)
             return tecDIR_FULL;
         (*createdSleClaimID)[sfOwnerNode] = *page;
+
+        auto const sleDoor = psb.peek(doorK);
+        if (!sleDoor)
+            return tecINTERNAL;
 
         // Reserve was already checked
         adjustOwnerCount(psb, sleDoor, 1, j);
@@ -841,41 +988,56 @@ attestationDoApply(ApplyContext& ctx)
 
     STXChainBridge const bridgeSpec = ctx.tx[sfXChainBridge];
 
-    // Note: sle's lifetimes should not overlap calls to applyCreateAccount
-    // and applyClaims because those functions create a sandbox `sleBridge` is
-    // reset before those calls and should not be used after those calls are
-    // made. (it is not `const` because it is reset)
-    auto sleBridge = readBridge(ctx.view(), bridgeSpec);
-    if (!sleBridge)
+    struct ScopeResult
     {
-        return tecNO_ENTRY;
-    }
-    Keylet const bridgeK{ltBRIDGE, sleBridge->key()};
-    AccountID const thisDoor = (*sleBridge)[sfAccount];
+        STXChainBridge::ChainType srcChain;
+        std::unordered_map<AccountID, std::uint32_t> signersList;
+        std::uint32_t quorum;
+        AccountID thisDoor;
+        Keylet bridgeK;
+    };
 
-    STXChainBridge::ChainType dstChain = STXChainBridge::ChainType::locking;
-    {
-        if (thisDoor == bridgeSpec.lockingChainDoor())
-            dstChain = STXChainBridge::ChainType::locking;
-        else if (thisDoor == bridgeSpec.issuingChainDoor())
-            dstChain = STXChainBridge::ChainType::issuing;
-        else
-            return tecINTERNAL;
-    }
-    STXChainBridge::ChainType const srcChain =
-        STXChainBridge::otherChain(dstChain);
+    auto const scopeResult = [&]() -> Expected<ScopeResult, TER> {
+        // This lambda is ugly - admittedly. The purpose of this lambda is to
+        // limit the scope of sles so they don't overlap with
+        // `finalizeClaimHelper`. Since `finalizeClaimHelper` can create child
+        // views, it's important that the sle's lifetime doesn't overlap.
+        auto sleBridge = readBridge(ctx.view(), bridgeSpec);
+        if (!sleBridge)
+        {
+            return Unexpected(tecNO_ENTRY);
+        }
+        Keylet const bridgeK{ltBRIDGE, sleBridge->key()};
+        AccountID const thisDoor = (*sleBridge)[sfAccount];
 
-    // signersList is a map from account id to weights
-    auto const [signersList, quorum, slTer] =
-        getSignersListAndQuorum(ctx.view(), *sleBridge, ctx.journal);
-    // It is difficult to reduce the scope of sleBridge. However, its scope
-    // should be considered to end here. It's important that sles from one view
-    // are not used after a child view is created from the view it is taken from
-    // (as applyCreateAccount and applyClaims do).
-    sleBridge.reset();
+        STXChainBridge::ChainType dstChain = STXChainBridge::ChainType::locking;
+        {
+            if (thisDoor == bridgeSpec.lockingChainDoor())
+                dstChain = STXChainBridge::ChainType::locking;
+            else if (thisDoor == bridgeSpec.issuingChainDoor())
+                dstChain = STXChainBridge::ChainType::issuing;
+            else
+                return Unexpected(tecINTERNAL);
+        }
+        STXChainBridge::ChainType const srcChain =
+            STXChainBridge::otherChain(dstChain);
 
-    if (!isTesSuccess(slTer))
-        return slTer;
+        // signersList is a map from account id to weights
+        auto [signersList, quorum, slTer] =
+            getSignersListAndQuorum(ctx.view(), *sleBridge, ctx.journal);
+
+        if (!isTesSuccess(slTer))
+            return Unexpected(slTer);
+
+        return ScopeResult{
+            srcChain, std::move(signersList), quorum, thisDoor, bridgeK};
+    }();
+
+    if (!scopeResult.has_value())
+        return scopeResult.error();
+
+    auto const& [srcChain, signersList, quorum, thisDoor, bridgeK] =
+        scopeResult.value();
 
     static_assert(
         std::is_same_v<TAttestation, Attestations::AttestationClaim> ||
@@ -1317,57 +1479,84 @@ XChainClaim::doApply()
     STXChainBridge const bridgeSpec = ctx_.tx[sfXChainBridge];
     STAmount const& thisChainAmount = ctx_.tx[sfAmount];
     auto const claimID = ctx_.tx[sfXChainClaimID];
+    auto const claimIDKeylet = keylet::xChainClaimID(bridgeSpec, claimID);
 
-    auto const sleAcct = psb.peek(keylet::account(account));
-    auto const sleBridge = peekBridge(psb, bridgeSpec);
-    auto const sleClaimID =
-        psb.peek(keylet::xChainClaimID(bridgeSpec, claimID));
-
-    if (!(sleBridge && sleClaimID && sleAcct))
-        return tecINTERNAL;
-
-    AccountID const thisDoor = (*sleBridge)[sfAccount];
-
-    STXChainBridge::ChainType dstChain = STXChainBridge::ChainType::locking;
+    struct ScopeResult
     {
-        if (thisDoor == bridgeSpec.lockingChainDoor())
-            dstChain = STXChainBridge::ChainType::locking;
-        else if (thisDoor == bridgeSpec.issuingChainDoor())
-            dstChain = STXChainBridge::ChainType::issuing;
-        else
-            return tecINTERNAL;
-    }
-    STXChainBridge::ChainType const srcChain =
-        STXChainBridge::otherChain(dstChain);
+        std::vector<AccountID> rewardAccounts;
+        AccountID rewardPoolSrc;
+        STAmount sendingAmount;
+        STXChainBridge::ChainType srcChain;
+        STAmount signatureReward;
+    };
 
-    auto const sendingAmount = [&]() -> STAmount {
-        STAmount r(thisChainAmount);
-        r.setIssue(bridgeSpec.issue(srcChain));
-        return r;
+    auto const scopeResult = [&]() -> Expected<ScopeResult, TER> {
+        // This lambda is ugly - admittedly. The purpose of this lambda is to
+        // limit the scope of sles so they don't overlap with
+        // `finalizeClaimHelper`. Since `finalizeClaimHelper` can create child
+        // views, it's important that the sle's lifetime doesn't overlap.
+
+        auto const sleAcct = psb.peek(keylet::account(account));
+        auto const sleBridge = peekBridge(psb, bridgeSpec);
+        auto const sleClaimID = psb.peek(claimIDKeylet);
+
+        if (!(sleBridge && sleClaimID && sleAcct))
+            return Unexpected(tecINTERNAL);
+
+        AccountID const thisDoor = (*sleBridge)[sfAccount];
+
+        STXChainBridge::ChainType dstChain = STXChainBridge::ChainType::locking;
+        {
+            if (thisDoor == bridgeSpec.lockingChainDoor())
+                dstChain = STXChainBridge::ChainType::locking;
+            else if (thisDoor == bridgeSpec.issuingChainDoor())
+                dstChain = STXChainBridge::ChainType::issuing;
+            else
+                return Unexpected(tecINTERNAL);
+        }
+        STXChainBridge::ChainType const srcChain =
+            STXChainBridge::otherChain(dstChain);
+
+        auto const sendingAmount = [&]() -> STAmount {
+            STAmount r(thisChainAmount);
+            r.setIssue(bridgeSpec.issue(srcChain));
+            return r;
+        }();
+
+        auto const [signersList, quorum, slTer] =
+            getSignersListAndQuorum(ctx_.view(), *sleBridge, ctx_.journal);
+
+        if (!isTesSuccess(slTer))
+            return Unexpected(slTer);
+
+        XChainClaimAttestations curAtts{
+            sleClaimID->getFieldArray(sfXChainClaimAttestations)};
+
+        auto const claimR = curAtts.onClaim(
+            psb,
+            sendingAmount,
+            /*wasLockingChainSend*/ srcChain ==
+                STXChainBridge::ChainType::locking,
+            quorum,
+            signersList,
+            ctx_.journal);
+        if (!claimR.has_value())
+            return Unexpected(claimR.error());
+
+        return ScopeResult{
+            claimR.value(),
+            (*sleClaimID)[sfAccount],
+            sendingAmount,
+            srcChain,
+            (*sleClaimID)[sfSignatureReward],
+        };
     }();
 
-    auto const [signersList, quorum, slTer] =
-        getSignersListAndQuorum(ctx_.view(), *sleBridge, ctx_.journal);
+    if (!scopeResult.has_value())
+        return scopeResult.error();
 
-    if (!isTesSuccess(slTer))
-        return slTer;
-
-    XChainClaimAttestations curAtts{
-        sleClaimID->getFieldArray(sfXChainClaimAttestations)};
-
-    auto const claimR = curAtts.onClaim(
-        psb,
-        sendingAmount,
-        /*wasLockingChainSend*/ srcChain == STXChainBridge::ChainType::locking,
-        quorum,
-        signersList,
-        ctx_.journal);
-    if (!claimR.has_value())
-        return claimR.error();
-
-    auto const& rewardAccounts = claimR.value();
-    auto const& rewardPoolSrc = (*sleClaimID)[sfAccount];
-
+    auto const& [rewardAccounts, rewardPoolSrc, sendingAmount, srcChain, signatureReward] =
+        scopeResult.value();
     std::optional<std::uint32_t> const dstTag = ctx_.tx[~sfDestinationTag];
 
     auto const r = finalizeClaimHelper(
@@ -1378,14 +1567,14 @@ XChainClaim::doApply()
         /*claimOwner*/ account,
         sendingAmount,
         rewardPoolSrc,
-        (*sleClaimID)[sfSignatureReward],
+        signatureReward,
         rewardAccounts,
         srcChain,
-        sleClaimID,
+        claimIDKeylet,
         OnTransferFail::keepClaim,
         ctx_.journal);
-    if (!isTesSuccess(r))
-        return r;
+    if (!r.isTesSuccess())
+        return r.ter();
 
     psb.apply(ctx_.rawView());
 
