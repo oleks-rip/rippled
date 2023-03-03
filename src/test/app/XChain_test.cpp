@@ -625,6 +625,7 @@ struct XChain_test : public beast::unit_test::suite,
         auto BUSD = B["USD"];
         auto CUSD = C["USD"];
         auto GUSD = scGw["USD"];
+        auto dummyDst = Account("DummyDst");
 
         // Test case 1 ~ 5, create bridges
         // Issuing doors use USDs issued by them in bridge spec.
@@ -648,10 +649,10 @@ struct XChain_test : public beast::unit_test::suite,
             .close();
         auto const aBalanceStart = env.balance(A, BUSD);
         auto const cBalanceStart = env.balance(C, BUSD);
-        env.tx(xchain_commit(C, goodBridge1, 1, BUSD(50))).close();
+        env.tx(xchain_commit(C, goodBridge1, 1, BUSD(50), dummyDst)).close();
         BEAST_EXPECT(env.balance(A, BUSD) - aBalanceStart == BUSD(0));
         BEAST_EXPECT(env.balance(C, BUSD) - cBalanceStart == BUSD(-50));
-        env.tx(xchain_commit(C, goodBridge2, 1, BUSD(60))).close();
+        env.tx(xchain_commit(C, goodBridge2, 1, BUSD(60), dummyDst)).close();
         BEAST_EXPECT(env.balance(A, BUSD) - aBalanceStart == BUSD(60));
         BEAST_EXPECT(env.balance(C, BUSD) - cBalanceStart == BUSD(-50 - 60));
 
@@ -1009,6 +1010,10 @@ struct XChain_test : public beast::unit_test::suite,
         // First check the regular claim process (without bridge_modify)
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -1064,6 +1069,10 @@ struct XChain_test : public beast::unit_test::suite,
         // modified.
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+                           //
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -1127,6 +1136,10 @@ struct XChain_test : public beast::unit_test::suite,
         // id was created.
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -1508,6 +1521,10 @@ struct XChain_test : public beast::unit_test::suite,
         //          one reaching quorum
         for (auto withClaim : {true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
             std::uint32_t const claimID = 1;
@@ -1577,6 +1594,10 @@ struct XChain_test : public beast::unit_test::suite,
         // 1,2,4 => should succeed
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -1652,6 +1673,10 @@ struct XChain_test : public beast::unit_test::suite,
         // 4,4 => should succeed
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -1730,6 +1755,10 @@ struct XChain_test : public beast::unit_test::suite,
         // 1,2 => should fail
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -1805,6 +1834,10 @@ struct XChain_test : public beast::unit_test::suite,
         // 2,4 => should fail
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -2680,6 +2713,10 @@ struct XChain_test : public beast::unit_test::suite,
         // -----------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -2779,6 +2816,10 @@ struct XChain_test : public beast::unit_test::suite,
         // -----------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -2837,6 +2878,10 @@ struct XChain_test : public beast::unit_test::suite,
         // -----------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -2894,6 +2939,10 @@ struct XChain_test : public beast::unit_test::suite,
         // ---------------------------------
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -2952,6 +3001,10 @@ struct XChain_test : public beast::unit_test::suite,
         // -----------------------------------
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -3003,6 +3056,10 @@ struct XChain_test : public beast::unit_test::suite,
         // -------------------------------------------------
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -3062,6 +3119,10 @@ struct XChain_test : public beast::unit_test::suite,
         // ---------------------------------------------
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -3102,6 +3163,10 @@ struct XChain_test : public beast::unit_test::suite,
         // --------------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -3153,6 +3218,10 @@ struct XChain_test : public beast::unit_test::suite,
         // ----------------
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -3207,6 +3276,10 @@ struct XChain_test : public beast::unit_test::suite,
         // ---------------------------------------------------------------------
         for (auto withClaim : {true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -3263,6 +3336,10 @@ struct XChain_test : public beast::unit_test::suite,
         // -----------------------------------------------------------------
         for (auto withClaim : {true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -3319,6 +3396,10 @@ struct XChain_test : public beast::unit_test::suite,
         // ------------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -3403,6 +3484,10 @@ struct XChain_test : public beast::unit_test::suite,
         // --------------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -3457,6 +3542,10 @@ struct XChain_test : public beast::unit_test::suite,
         // ---------------------------------------
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -3540,6 +3629,10 @@ struct XChain_test : public beast::unit_test::suite,
         // ------------------------------------------
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -3669,6 +3762,10 @@ struct XChain_test : public beast::unit_test::suite,
         // ---------------------------------------------------------
         for (auto withClaim : {true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -3722,6 +3819,10 @@ struct XChain_test : public beast::unit_test::suite,
         // --------------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -3780,6 +3881,10 @@ struct XChain_test : public beast::unit_test::suite,
         // ----------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -3839,6 +3944,10 @@ struct XChain_test : public beast::unit_test::suite,
         // -------------------------------------------------------------------
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 
@@ -3894,6 +4003,10 @@ struct XChain_test : public beast::unit_test::suite,
 
         for (auto withClaim : {false, true})
         {
+            if (withClaim)
+                continue;  // withClaim was removed, but keep the test code for
+                           // now so it's easy to re-add
+
             XEnv mcEnv(*this);
             XEnv scEnv(*this, true);
 

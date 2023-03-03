@@ -70,7 +70,7 @@ xchain_commit(
     Json::Value const& bridge,
     std::uint32_t claimID,
     AnyAmount const& amt,
-    std::optional<Account> const& dst = std::nullopt);
+    std::optional<Account> const& dst);
 
 Json::Value
 xchain_claim(
