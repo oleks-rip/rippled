@@ -1104,7 +1104,7 @@ XChainCreateBridge::preflight(PreflightContext const& ctx)
     if (bridgeSpec.lockingChainDoor() != account &&
         bridgeSpec.issuingChainDoor() != account)
     {
-        return temSIDECHAIN_NONDOOR_OWNER;
+        return tem_BRIDGE_NONDOOR_OWNER;
     }
 
     if (isXRP(bridgeSpec.lockingChainIssue()) !=
@@ -1112,7 +1112,7 @@ XChainCreateBridge::preflight(PreflightContext const& ctx)
     {
         // Because ious and xrp have different numeric ranges, both the src and
         // dst issues must be both XRP or both IOU.
-        return temSIDECHAIN_BAD_ISSUES;
+        return temBRIDGE_BAD_ISSUES;
     }
 
     if (!isXRP(reward) || reward.signum() < 0)
@@ -1139,7 +1139,7 @@ XChainCreateBridge::preflight(PreflightContext const& ctx)
                 .first);
         if (bridgeSpec.issuingChainDoor() != rootAccount)
         {
-            return temSIDECHAIN_BAD_ISSUES;
+            return temBRIDGE_BAD_ISSUES;
         }
     }
     else
@@ -1149,7 +1149,7 @@ XChainCreateBridge::preflight(PreflightContext const& ctx)
         if (bridgeSpec.issuingChainDoor() !=
             bridgeSpec.issuingChainIssue().account)
         {
-            return temSIDECHAIN_BAD_ISSUES;
+            return temBRIDGE_BAD_ISSUES;
         }
     }
 
@@ -1157,7 +1157,7 @@ XChainCreateBridge::preflight(PreflightContext const& ctx)
     {
         // If the locking chain door is locking their own asset, in some sense
         // nothing is being locked. Disallow this.
-        return temSIDECHAIN_BAD_ISSUES;
+        return temBRIDGE_BAD_ISSUES;
     }
 
     return preflight2(ctx);
@@ -1260,7 +1260,7 @@ BridgeModify::preflight(PreflightContext const& ctx)
     if (auto const ret = preflight1(ctx); !isTesSuccess(ret))
         return ret;
 
-    if (ctx.tx.getFlags() & tfBridgeModiryMask)
+    if (ctx.tx.getFlags() & tfBridgeModifyMask)
         return temINVALID_FLAG;
 
     auto const account = ctx.tx[sfAccount];
@@ -1285,7 +1285,7 @@ BridgeModify::preflight(PreflightContext const& ctx)
     if (bridgeSpec.lockingChainDoor() != account &&
         bridgeSpec.issuingChainDoor() != account)
     {
-        return temSIDECHAIN_NONDOOR_OWNER;
+        return tem_BRIDGE_NONDOOR_OWNER;
     }
 
     if (reward && (!isXRP(*reward) || reward->signum() < 0))

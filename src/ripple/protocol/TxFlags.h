@@ -152,7 +152,7 @@ constexpr std::uint32_t const tfNFTokenAcceptOfferMask = ~tfUniversal;
 
 // BridgeModify flags:
 constexpr std::uint32_t tfClearAccountCreateAmount     = 0x00010000;
-constexpr std::uint32_t tfBridgeModiryMask = ~(tfUniversal | tfClearAccountCreateAmount);
+constexpr std::uint32_t tfBridgeModifyMask = ~(tfUniversal | tfClearAccountCreateAmount);
 
 // clang-format on
 

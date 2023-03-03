@@ -445,7 +445,7 @@ struct XChain_test : public beast::unit_test::suite,
         XEnv(*this).tx(create_bridge(mcDoor)).close();
 
         // Bridge not owned by one of the door account.
-        XEnv(*this).tx(create_bridge(mcBob), ter(temSIDECHAIN_NONDOOR_OWNER));
+        XEnv(*this).tx(create_bridge(mcBob), ter(tem_BRIDGE_NONDOOR_OWNER));
 
         // Create twice on the same account
         XEnv(*this)
@@ -464,7 +464,7 @@ struct XChain_test : public beast::unit_test::suite,
         XEnv(*this).tx(
             create_bridge(
                 mcAlice, bridge(mcAlice, mcAlice["USD"], mcBob, mcBob["USD"])),
-            ter(temSIDECHAIN_BAD_ISSUES));
+            ter(temBRIDGE_BAD_ISSUES));
 
         // Create where both door accounts are on the same chain. The second
         // bridge create should fail.
@@ -798,47 +798,47 @@ struct XChain_test : public beast::unit_test::suite,
                 })};
 
         std::vector<std::pair<int, int>> expected_result{
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
             {tesSUCCESS, tesSUCCESS},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
             {tecNO_ISSUER, tesSUCCESS},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
             {tesSUCCESS, tesSUCCESS},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
             {tecNO_ISSUER, tesSUCCESS},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
-            {temSIDECHAIN_BAD_ISSUES, temSIDECHAIN_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
+            {temBRIDGE_BAD_ISSUES, temBRIDGE_BAD_ISSUES},
             {tesSUCCESS, tesSUCCESS}};
 
         std::vector<std::tuple<TER, TER, bool>> test_result;
@@ -1234,7 +1234,7 @@ struct XChain_test : public beast::unit_test::suite,
             .tx(create_bridge(mcDoor, jvb))
             .close()
             .tx(bridge_modify(mcAlice, jvb, XRP(1), XRP(2)),
-                ter(temSIDECHAIN_NONDOOR_OWNER));
+                ter(tem_BRIDGE_NONDOOR_OWNER));
 
         /**
          * test tfClearAccountCreateAmount flag in BridgeModify tx
