@@ -4336,6 +4336,7 @@ private:
     static constexpr size_t num_signers = 5;
 
     // --------------------------------------------------
+    enum class WithClaim { no, yes };
     struct Transfer
     {
         jtx::Account from;
@@ -4343,7 +4344,7 @@ private:
         jtx::Account finaldest;
         STAmount amt;
         bool a2b;  // direction of transfer
-        bool with_claim{false};
+        WithClaim with_claim{WithClaim::no};
         uint32_t claim_id{0};
         std::array<bool, num_signers> attested{};
     };
@@ -4850,8 +4851,9 @@ private:
                 bridge_.jvb,
                 xfer.claim_id,
                 xfer.amt,
-                xfer.with_claim ? std::nullopt
-                                : std::optional<jtx::Account>(xfer.finaldest)));
+                xfer.with_claim == WithClaim::yes
+                    ? std::nullopt
+                    : std::optional<jtx::Account>(xfer.finaldest)));
             st.spendFee(xfer.from);
             st.transfer(xfer.from, srcdoor, xfer.amt);
         }
@@ -4893,7 +4895,7 @@ private:
                             bridge_.signers[signer_idx].account,
                             xfer.a2b,
                             xfer.claim_id,
-                            xfer.with_claim
+                            xfer.with_claim == WithClaim::yes
                                 ? std::nullopt
                                 : std::optional<jtx::Account>(xfer.finaldest),
                             bridge_.signers[signer_idx]));
@@ -4905,7 +4907,7 @@ private:
             bool quorum =
                 std::count(xfer.attested.begin(), xfer.attested.end(), true) >=
                 bridge_.quorum;
-            if (quorum && !xfer.with_claim)
+            if (quorum && xfer.with_claim == WithClaim::no)
             {
                 distribute_reward(st);
                 st.transfer(dstDoor(), xfer.finaldest, xfer.amt);
@@ -4941,12 +4943,13 @@ private:
 
                 case st_attesting:
                     sm_state = attest(time, rnd)
-                        ? (xfer.with_claim ? st_attested : st_completed)
+                        ? (xfer.with_claim == WithClaim::yes ? st_attested
+                                                             : st_completed)
                         : st_attesting;
                     break;
 
                 case st_attested:
-                    assert(xfer.with_claim);
+                    assert(xfer.with_claim == WithClaim::yes);
                     claim();
                     sm_state = st_completed;
                     break;
@@ -5163,12 +5166,12 @@ public:
 
         // run multiple XRP transfers
         // --------------------------
-        xfer(0, st, xrp_b, {a[0], a[0], a[1], XRP(6), true, true});
-        xfer(1, st, xrp_b, {a[0], a[0], a[1], XRP(8), false, true});
+        xfer(0, st, xrp_b, {a[0], a[0], a[1], XRP(6), true, WithClaim::no});
+        xfer(1, st, xrp_b, {a[0], a[0], a[1], XRP(8), false, WithClaim::no});
         xfer(1, st, xrp_b, {a[1], a[1], a[1], XRP(1), true});
         xfer(2, st, xrp_b, {a[0], a[0], a[1], XRP(3), false});
         xfer(2, st, xrp_b, {a[1], a[1], a[1], XRP(5), false});
-        xfer(2, st, xrp_b, {a[0], a[0], a[1], XRP(7), false, true});
+        xfer(2, st, xrp_b, {a[0], a[0], a[1], XRP(7), false, WithClaim::no});
         xfer(2, st, xrp_b, {a[1], a[1], a[1], XRP(9), true});
         runSimulation(st);
 
