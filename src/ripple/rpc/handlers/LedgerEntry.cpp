@@ -369,7 +369,7 @@ doLedgerEntry(RPC::JsonContext& context)
     }
     else if (context.params.isMember(jss::xchain_claim_id))
     {
-        expectedType = ltXCHAIN_CLAIM_ID;
+        expectedType = ltXCHAIN_OWNED_CLAIM_ID;
         auto& claim_id = context.params[jss::xchain_claim_id];
         if (claim_id.isString())
         {
@@ -437,7 +437,7 @@ doLedgerEntry(RPC::JsonContext& context)
     else if (context.params.isMember(jss::xchain_create_account_claim_id))
     {
         // see object definition in LedgerFormats.cpp
-        expectedType = ltXCHAIN_CREATE_ACCOUNT_CLAIM_ID;
+        expectedType = ltXCHAIN_OWNED_CREATE_ACCOUNT_CLAIM_ID;
         auto& claim_id = context.params[jss::xchain_create_account_claim_id];
         if (claim_id.isString())
         {

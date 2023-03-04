@@ -279,7 +279,7 @@ LedgerFormats::LedgerFormats()
         commonFields);
 
     add(jss::XChainOwnedClaimID,
-        ltXCHAIN_CLAIM_ID,
+        ltXCHAIN_OWNED_CLAIM_ID,
         {
             {sfAccount,                 soeREQUIRED},
             {sfXChainBridge,            soeREQUIRED},
@@ -294,7 +294,7 @@ LedgerFormats::LedgerFormats()
         commonFields);
 
     add(jss::XChainOwnedCreateAccountClaimID,
-        ltXCHAIN_CREATE_ACCOUNT_CLAIM_ID,
+        ltXCHAIN_OWNED_CREATE_ACCOUNT_CLAIM_ID,
         {
             {sfAccount,                         soeREQUIRED},
             {sfXChainBridge,                    soeREQUIRED},

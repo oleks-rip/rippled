@@ -388,7 +388,7 @@ Keylet
 xChainClaimID(STXChainBridge const& bridge, std::uint64_t seq)
 {
     return {
-        ltXCHAIN_CLAIM_ID,
+        ltXCHAIN_OWNED_CLAIM_ID,
         indexHash(
             LedgerNameSpace::XCHAIN_SEQ,
             bridge.lockingChainDoor(),
@@ -402,7 +402,7 @@ Keylet
 xChainCreateAccountClaimID(STXChainBridge const& bridge, std::uint64_t seq)
 {
     return {
-        ltXCHAIN_CREATE_ACCOUNT_CLAIM_ID,
+        ltXCHAIN_OWNED_CREATE_ACCOUNT_CLAIM_ID,
         indexHash(
             LedgerNameSpace::XCHAIN_CREATE_ACCOUNT_SEQ,
             bridge.lockingChainDoor(),
