@@ -548,9 +548,7 @@ JSS(server_version);            // out: NetworkOPs
 JSS(settle_delay);              // out: AccountChannels
 JSS(severity);                  // in: LogLevel
 JSS(shards);                    // in/out: GetCounts, DownloadShard
-JSS(sidechain);                 // in: sidechain
 JSS(signature);                 // out: NetworkOPs, ChannelAuthorize
-JSS(signatures);                // in: sidechain
 JSS(signature_verified);        // out: ChannelVerify
 JSS(signing_key);               // out: NetworkOPs
 JSS(signing_keys);              // out: ValidatorList
@@ -670,12 +668,10 @@ JSS(volume_b);                // out: BookChanges
 JSS(vote);                    // in: Feature
 JSS(warning);                 // rpc:
 JSS(warnings);                // out: server_info, server_state
-JSS(was_src_chain_send);      // in: sidechain
 JSS(workers);
 JSS(write_load);                      // out: GetCounts
 JSS(xchain_claim_id);                 // in: LedgerEntry, AccountObjects
 JSS(xchain_create_account_claim_id);  // in: LedgerEntry
-JSS(xchain_seq);                      // in: sidechain
 #undef JSS
 
 }  // namespace jss
