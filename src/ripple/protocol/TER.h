@@ -325,6 +325,7 @@ enum TECcodes : TERUnderlyingType {
     tecXCHAIN_PAYMENT_FAILED = 184,
     tecXCHAIN_SELF_COMMIT = 185,
     tecXCHAIN_BAD_PUBLIC_KEY_ACCOUNT_PAIR = 186,
+    tecXCHAIN_CREATE_ACCOUNT_DISABLED = 187,
 };
 
 //------------------------------------------------------------------------------

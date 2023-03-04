@@ -1270,7 +1270,7 @@ struct XChain_test : public beast::unit_test::suite,
             .close()
             .tx(sidechain_xchain_account_create(
                     mcAlice, jvb, scuBob, XRP(100), XRP(3)),
-                ter(tecXCHAIN_INSUFF_CREATE_AMOUNT))
+                ter(tecXCHAIN_CREATE_ACCOUNT_DISABLED))
             .close();
     }
 

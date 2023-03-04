@@ -1907,10 +1907,11 @@ XChainCreateAccountCommit::preclaim(PreclaimContext const& ctx)
     std::optional<STAmount> const minCreateAmount =
         (*sleBridge)[~sfMinAccountCreateAmount];
 
-    if (!minCreateAmount || amount < *minCreateAmount)
-    {
+    if (!minCreateAmount)
+        return tecXCHAIN_CREATE_ACCOUNT_DISABLED;
+
+    if (amount < *minCreateAmount)
         return tecXCHAIN_INSUFF_CREATE_AMOUNT;
-    }
 
     if (minCreateAmount->issue() != amount.issue())
         return tecBAD_XCHAIN_TRANSFER_ISSUE;
