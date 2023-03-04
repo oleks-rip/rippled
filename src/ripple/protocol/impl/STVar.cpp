@@ -31,7 +31,6 @@
 #include <ripple/protocol/STObject.h>
 #include <ripple/protocol/STPathSet.h>
 #include <ripple/protocol/STVector256.h>
-#include <ripple/protocol/STXChainAttestationBatch.h>
 #include <ripple/protocol/STXChainBridge.h>
 #include <ripple/protocol/XChainAttestations.h>
 

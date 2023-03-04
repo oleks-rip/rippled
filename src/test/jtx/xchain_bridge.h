@@ -22,7 +22,7 @@
 
 #include <ripple/json/json_value.h>
 #include <ripple/protocol/SField.h>
-#include <ripple/protocol/STXChainAttestationBatch.h>
+#include <ripple/protocol/XChainAttestations.h>
 #include <test/jtx/Account.h>
 #include <test/jtx/amount.h>
 #include <test/jtx/multisign.h>

@@ -22,13 +22,9 @@
 
 #include <ripple/app/tx/impl/Transactor.h>
 #include <ripple/protocol/SField.h>
-#include <ripple/protocol/STXChainAttestationBatch.h>
+#include <ripple/protocol/XChainAttestations.h>
 
 namespace ripple {
-
-namespace AttestationBatch {
-struct AttestationClaim;
-}
 
 // Attach a new bridge to a door account. Once this is done, the cross-chain
 // transfer transactions may be used to transfer funds from this account.

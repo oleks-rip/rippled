@@ -25,8 +25,8 @@
 #include <ripple/protocol/STBase.h>
 #include <ripple/protocol/STInteger.h>
 #include <ripple/protocol/STObject.h>
-#include <ripple/protocol/STXChainAttestationBatch.h>
 #include <ripple/protocol/TxFlags.h>
+#include <ripple/protocol/XChainAttestations.h>
 #include <ripple/protocol/jss.h>
 #include <test/jtx/Env.h>
 #include <test/jtx/attester.h>

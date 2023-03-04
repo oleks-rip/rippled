@@ -34,7 +34,6 @@
 #include <ripple/protocol/STParsedJSON.h>
 #include <ripple/protocol/STPathSet.h>
 #include <ripple/protocol/STVector256.h>
-#include <ripple/protocol/STXChainAttestationBatch.h>
 #include <ripple/protocol/STXChainBridge.h>
 #include <ripple/protocol/TER.h>
 #include <ripple/protocol/TxFormats.h>

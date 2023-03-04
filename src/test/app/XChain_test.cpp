@@ -22,7 +22,6 @@
 #include <ripple/protocol/Indexes.h>
 #include <ripple/protocol/Issue.h>
 #include <ripple/protocol/SField.h>
-#include <ripple/protocol/STXChainAttestationBatch.h>
 #include <ripple/protocol/STXChainBridge.h>
 #include <ripple/protocol/Serializer.h>
 #include <ripple/protocol/TER.h>

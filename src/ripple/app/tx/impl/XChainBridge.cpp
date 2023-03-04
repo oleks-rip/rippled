@@ -35,7 +35,6 @@
 #include <ripple/protocol/SField.h>
 #include <ripple/protocol/STAmount.h>
 #include <ripple/protocol/STObject.h>
-#include <ripple/protocol/STXChainAttestationBatch.h>
 #include <ripple/protocol/STXChainBridge.h>
 #include <ripple/protocol/TER.h>
 #include <ripple/protocol/TxFlags.h>

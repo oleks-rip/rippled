@@ -98,7 +98,6 @@ target_sources (xrpl_core PRIVATE
   src/ripple/protocol/impl/STXChainBridge.cpp
   src/ripple/protocol/impl/STTx.cpp
   src/ripple/protocol/impl/XChainAttestations.cpp
-  src/ripple/protocol/impl/STXChainAttestationBatch.cpp
   src/ripple/protocol/impl/STValidation.cpp
   src/ripple/protocol/impl/STVar.cpp
   src/ripple/protocol/impl/STVector256.cpp
@@ -234,7 +233,6 @@ install (
     src/ripple/protocol/STPathSet.h
     src/ripple/protocol/STTx.h
     src/ripple/protocol/XChainAttestations.h
-    src/ripple/protocol/STXChainAttestationBatch.h
     src/ripple/protocol/STXChainBridge.h
     src/ripple/protocol/STValidation.h
     src/ripple/protocol/STVector256.h
