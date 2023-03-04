@@ -669,9 +669,9 @@ JSS(vote);                    // in: Feature
 JSS(warning);                 // rpc:
 JSS(warnings);                // out: server_info, server_state
 JSS(workers);
-JSS(write_load);                      // out: GetCounts
-JSS(xchain_claim_id);                 // in: LedgerEntry, AccountObjects
-JSS(xchain_create_account_claim_id);  // in: LedgerEntry
+JSS(write_load);                            // out: GetCounts
+JSS(xchain_owned_claim_id);                 // in: LedgerEntry, AccountObjects
+JSS(xchain_owned_create_account_claim_id);  // in: LedgerEntry
 #undef JSS
 
 }  // namespace jss

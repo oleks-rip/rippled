@@ -900,8 +900,8 @@ chooseLedgerEntryType(Json::Value const& params)
                  {jss::ticket, ltTICKET},
                  {jss::nft_offer, ltNFTOKEN_OFFER},
                  {jss::bridge, ltBRIDGE},
-                 {jss::xchain_claim_id, ltXCHAIN_OWNED_CLAIM_ID},
-                 {jss::xchain_create_account_claim_id,
+                 {jss::xchain_owned_claim_id, ltXCHAIN_OWNED_CLAIM_ID},
+                 {jss::xchain_owned_create_account_claim_id,
                   ltXCHAIN_OWNED_CREATE_ACCOUNT_CLAIM_ID}}};
 
         auto const& p = params[jss::type];

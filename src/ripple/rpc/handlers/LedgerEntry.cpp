@@ -367,10 +367,10 @@ doLedgerEntry(RPC::JsonContext& context)
             jvResult[jss::error] = "malformedRequest";
         }
     }
-    else if (context.params.isMember(jss::xchain_claim_id))
+    else if (context.params.isMember(jss::xchain_owned_claim_id))
     {
         expectedType = ltXCHAIN_OWNED_CLAIM_ID;
-        auto& claim_id = context.params[jss::xchain_claim_id];
+        auto& claim_id = context.params[jss::xchain_owned_claim_id];
         if (claim_id.isString())
         {
             // we accept a node id as specifier of a xchain claim id
@@ -388,7 +388,7 @@ doLedgerEntry(RPC::JsonContext& context)
               claim_id[sfLockingChainDoor.getJsonName()].isString()) ||
             !claim_id.isMember(sfIssuingChainIssue.getJsonName()) ||
             !claim_id.isMember(sfLockingChainIssue.getJsonName()) ||
-            !claim_id.isMember(jss::xchain_claim_id))
+            !claim_id.isMember(jss::xchain_owned_claim_id))
         {
             jvResult[jss::error] = "malformedRequest";
         }
@@ -420,9 +420,9 @@ doLedgerEntry(RPC::JsonContext& context)
                 }
             }
 
-            if (valid && claim_id[jss::xchain_claim_id].isIntegral())
+            if (valid && claim_id[jss::xchain_owned_claim_id].isIntegral())
             {
-                auto seq = claim_id[jss::xchain_claim_id].asUInt();
+                auto seq = claim_id[jss::xchain_owned_claim_id].asUInt();
 
                 STXChainBridge bridge_spec(
                     *lockingChainDoor,
@@ -434,11 +434,12 @@ doLedgerEntry(RPC::JsonContext& context)
             }
         }
     }
-    else if (context.params.isMember(jss::xchain_create_account_claim_id))
+    else if (context.params.isMember(jss::xchain_owned_create_account_claim_id))
     {
         // see object definition in LedgerFormats.cpp
         expectedType = ltXCHAIN_OWNED_CREATE_ACCOUNT_CLAIM_ID;
-        auto& claim_id = context.params[jss::xchain_create_account_claim_id];
+        auto& claim_id =
+            context.params[jss::xchain_owned_create_account_claim_id];
         if (claim_id.isString())
         {
             // we accept a node id as specifier of a xchain create account
@@ -457,7 +458,7 @@ doLedgerEntry(RPC::JsonContext& context)
               claim_id[sfLockingChainDoor.getJsonName()].isString()) ||
             !claim_id.isMember(sfIssuingChainIssue.getJsonName()) ||
             !claim_id.isMember(sfLockingChainIssue.getJsonName()) ||
-            !claim_id.isMember(jss::xchain_create_account_claim_id))
+            !claim_id.isMember(jss::xchain_owned_create_account_claim_id))
         {
             jvResult[jss::error] = "malformedRequest";
         }
@@ -491,10 +492,11 @@ doLedgerEntry(RPC::JsonContext& context)
             }
 
             if (valid &&
-                claim_id[jss::xchain_create_account_claim_id].isIntegral())
+                claim_id[jss::xchain_owned_create_account_claim_id]
+                    .isIntegral())
             {
-                auto seq =
-                    claim_id[jss::xchain_create_account_claim_id].asUInt();
+                auto seq = claim_id[jss::xchain_owned_create_account_claim_id]
+                               .asUInt();
 
                 STXChainBridge bridge_spec(
                     *lockingChainDoor,

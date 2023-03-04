@@ -512,7 +512,7 @@ public:
             {
                 // Find the xchain sequence number for Andrea.
                 Json::Value const resp =
-                    scenv_acct_objs(x.scAlice, jss::xchain_claim_id);
+                    scenv_acct_objs(x.scAlice, jss::xchain_owned_claim_id);
                 BEAST_EXPECT(acct_objs_is_size(resp, 1));
 
                 auto const& xchain_seq =
@@ -525,7 +525,7 @@ public:
             {
                 // and the one for Bob
                 Json::Value const resp =
-                    scenv_acct_objs(x.scBob, jss::xchain_claim_id);
+                    scenv_acct_objs(x.scBob, jss::xchain_owned_claim_id);
                 BEAST_EXPECT(acct_objs_is_size(resp, 1));
 
                 auto const& xchain_seq =
@@ -569,7 +569,7 @@ public:
             {
                 // Find the xchain_create_account_claim_id
                 Json::Value const resp = scenv_acct_objs(
-                    Account::master, jss::xchain_create_account_claim_id);
+                    Account::master, jss::xchain_owned_create_account_claim_id);
                 BEAST_EXPECT(acct_objs_is_size(resp, 1));
 
                 auto const& xchain_create_account_claim_id =

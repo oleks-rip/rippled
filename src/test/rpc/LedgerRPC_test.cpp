@@ -164,8 +164,9 @@ class LedgerRPC_XChain_test : public beast::unit_test::suite,
         {
             // request the xchain_claim_id via RPC
             Json::Value jvParams;
-            jvParams[jss::xchain_claim_id] = jvXRPBridgeRPC;
-            jvParams[jss::xchain_claim_id][jss::xchain_claim_id] = 1;
+            jvParams[jss::xchain_owned_claim_id] = jvXRPBridgeRPC;
+            jvParams[jss::xchain_owned_claim_id][jss::xchain_owned_claim_id] =
+                1;
             // std::cout << to_string(jvParams) << '\n';
             Json::Value const jrr = scEnv.rpc(
                 "json", "ledger_entry", to_string(jvParams))[jss::result];
@@ -185,8 +186,9 @@ class LedgerRPC_XChain_test : public beast::unit_test::suite,
         {
             // request the xchain_claim_id via RPC
             Json::Value jvParams;
-            jvParams[jss::xchain_claim_id] = jvXRPBridgeRPC;
-            jvParams[jss::xchain_claim_id][jss::xchain_claim_id] = 2;
+            jvParams[jss::xchain_owned_claim_id] = jvXRPBridgeRPC;
+            jvParams[jss::xchain_owned_claim_id][jss::xchain_owned_claim_id] =
+                2;
             Json::Value const jrr = scEnv.rpc(
                 "json", "ledger_entry", to_string(jvParams))[jss::result];
 
@@ -247,9 +249,10 @@ class LedgerRPC_XChain_test : public beast::unit_test::suite,
         {
             // request the create account claim_id via RPC
             Json::Value jvParams;
-            jvParams[jss::xchain_create_account_claim_id] = jvXRPBridgeRPC;
-            jvParams[jss::xchain_create_account_claim_id]
-                    [jss::xchain_create_account_claim_id] = 1;
+            jvParams[jss::xchain_owned_create_account_claim_id] =
+                jvXRPBridgeRPC;
+            jvParams[jss::xchain_owned_create_account_claim_id]
+                    [jss::xchain_owned_create_account_claim_id] = 1;
             // std::cout << to_string(jvParams) << '\n';
             Json::Value const jrr = scEnv.rpc(
                 "json", "ledger_entry", to_string(jvParams))[jss::result];
@@ -318,9 +321,10 @@ class LedgerRPC_XChain_test : public beast::unit_test::suite,
         {
             // request the create account claim_id via RPC
             Json::Value jvParams;
-            jvParams[jss::xchain_create_account_claim_id] = jvXRPBridgeRPC;
-            jvParams[jss::xchain_create_account_claim_id]
-                    [jss::xchain_create_account_claim_id] = 1;
+            jvParams[jss::xchain_owned_create_account_claim_id] =
+                jvXRPBridgeRPC;
+            jvParams[jss::xchain_owned_create_account_claim_id]
+                    [jss::xchain_owned_create_account_claim_id] = 1;
             // std::cout << to_string(jvParams) << '\n';
             Json::Value const jrr = scEnv.rpc(
                 "json", "ledger_entry", to_string(jvParams))[jss::result];
