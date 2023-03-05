@@ -279,7 +279,7 @@ enum class AttestationMatch {
 
 struct XChainClaimAttestation
 {
-    using TBatchAttestation = Attestations::AttestationClaim;
+    using TSignedAttestation = Attestations::AttestationClaim;
     static SField const& ArrayFieldName;
 
     AccountID keyAccount;
@@ -294,7 +294,7 @@ struct XChainClaimAttestation
         STAmount amount;
         bool wasLockingChainSend;
         std::optional<AccountID> dst;
-        MatchFields(TBatchAttestation const& att);
+        MatchFields(TSignedAttestation const& att);
         MatchFields(
             STAmount const& a,
             bool b,
@@ -320,7 +320,7 @@ struct XChainClaimAttestation
         bool wasLockingChainSend_,
         std::optional<STAccount> const& dst);
 
-    explicit XChainClaimAttestation(TBatchAttestation const& claimAtt);
+    explicit XChainClaimAttestation(TSignedAttestation const& claimAtt);
 
     explicit XChainClaimAttestation(STObject const& o);
 
@@ -344,7 +344,7 @@ struct XChainClaimAttestation
 
 struct XChainCreateAccountAttestation
 {
-    using TBatchAttestation = Attestations::AttestationCreateAccount;
+    using TSignedAttestation = Attestations::AttestationCreateAccount;
     static SField const& ArrayFieldName;
 
     AccountID keyAccount;
@@ -362,7 +362,7 @@ struct XChainCreateAccountAttestation
         bool wasLockingChainSend;
         AccountID dst;
 
-        MatchFields(TBatchAttestation const& att);
+        MatchFields(TSignedAttestation const& att);
     };
 
     explicit XChainCreateAccountAttestation(
@@ -374,7 +374,7 @@ struct XChainCreateAccountAttestation
         bool wasLockingChainSend_,
         AccountID const& dst_);
 
-    explicit XChainCreateAccountAttestation(TBatchAttestation const& claimAtt);
+    explicit XChainCreateAccountAttestation(TSignedAttestation const& claimAtt);
 
     explicit XChainCreateAccountAttestation(STObject const& o);
 
@@ -471,8 +471,8 @@ public:
     [[nodiscard]] OnNewAttestationResult
     onNewAttestations(
         ReadView const& view,
-        typename TAttestation::TBatchAttestation const* attBegin,
-        typename TAttestation::TBatchAttestation const* attEnd,
+        typename TAttestation::TSignedAttestation const* attBegin,
+        typename TAttestation::TSignedAttestation const* attEnd,
         std::uint32_t quorum,
         std::unordered_map<AccountID, std::uint32_t> const& signersList,
         beast::Journal j);

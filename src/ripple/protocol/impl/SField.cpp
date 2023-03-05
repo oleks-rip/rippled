@@ -338,11 +338,11 @@ CONSTRUCT_UNTYPED_SFIELD(sfXChainClaimProofSig, "XChainClaimProofSig",  OBJECT, 
 CONSTRUCT_UNTYPED_SFIELD(sfXChainCreateAccountProofSig,
                                                 "XChainCreateAccountProofSig",
                                                                         OBJECT,    33);
-CONSTRUCT_UNTYPED_SFIELD(sfXChainClaimAttestationBatchElement,
-                                                 "XChainClaimAttestationBatchElement",
+CONSTRUCT_UNTYPED_SFIELD(sfXChainClaimAttestationCollectionElement,
+                                                 "XChainClaimAttestationCollectionElement",
                                                                         OBJECT,    34);
-CONSTRUCT_UNTYPED_SFIELD(sfXChainCreateAccountAttestationBatchElement,
-                                                 "XChainCreateAccountAttestationBatchElement",
+CONSTRUCT_UNTYPED_SFIELD(sfXChainCreateAccountAttestationCollectionElement,
+                                                 "XChainCreateAccountAttestationCollectionElement",
                                                                         OBJECT,    35);
 
 // array of objects
@@ -364,18 +364,12 @@ CONSTRUCT_UNTYPED_SFIELD(sfDisabledValidators,  "DisabledValidators",   ARRAY,  
 CONSTRUCT_UNTYPED_SFIELD(sfHookExecutions,      "HookExecutions",       ARRAY,     18);
 CONSTRUCT_UNTYPED_SFIELD(sfHookParameters,      "HookParameters",       ARRAY,     19);
 CONSTRUCT_UNTYPED_SFIELD(sfHookGrants,          "HookGrants",           ARRAY,     20);
-CONSTRUCT_UNTYPED_SFIELD(sfXChainClaimAttestationBatch,
-                                                 "XChainClaimAttestationBatch",
-                                                                        ARRAY,     21);
-CONSTRUCT_UNTYPED_SFIELD(sfXChainCreateAccountAttestationBatch,
-                                                 "XChainCreateAccountAttestationBatch",
-                                                                        ARRAY,     22);
 CONSTRUCT_UNTYPED_SFIELD(sfXChainClaimAttestations,
                                                  "XChainClaimAttestations",
-                                                                        ARRAY,     23);
+                                                                        ARRAY,     21);
 CONSTRUCT_UNTYPED_SFIELD(sfXChainCreateAccountAttestations,
                                                  "XChainCreateAccountAttestations",
-                                                                        ARRAY,     24);
+                                                                        ARRAY,     22);
 
 // clang-format on
 

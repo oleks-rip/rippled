@@ -270,7 +270,7 @@ AttestationClaim::AttestationClaim(Json::Value const& v)
 STObject
 AttestationClaim::toSTObject() const
 {
-    STObject o{sfXChainClaimAttestationBatchElement};
+    STObject o{sfXChainClaimAttestationCollectionElement};
     addHelper(o);
     o[sfXChainClaimID] = claimID;
     if (dst)
@@ -411,7 +411,7 @@ AttestationCreateAccount::AttestationCreateAccount(
 STObject
 AttestationCreateAccount::toSTObject() const
 {
-    STObject o{sfXChainCreateAccountAttestationBatchElement};
+    STObject o{sfXChainCreateAccountAttestationCollectionElement};
     addHelper(o);
 
     o[sfXChainAccountCreateCount] = createCount;
@@ -548,7 +548,7 @@ XChainClaimAttestation::XChainClaimAttestation(Json::Value const& v)
 };
 
 XChainClaimAttestation::XChainClaimAttestation(
-    XChainClaimAttestation::TBatchAttestation const& claimAtt)
+    XChainClaimAttestation::TSignedAttestation const& claimAtt)
     : XChainClaimAttestation{
           claimAtt.attestationSignerAccount,
           claimAtt.publicKey,
@@ -595,7 +595,7 @@ operator==(XChainClaimAttestation const& lhs, XChainClaimAttestation const& rhs)
 }
 
 XChainClaimAttestation::MatchFields::MatchFields(
-    XChainClaimAttestation::TBatchAttestation const& att)
+    XChainClaimAttestation::TSignedAttestation const& att)
     : amount{att.sendingAmount}
     , wasLockingChainSend{att.wasLockingChainSend}
     , dst{att.dst}
@@ -659,7 +659,7 @@ XChainCreateAccountAttestation ::XChainCreateAccountAttestation(
 }
 
 XChainCreateAccountAttestation::XChainCreateAccountAttestation(
-    XChainCreateAccountAttestation::TBatchAttestation const& createAtt)
+    XChainCreateAccountAttestation::TSignedAttestation const& createAtt)
     : XChainCreateAccountAttestation{
           createAtt.attestationSignerAccount,
           createAtt.publicKey,
@@ -690,7 +690,7 @@ XChainCreateAccountAttestation::toSTObject() const
 }
 
 XChainCreateAccountAttestation::MatchFields::MatchFields(
-    XChainCreateAccountAttestation::TBatchAttestation const& att)
+    XChainCreateAccountAttestation::TSignedAttestation const& att)
     : amount{att.sendingAmount}
     , rewardAmount(att.rewardAmount)
     , wasLockingChainSend{att.wasLockingChainSend}
@@ -811,8 +811,8 @@ template <class TAttestation>
 typename XChainAttestationsBase<TAttestation>::OnNewAttestationResult
 XChainAttestationsBase<TAttestation>::onNewAttestations(
     ReadView const& view,
-    typename TAttestation::TBatchAttestation const* attBegin,
-    typename TAttestation::TBatchAttestation const* attEnd,
+    typename TAttestation::TSignedAttestation const* attBegin,
+    typename TAttestation::TSignedAttestation const* attEnd,
     std::uint32_t quorum,
     std::unordered_map<AccountID, std::uint32_t> const& signersList,
     beast::Journal j)

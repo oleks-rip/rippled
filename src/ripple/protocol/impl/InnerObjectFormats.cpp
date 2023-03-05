@@ -62,8 +62,8 @@ InnerObjectFormats::InnerObjectFormats()
             {sfURI, soeOPTIONAL},
         });
 
-    add(sfXChainClaimAttestationBatchElement.jsonName.c_str(),
-        sfXChainClaimAttestationBatchElement.getCode(),
+    add(sfXChainClaimAttestationCollectionElement.jsonName.c_str(),
+        sfXChainClaimAttestationCollectionElement.getCode(),
         {
             {sfAttestationSignerAccount, soeREQUIRED},
             {sfPublicKey, soeREQUIRED},
@@ -76,8 +76,8 @@ InnerObjectFormats::InnerObjectFormats()
             {sfDestination, soeOPTIONAL},
         });
 
-    add(sfXChainCreateAccountAttestationBatchElement.jsonName.c_str(),
-        sfXChainCreateAccountAttestationBatchElement.getCode(),
+    add(sfXChainCreateAccountAttestationCollectionElement.jsonName.c_str(),
+        sfXChainCreateAccountAttestationCollectionElement.getCode(),
         {
             {sfAttestationSignerAccount, soeREQUIRED},
             {sfPublicKey, soeREQUIRED},
