@@ -73,6 +73,9 @@ public:
     STXChainBridge&
     operator=(STXChainBridge const& rhs) = default;
 
+    std::string
+    getText() const override;
+
     STObject
     toSTObject() const;
 

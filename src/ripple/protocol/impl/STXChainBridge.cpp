@@ -31,6 +31,8 @@
 #include <ripple/protocol/jss.h>
 #include <ripple/protocol/tokens.h>
 
+#include <boost/format.hpp>
+
 namespace ripple {
 
 STXChainBridge::STXChainBridge() : STBase{sfXChainBridge}
@@ -161,6 +163,17 @@ STXChainBridge::getJson(JsonOptions jo) const
     v[sfIssuingChainDoor.getJsonName()] = issuingChainDoor_.getJson(jo);
     v[sfIssuingChainIssue.getJsonName()] = issuingChainIssue_.getJson(jo);
     return v;
+}
+
+std::string
+STXChainBridge::getText() const
+{
+    return str(
+        boost::format("{ %s = %s, %s = %s, %s = %s, %s = %s }") %
+        sfLockingChainDoor.getJsonName() % lockingChainDoor_.getText() %
+        sfLockingChainIssue.getJsonName() % lockingChainIssue_.getText() %
+        sfIssuingChainDoor.getJsonName() % issuingChainDoor_.getText() %
+        sfIssuingChainIssue.getJsonName() % issuingChainIssue_.getText());
 }
 
 STObject
