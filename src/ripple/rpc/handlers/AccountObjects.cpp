@@ -206,6 +206,9 @@ doAccountObjects(RPC::JsonContext& context)
             {jss::escrow, ltESCROW},
             {jss::payment_channel, ltPAYCHAN},
             {jss::state, ltRIPPLE_STATE},
+            {jss::xchain_owned_claim_id, ltXCHAIN_OWNED_CLAIM_ID},
+            {jss::xchain_owned_create_account_claim_id,
+             ltXCHAIN_OWNED_CREATE_ACCOUNT_CLAIM_ID},
             {jss::bridge, ltBRIDGE}};
 
         typeFilter.emplace();
