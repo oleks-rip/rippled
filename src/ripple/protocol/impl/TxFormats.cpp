@@ -359,7 +359,7 @@ TxFormats::TxFormats()
             {sfXChainBridge, soeREQUIRED},
             {sfXChainClaimID, soeREQUIRED},
             {sfAmount, soeREQUIRED},
-            {sfOtherChainDestination, soeREQUIRED},
+            {sfOtherChainDestination, soeOPTIONAL},
         },
         commonFields);
 
