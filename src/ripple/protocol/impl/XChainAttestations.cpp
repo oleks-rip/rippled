@@ -288,18 +288,18 @@ AttestationClaim::message(
     std::uint64_t claimID,
     std::optional<AccountID> const& dst)
 {
-    Serializer s;
-
-    bridge.add(s);
-    s.addBitString(sendingAccount);
-    sendingAmount.add(s);
-    s.addBitString(rewardAccount);
-    std::uint8_t const lc = wasLockingChainSend ? 1 : 0;
-    s.add8(lc);
-
-    s.add64(claimID);
+    STObject o{sfGeneric};
+    o[sfXChainBridge] = bridge;
+    o[sfOtherChainSource] = sendingAccount;
+    o[sfAmount] = sendingAmount;
+    o[sfAttestationRewardAccount] = rewardAccount;
+    o[sfXChainClaimID] = claimID;
     if (dst)
-        s.addBitString(*dst);
+        o[sfDestination] = *dst;
+    o[sfWasLockingChainSend] = wasLockingChainSend ? 1 : 0;
+
+    Serializer s;
+    o.add(s);
 
     return std::move(s.modData());
 }
@@ -432,18 +432,17 @@ AttestationCreateAccount::message(
     std::uint64_t createCount,
     AccountID const& dst)
 {
+    STObject o{sfGeneric};
+    o[sfXChainBridge] = bridge;
+    o[sfOtherChainSource] = sendingAccount;
+    o[sfAmount] = sendingAmount;
+    o[sfAttestationRewardAccount] = rewardAccount;
+    o[sfDestination] = dst;
+    o[sfWasLockingChainSend] = wasLockingChainSend ? 1 : 0;
+    o[sfXChainAccountCreateCount] = createCount;
+
     Serializer s;
-
-    bridge.add(s);
-    s.addBitString(sendingAccount);
-    sendingAmount.add(s);
-    rewardAmount.add(s);
-    s.addBitString(rewardAccount);
-    std::uint8_t const lc = wasLockingChainSend ? 1 : 0;
-    s.add8(lc);
-
-    s.add64(createCount);
-    s.addBitString(dst);
+    o.add(s);
 
     return std::move(s.modData());
 }
