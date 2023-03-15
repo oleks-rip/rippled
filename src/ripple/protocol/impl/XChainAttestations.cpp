@@ -437,6 +437,7 @@ AttestationCreateAccount::message(
     o[sfOtherChainSource] = sendingAccount;
     o[sfAmount] = sendingAmount;
     o[sfAttestationRewardAccount] = rewardAccount;
+    o[sfSignatureReward] = rewardAmount;
     o[sfDestination] = dst;
     o[sfWasLockingChainSend] = wasLockingChainSend ? 1 : 0;
     o[sfXChainAccountCreateCount] = createCount;
