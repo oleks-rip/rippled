@@ -289,14 +289,15 @@ AttestationClaim::message(
     std::optional<AccountID> const& dst)
 {
     STObject o{sfGeneric};
-    o[sfXChainBridge] = bridge;
-    o[sfOtherChainSource] = sendingAccount;
-    o[sfAmount] = sendingAmount;
-    o[sfAttestationRewardAccount] = rewardAccount;
+    // Serialize in SField order to make python serializers easier to write
     o[sfXChainClaimID] = claimID;
+    o[sfAmount] = sendingAmount;
     if (dst)
         o[sfDestination] = *dst;
+    o[sfOtherChainSource] = sendingAccount;
+    o[sfAttestationRewardAccount] = rewardAccount;
     o[sfWasLockingChainSend] = wasLockingChainSend ? 1 : 0;
+    o[sfXChainBridge] = bridge;
 
     Serializer s;
     o.add(s);
