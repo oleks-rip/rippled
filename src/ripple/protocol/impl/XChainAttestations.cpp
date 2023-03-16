@@ -433,14 +433,15 @@ AttestationCreateAccount::message(
     AccountID const& dst)
 {
     STObject o{sfGeneric};
-    o[sfXChainBridge] = bridge;
-    o[sfOtherChainSource] = sendingAccount;
+    // Serialize in SField order to make python serializers easier to write
+    o[sfXChainAccountCreateCount] = createCount;
     o[sfAmount] = sendingAmount;
-    o[sfAttestationRewardAccount] = rewardAccount;
     o[sfSignatureReward] = rewardAmount;
     o[sfDestination] = dst;
+    o[sfOtherChainSource] = sendingAccount;
+    o[sfAttestationRewardAccount] = rewardAccount;
     o[sfWasLockingChainSend] = wasLockingChainSend ? 1 : 0;
-    o[sfXChainAccountCreateCount] = createCount;
+    o[sfXChainBridge] = bridge;
 
     Serializer s;
     o.add(s);
