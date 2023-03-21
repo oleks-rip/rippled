@@ -948,16 +948,16 @@ attestationPreflight(PreflightContext const& ctx)
 
     STXChainBridge const bridgeSpec = ctx.tx[sfXChainBridge];
     if (!att->verify(bridgeSpec))
-        return temBAD_XCHAIN_PROOF;
+        return temXCHAIN_BAD_PROOF;
     if (!att->validAmounts())
-        return temBAD_XCHAIN_PROOF;
+        return temXCHAIN_BAD_PROOF;
 
     if (att->sendingAmount.signum() <= 0)
-        return temBAD_XCHAIN_PROOF;
+        return temXCHAIN_BAD_PROOF;
     auto const expectedIssue =
         bridgeSpec.issue(STXChainBridge::srcChain(att->wasLockingChainSend));
     if (att->sendingAmount.issue() != expectedIssue)
-        return temBAD_XCHAIN_PROOF;
+        return temXCHAIN_BAD_PROOF;
 
     return preflight2(ctx);
 }
@@ -1113,13 +1113,13 @@ XChainCreateBridge::preflight(PreflightContext const& ctx)
     // Doors must be distinct to help prevent transaction replay attacks
     if (bridgeSpec.lockingChainDoor() == bridgeSpec.issuingChainDoor())
     {
-        return temEQUAL_DOOR_ACCOUNTS;
+        return temXCHAIN_EQUAL_DOOR_ACCOUNTS;
     }
 
     if (bridgeSpec.lockingChainDoor() != account &&
         bridgeSpec.issuingChainDoor() != account)
     {
-        return tem_BRIDGE_NONDOOR_OWNER;
+        return temXCHAIN_BRIDGE_NONDOOR_OWNER;
     }
 
     if (isXRP(bridgeSpec.lockingChainIssue()) !=
@@ -1127,7 +1127,7 @@ XChainCreateBridge::preflight(PreflightContext const& ctx)
     {
         // Because ious and xrp have different numeric ranges, both the src and
         // dst issues must be both XRP or both IOU.
-        return temBRIDGE_BAD_ISSUES;
+        return temXCHAIN_BRIDGE_BAD_ISSUES;
     }
 
     if (!isXRP(reward) || reward.signum() < 0)
@@ -1154,7 +1154,7 @@ XChainCreateBridge::preflight(PreflightContext const& ctx)
                 .first);
         if (bridgeSpec.issuingChainDoor() != rootAccount)
         {
-            return temBRIDGE_BAD_ISSUES;
+            return temXCHAIN_BRIDGE_BAD_ISSUES;
         }
     }
     else
@@ -1164,7 +1164,7 @@ XChainCreateBridge::preflight(PreflightContext const& ctx)
         if (bridgeSpec.issuingChainDoor() !=
             bridgeSpec.issuingChainIssue().account)
         {
-            return temBRIDGE_BAD_ISSUES;
+            return temXCHAIN_BRIDGE_BAD_ISSUES;
         }
     }
 
@@ -1172,7 +1172,7 @@ XChainCreateBridge::preflight(PreflightContext const& ctx)
     {
         // If the locking chain door is locking their own asset, in some sense
         // nothing is being locked. Disallow this.
-        return temBRIDGE_BAD_ISSUES;
+        return temXCHAIN_BRIDGE_BAD_ISSUES;
     }
 
     return preflight2(ctx);
@@ -1300,7 +1300,7 @@ BridgeModify::preflight(PreflightContext const& ctx)
     if (bridgeSpec.lockingChainDoor() != account &&
         bridgeSpec.issuingChainDoor() != account)
     {
-        return tem_BRIDGE_NONDOOR_OWNER;
+        return temXCHAIN_BRIDGE_NONDOOR_OWNER;
     }
 
     if (reward && (!isXRP(*reward) || reward->signum() < 0))
@@ -1436,12 +1436,12 @@ XChainClaim::preclaim(PreclaimContext const& ctx)
         if (isLockingChain)
         {
             if (bridgeSpec.lockingChainIssue() != thisChainAmount.issue())
-                return tecBAD_XCHAIN_TRANSFER_ISSUE;
+                return tecXCHAIN_BAD_TRANSFER_ISSUE;
         }
         else
         {
             if (bridgeSpec.issuingChainIssue() != thisChainAmount.issue())
-                return tecBAD_XCHAIN_TRANSFER_ISSUE;
+                return tecXCHAIN_BAD_TRANSFER_ISSUE;
         }
     }
 
@@ -1671,12 +1671,12 @@ XChainCommit::preclaim(PreclaimContext const& ctx)
     if (isLockingChain)
     {
         if (bridgeSpec.lockingChainIssue() != ctx.tx[sfAmount].issue())
-            return tecBAD_XCHAIN_TRANSFER_ISSUE;
+            return tecXCHAIN_BAD_TRANSFER_ISSUE;
     }
     else
     {
         if (bridgeSpec.issuingChainIssue() != ctx.tx[sfAmount].issue())
-            return tecBAD_XCHAIN_TRANSFER_ISSUE;
+            return tecXCHAIN_BAD_TRANSFER_ISSUE;
     }
 
     return tesSUCCESS;
@@ -1931,7 +1931,7 @@ XChainCreateAccountCommit::preclaim(PreclaimContext const& ctx)
         return tecXCHAIN_INSUFF_CREATE_AMOUNT;
 
     if (minCreateAmount->issue() != amount.issue())
-        return tecBAD_XCHAIN_TRANSFER_ISSUE;
+        return tecXCHAIN_BAD_TRANSFER_ISSUE;
 
     AccountID const thisDoor = (*sleBridge)[sfAccount];
     AccountID const account = ctx.tx[sfAccount];
@@ -1954,7 +1954,7 @@ XChainCreateAccountCommit::preclaim(PreclaimContext const& ctx)
         STXChainBridge::otherChain(srcChain);
 
     if (bridgeSpec.issue(srcChain) != ctx.tx[sfAmount].issue())
-        return tecBAD_XCHAIN_TRANSFER_ISSUE;
+        return tecXCHAIN_BAD_TRANSFER_ISSUE;
 
     if (!isXRP(bridgeSpec.issue(dstChain)))
         return tecXCHAIN_CREATE_ACCOUNT_NONXRP_ISSUE;
