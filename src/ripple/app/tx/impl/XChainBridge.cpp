@@ -102,7 +102,9 @@ namespace ripple {
 
 namespace {
 
-enum class TransferHelperCanCreateDst { no, yes };
+enum class CanCreateDstPolicy { no, yes };
+
+enum class DepositAuthPolicy { normal, dstCanBypass };
 
 /** Transfer funds from the src account to the dst account
 
@@ -114,7 +116,9 @@ enum class TransferHelperCanCreateDst { no, yes };
     @param claimOwner Owner of the claim ledger object.
     @param amt Amount to transfer from the src account to the dst account.
     @param canCreate Flag to determine if accounts may be created using this
-   transfer.
+           transfer.
+    @param depositAuthPolicy Flag to determine if dst can bypass deposit auth if
+           it is also the claim owner.
     @param j Log
 
     @return tesSUCCESS if payment succeeds, otherwise the error code for the
@@ -129,7 +133,8 @@ transferHelper(
     std::optional<std::uint32_t> const& dstTag,
     std::optional<AccountID> const& claimOwner,
     STAmount const& amt,
-    TransferHelperCanCreateDst canCreate,
+    CanCreateDstPolicy canCreate,
+    DepositAuthPolicy depositAuthPolicy,
     beast::Journal j)
 {
     if (dst == src)
@@ -143,13 +148,19 @@ transferHelper(
         if ((sleDst->getFlags() & lsfRequireDestTag) && !dstTag)
             return tecDST_TAG_NEEDED;
 
-        if ((dst != claimOwner) && (sleDst->getFlags() & lsfDepositAuth) &&
-            (!psb.exists(keylet::depositPreauth(dst, src))))
+        // If the destination is the claim owner, and this is a claim
+        // transaction, that's the dst account sending funds to itself. It
+        // can bypass deposit auth.
+        bool const canBypassDepositAuth = dst == claimOwner &&
+            depositAuthPolicy == DepositAuthPolicy::dstCanBypass;
+
+        if (!canBypassDepositAuth && (sleDst->getFlags() & lsfDepositAuth) &&
+            !psb.exists(keylet::depositPreauth(dst, src)))
         {
             return tecNO_PERMISSION;
         }
     }
-    else if (!amt.native() || canCreate == TransferHelperCanCreateDst::no)
+    else if (!amt.native() || canCreate == CanCreateDstPolicy::no)
     {
         return tecNO_DST;
     }
@@ -174,7 +185,7 @@ transferHelper(
         auto sleDst = psb.peek(dstK);
         if (!sleDst)
         {
-            if (canCreate == TransferHelperCanCreateDst::no)
+            if (canCreate == CanCreateDstPolicy::no)
             {
                 // Already checked, but OK to check again
                 return tecNO_DST;
@@ -321,6 +332,7 @@ finalizeClaimHelper(
     STXChainBridge::ChainType const srcChain,
     Keylet const& claimIDKeylet,
     OnTransferFail onTransferFail,
+    DepositAuthPolicy depositAuthPolicy,
     beast::Journal j)
 {
     FinalizeClaimHelperResult result;
@@ -353,7 +365,8 @@ finalizeClaimHelper(
             dstTag,
             claimOwner,
             thisChainAmount,
-            TransferHelperCanCreateDst::yes,
+            CanCreateDstPolicy::yes,
+            depositAuthPolicy,
             j);
 
         if (!isTesSuccess(*result.mainFundsTer) &&
@@ -385,7 +398,8 @@ finalizeClaimHelper(
                     // claim owner is not relevant to distributing rewards
                     /*claimOwner*/ std::nullopt,
                     share,
-                    TransferHelperCanCreateDst::no,
+                    CanCreateDstPolicy::no,
+                    DepositAuthPolicy::normal,
                     j);
 
                 if (thTer == tecINSUFFICIENT_FUNDS || thTer == tecINTERNAL)
@@ -674,6 +688,7 @@ applyClaimAttestations(
             srcChain,
             claimIDKeylet,
             OnTransferFail::keepClaim,
+            DepositAuthPolicy::normal,
             j);
 
         auto const rTer = r.ter();
@@ -841,6 +856,7 @@ applyCreateAccountAttestations(
             srcChain,
             claimIDKeylet,
             OnTransferFail::removeClaim,
+            DepositAuthPolicy::normal,
             j);
 
         auto const rTer = r.ter();
@@ -1571,6 +1587,7 @@ XChainClaim::doApply()
         srcChain,
         claimIDKeylet,
         OnTransferFail::keepClaim,
+        DepositAuthPolicy::dstCanBypass,
         ctx_.journal);
     if (!r.isTesSuccess())
         return r.ter();
@@ -1690,7 +1707,8 @@ XChainCommit::doApply()
         /*dstTag*/ std::nullopt,
         /*claimOwner*/ std::nullopt,
         amount,
-        TransferHelperCanCreateDst::no,
+        CanCreateDstPolicy::no,
+        DepositAuthPolicy::normal,
         ctx_.journal);
 
     if (!isTesSuccess(thTer))
@@ -1972,7 +1990,8 @@ XChainCreateAccountCommit::doApply()
         /*dstTag*/ std::nullopt,
         /*claimOwner*/ std::nullopt,
         toTransfer,
-        TransferHelperCanCreateDst::yes,
+        CanCreateDstPolicy::yes,
+        DepositAuthPolicy::normal,
         ctx_.journal);
 
     if (!isTesSuccess(thTer))
