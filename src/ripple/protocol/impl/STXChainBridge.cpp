@@ -170,10 +170,10 @@ STXChainBridge::getText() const
 {
     return str(
         boost::format("{ %s = %s, %s = %s, %s = %s, %s = %s }") %
-        sfLockingChainDoor.getJsonName() % lockingChainDoor_.getText() %
-        sfLockingChainIssue.getJsonName() % lockingChainIssue_.getText() %
-        sfIssuingChainDoor.getJsonName() % issuingChainDoor_.getText() %
-        sfIssuingChainIssue.getJsonName() % issuingChainIssue_.getText());
+        sfLockingChainDoor.getName() % lockingChainDoor_.getText() %
+        sfLockingChainIssue.getName() % lockingChainIssue_.getText() %
+        sfIssuingChainDoor.getName() % issuingChainDoor_.getText() %
+        sfIssuingChainIssue.getName() % issuingChainIssue_.getText());
 }
 
 STObject

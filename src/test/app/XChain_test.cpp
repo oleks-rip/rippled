@@ -1403,7 +1403,7 @@ struct XChain_test : public beast::unit_test::suite,
             .fund(res0 + one_xrp - xrp_dust, mcuAlice)  // barely not enough
             .close()
             .tx(xchain_commit(mcuAlice, jvb, 1, one_xrp, scBob),
-                ter(tecINSUFFICIENT_FUNDS));
+                ter(tecUNFUNDED_PAYMENT));
 
         XEnv(*this)
             .tx(create_bridge(mcDoor, jvb))
@@ -1420,7 +1420,7 @@ struct XChain_test : public beast::unit_test::suite,
             .fund(res0, mcuAlice)  // barely not enough
             .close()
             .tx(xchain_commit(mcuAlice, jvb, 1, res0 + one_xrp, scBob),
-                ter(tecINSUFFICIENT_FUNDS));
+                ter(tecUNFUNDED_PAYMENT));
 
         auto jvb_USD = bridge(mcDoor, mcUSD, scGw, scUSD);
 
@@ -3365,7 +3365,7 @@ struct XChain_test : public beast::unit_test::suite,
                 // need to submit a claim transactions
                 scEnv
                     .tx(xchain_claim(scAlice, jvb, claimID, amt, scBob),
-                        ter(tecINSUFFICIENT_FUNDS))
+                        ter(tecUNFUNDED_PAYMENT))
                     .close();
             }
             else
@@ -3391,7 +3391,7 @@ struct XChain_test : public beast::unit_test::suite,
                 // funds
                 scEnv
                     .tx(xchain_claim(scAlice, jvb, claimID, amt, scBob),
-                        ter(tecINSUFFICIENT_FUNDS))
+                        ter(tecUNFUNDED_PAYMENT))
                     .close();
             }
 
@@ -4147,6 +4147,56 @@ struct XChain_test : public beast::unit_test::suite,
     }
 
     void
+    testFeeDipsIntoReserve()
+    {
+        using namespace jtx;
+        XRPAmount res0 = reserve(0);
+        XRPAmount tx_fee = txFee();
+
+        testcase("Fee dips into reserve");
+
+        // commit where the fee dips into the reserve, this should succeed
+        XEnv(*this)
+            .tx(create_bridge(mcDoor, jvb))
+            .fund(res0 + one_xrp + tx_fee - drops(1), mcuAlice)
+            .close()
+            .tx(xchain_commit(mcuAlice, jvb, 1, one_xrp, scBob),
+                ter(tesSUCCESS));
+
+        // commit where the commit amount drips into the reserve, this should
+        // fail
+        XEnv(*this)
+            .tx(create_bridge(mcDoor, jvb))
+            .fund(res0 + one_xrp - drops(1), mcuAlice)
+            .close()
+            .tx(xchain_commit(mcuAlice, jvb, 1, one_xrp, scBob),
+                ter(tecUNFUNDED_PAYMENT));
+
+        auto const minAccountCreate = XRP(20);
+
+        // account create commit where the fee dips into the reserve,
+        // this should succeed
+        XEnv(*this)
+            .tx(create_bridge(mcDoor, jvb, reward, minAccountCreate))
+            .fund(
+                res0 + tx_fee + minAccountCreate + reward - drops(1), mcuAlice)
+            .close()
+            .tx(sidechain_xchain_account_create(
+                    mcuAlice, jvb, scuAlice, minAccountCreate, reward),
+                ter(tesSUCCESS));
+
+        // account create commit where the commit dips into the reserve,
+        // this should fail
+        XEnv(*this)
+            .tx(create_bridge(mcDoor, jvb, reward, minAccountCreate))
+            .fund(res0 + minAccountCreate + reward - drops(1), mcuAlice)
+            .close()
+            .tx(sidechain_xchain_account_create(
+                    mcuAlice, jvb, scuAlice, minAccountCreate, reward),
+                ter(tecUNFUNDED_PAYMENT));
+    }
+
+    void
     testXChainDeleteDoor()
     {
         using namespace jtx;
@@ -4211,6 +4261,7 @@ struct XChain_test : public beast::unit_test::suite,
         testXChainAddAccountCreateNonBatchAttestation();
         testXChainClaim();
         testXChainCreateAccount();
+        testFeeDipsIntoReserve();
         testXChainDeleteDoor();
     }
 };

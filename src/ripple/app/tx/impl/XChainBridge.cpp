@@ -119,11 +119,23 @@ enum class DepositAuthPolicy { normal, dstCanBypass };
            transfer.
     @param depositAuthPolicy Flag to determine if dst can bypass deposit auth if
            it is also the claim owner.
+    @param submittingAccountInfo If the transaction is allowed to dip into the
+           reserve to pay fees, then this optional will be seated ("commit"
+           transactions support this, other transactions should not).
     @param j Log
 
     @return tesSUCCESS if payment succeeds, otherwise the error code for the
             failure reason.
  */
+
+// Allow the fee to dip into the reserve. To support this, information about the
+// submitting account needs to be fed to the transfer helper.
+struct TransferHelperSubmittingAccountInfo
+{
+    AccountID account;
+    STAmount preFeeBalance;
+    STAmount postFeeBalance;
+};
 
 TER
 transferHelper(
@@ -135,6 +147,8 @@ transferHelper(
     STAmount const& amt,
     CanCreateDstPolicy canCreate,
     DepositAuthPolicy depositAuthPolicy,
+    std::optional<TransferHelperSubmittingAccountInfo> const&
+        submittingAccountInfo,
     beast::Journal j)
 {
     if (dst == src)
@@ -176,9 +190,21 @@ transferHelper(
             auto const ownerCount = sleSrc->getFieldU32(sfOwnerCount);
             auto const reserve = psb.fees().accountReserve(ownerCount);
 
-            if ((*sleSrc)[sfBalance] < amt + reserve)
+            auto const availableBalance = [&]() -> STAmount {
+                STAmount const curBal = (*sleSrc)[sfBalance];
+                // Checking that account == src and postFeeBalance == curBal is
+                // not strictly nessisary, but helps protect against future
+                // changes
+                if (!submittingAccountInfo ||
+                    submittingAccountInfo->account != src ||
+                    submittingAccountInfo->postFeeBalance != curBal)
+                    return curBal;
+                return submittingAccountInfo->preFeeBalance;
+            }();
+
+            if (availableBalance < amt + reserve)
             {
-                return tecINSUFFICIENT_FUNDS;
+                return tecUNFUNDED_PAYMENT;
             }
         }
 
@@ -277,11 +303,11 @@ enum class OnTransferFail {
 
 struct FinalizeClaimHelperResult
 {
-    /// Ter for transfering the payment funds
+    /// TER for transfering the payment funds
     std::optional<TER> mainFundsTer;
-    // Ter for transfering the reward funds
+    // TER for transfering the reward funds
     std::optional<TER> rewardTer;
-    // Ter for removing the sle (if is sle is to be removed)
+    // TER for removing the sle (if is sle is to be removed)
     std::optional<TER> rmSleTer;
 
     // Helper to check for overall success. If there wasn't overall success the
@@ -296,6 +322,11 @@ struct FinalizeClaimHelperResult
     TER
     ter() const
     {
+        if ((!mainFundsTer || *mainFundsTer == tesSUCCESS) &&
+            (!rewardTer || *rewardTer == tesSUCCESS) &&
+            (!rmSleTer || *rmSleTer == tesSUCCESS))
+            return tesSUCCESS;
+
         // if any phase return a tecINTERNAL or a tef, prefer returning those
         // codes
         if (mainFundsTer &&
@@ -354,8 +385,8 @@ finalizeClaimHelper(
         // If the claimid is removed, the rewards should be distributed
         // even if the mainFunds fails.
         //
-        // The claim should be removed even if the
-        // rewards can not be distributed if "remove on fail" is true.
+        // If OnTransferFail::removeClaim, the claim should be removed even if
+        // the rewards cannot be distributed.
 
         // transfer funds to the dst
         result.mainFundsTer = transferHelper(
@@ -367,6 +398,7 @@ finalizeClaimHelper(
             thisChainAmount,
             CanCreateDstPolicy::yes,
             depositAuthPolicy,
+            std::nullopt,
             j);
 
         if (!isTesSuccess(*result.mainFundsTer) &&
@@ -400,9 +432,10 @@ finalizeClaimHelper(
                     share,
                     CanCreateDstPolicy::no,
                     DepositAuthPolicy::normal,
+                    std::nullopt,
                     j);
 
-                if (thTer == tecINSUFFICIENT_FUNDS || thTer == tecINTERNAL)
+                if (thTer == tecUNFUNDED_PAYMENT || thTer == tecINTERNAL)
                     return thTer;
 
                 if (isTesSuccess(thTer))
@@ -863,7 +896,7 @@ applyCreateAccountAttestations(
 
         if (!isTesSuccess(rTer))
         {
-            if (rTer == tecINTERNAL || rTer == tecINSUFFICIENT_FUNDS ||
+            if (rTer == tecINTERNAL || rTer == tecUNFUNDED_PAYMENT ||
                 isTefFailure(rTer))
                 return rTer;
         }
@@ -1700,6 +1733,10 @@ XChainCommit::doApply()
 
     auto const dst = (*sleBridge)[sfAccount];
 
+    // Support dipping into reserves to pay the fee
+    TransferHelperSubmittingAccountInfo submittingAccountInfo{
+        account_, mPriorBalance, mSourceBalance};
+
     auto const thTer = transferHelper(
         psb,
         account,
@@ -1709,6 +1746,7 @@ XChainCommit::doApply()
         amount,
         CanCreateDstPolicy::no,
         DepositAuthPolicy::normal,
+        submittingAccountInfo,
         ctx_.journal);
 
     if (!isTesSuccess(thTer))
@@ -1982,6 +2020,9 @@ XChainCreateAccountCommit::doApply()
 
     auto const dst = (*sleBridge)[sfAccount];
 
+    // Support dipping into reserves to pay the fee
+    TransferHelperSubmittingAccountInfo submittingAccountInfo{
+        account_, mPriorBalance, mSourceBalance};
     STAmount const toTransfer = amount + reward;
     auto const thTer = transferHelper(
         psb,
@@ -1992,6 +2033,7 @@ XChainCreateAccountCommit::doApply()
         toTransfer,
         CanCreateDstPolicy::yes,
         DepositAuthPolicy::normal,
+        submittingAccountInfo,
         ctx_.journal);
 
     if (!isTesSuccess(thTer))
