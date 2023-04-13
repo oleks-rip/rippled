@@ -106,6 +106,15 @@ enum class CanCreateDstPolicy { no, yes };
 
 enum class DepositAuthPolicy { normal, dstCanBypass };
 
+// Allow the fee to dip into the reserve. To support this, information about the
+// submitting account needs to be fed to the transfer helper.
+struct TransferHelperSubmittingAccountInfo
+{
+    AccountID account;
+    STAmount preFeeBalance;
+    STAmount postFeeBalance;
+};
+
 /** Transfer funds from the src account to the dst account
 
     @param psb The payment sandbox.
@@ -127,15 +136,6 @@ enum class DepositAuthPolicy { normal, dstCanBypass };
     @return tesSUCCESS if payment succeeds, otherwise the error code for the
             failure reason.
  */
-
-// Allow the fee to dip into the reserve. To support this, information about the
-// submitting account needs to be fed to the transfer helper.
-struct TransferHelperSubmittingAccountInfo
-{
-    AccountID account;
-    STAmount preFeeBalance;
-    STAmount postFeeBalance;
-};
 
 TER
 transferHelper(
@@ -273,34 +273,6 @@ enum class OnTransferFail {
     keepClaim
 };
 
-/** Transfer funds from the door account to the dst and distribute rewards
-
-    @param psb The payment sandbox.
-    @param bridgeSpc Bridge
-    @param dst The destination for funds.
-    @param dstTag Integer destination tag. Used to check if funds should be
-           transferred to an account with a `RequireDstTag` flag set.
-    @param claimOwner Owner of the claim ledger object.
-    @param sendingAmount Amount that was committed on the source chain.
-    @param rewardPoolSrc Source of the funds for the reward pool (claim owner).
-    @param rewardPool Amount to split among the rewardAccounts.
-    @param rewardAccounts Account to receive the reward pool.
-    @param srcChain Chain where the commit event occurred.
-    @param sleClaimID sle for the claim id (may be NULL or XChainClaimID or
-           XChainCreateAccountClaimID). Don't read fields that aren't in common
-           with those two types and always check for NULL. Remove on success (if
-           not null). Remove on fail if the onTransferFail flag is removeClaim.
-    @param onTransferFail Flag to determine if the claim is removed on transfer
-           failure. This is used for create account transactions where claims
-           are removed so they don't block future txns.
-    @param j Log
-
-    @return FinalizeClaimHelperResult. See the comments in this struct for what
-            the fields mean. The individual ters need to be returned instead of
-            an overall ter because the caller needs this information if the
-            attestation list changed or not.
- */
-
 struct FinalizeClaimHelperResult
 {
     /// TER for transfering the payment funds
@@ -349,6 +321,35 @@ struct FinalizeClaimHelperResult
         return tesSUCCESS;
     }
 };
+
+/** Transfer funds from the door account to the dst and distribute rewards
+
+    @param psb The payment sandbox.
+    @param bridgeSpc Bridge
+    @param dst The destination for funds.
+    @param dstTag Integer destination tag. Used to check if funds should be
+           transferred to an account with a `RequireDstTag` flag set.
+    @param claimOwner Owner of the claim ledger object.
+    @param sendingAmount Amount that was committed on the source chain.
+    @param rewardPoolSrc Source of the funds for the reward pool (claim owner).
+    @param rewardPool Amount to split among the rewardAccounts.
+    @param rewardAccounts Account to receive the reward pool.
+    @param srcChain Chain where the commit event occurred.
+    @param sleClaimID sle for the claim id (may be NULL or XChainClaimID or
+           XChainCreateAccountClaimID). Don't read fields that aren't in common
+           with those two types and always check for NULL. Remove on success (if
+           not null). Remove on fail if the onTransferFail flag is removeClaim.
+    @param onTransferFail Flag to determine if the claim is removed on transfer
+           failure. This is used for create account transactions where claims
+           are removed so they don't block future txns.
+    @param j Log
+
+    @return FinalizeClaimHelperResult. See the comments in this struct for what
+            the fields mean. The individual ters need to be returned instead of
+            an overall ter because the caller needs this information if the
+            attestation list changed or not.
+ */
+
 FinalizeClaimHelperResult
 finalizeClaimHelper(
     PaymentSandbox& outerSb,
