@@ -97,7 +97,8 @@ if(rocksdb)
   set_target_properties(RocksDB::rocksdb PROPERTIES
     INTERFACE_COMPILE_DEFINITIONS RIPPLE_ROCKSDB_AVAILABLE=1
   )
-  target_link_libraries(ripple_libs INTERFACE RocksDB::rocksdb)
+  find_package(liburing REQUIRED)
+  target_link_libraries(ripple_libs INTERFACE RocksDB::rocksdb liburing::liburing)
 endif()
 
 find_package(nudb REQUIRED)

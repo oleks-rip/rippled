@@ -107,6 +107,7 @@ class Xrpl(ConanFile):
             self.requires('libpq/13.6')
         if self.options.rocksdb:
             self.requires('rocksdb/6.27.3')
+            self.requires('liburing/2.2')
 
     exports_sources = (
         'CMakeLists.txt', 'Builds/*', 'bin/getRippledInfo', 'src/*', 'cfg/*'
