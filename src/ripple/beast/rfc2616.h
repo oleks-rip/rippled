@@ -20,11 +20,14 @@
 #ifndef BEAST_RFC2616_HPP
 #define BEAST_RFC2616_HPP
 
+#include <cstdint>
+
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/http/rfc7230.hpp>
 #include <boost/range/algorithm/equal.hpp>
 #include <boost/range/iterator_range.hpp>
 #include <boost/utility/string_ref.hpp>
+
 #include <algorithm>
 #include <cctype>
 #include <iterator>

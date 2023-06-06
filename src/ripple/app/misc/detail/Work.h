@@ -20,6 +20,8 @@
 #ifndef RIPPLE_APP_MISC_DETAIL_WORK_H_INCLUDED
 #define RIPPLE_APP_MISC_DETAIL_WORK_H_INCLUDED
 
+#include <cstdint>
+
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/http/string_body.hpp>
 
