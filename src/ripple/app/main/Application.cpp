@@ -1416,7 +1416,6 @@ addPlugin(std::string libPath)
             registerPluginInnerObjectFormat(innerObjectFormat);
         }
     }
-    CLOSELIB(handle);
 }
 
 // TODO Break this up into smaller, more digestible initialization segments.
