@@ -32,11 +32,11 @@ namespace ripple {
 class ApplyHandler
 {
 protected:
-    ApplyContext& ctx;
+    ApplyContext& ctx_;
     TransactorExport transactor_;
 
-    XRPAmount mPriorBalance;   // Balance before fees.
-    XRPAmount mSourceBalance;  // Balance after fees.
+    XRPAmount mPriorBalance_;   // Balance before fees.
+    XRPAmount mSourceBalance_;  // Balance after fees.
 
     ApplyHandler&
     operator=(ApplyHandler const&) = delete;
@@ -50,14 +50,6 @@ public:
     /** Process the transaction. */
     std::pair<TER, bool>
     operator()();
-
-    // Interface used by DeleteAccount
-    static TER
-    ticketDelete(
-        ApplyView& view,
-        AccountID const& account,
-        uint256 const& ticketIndex,
-        beast::Journal j);
 
 protected:
     TER

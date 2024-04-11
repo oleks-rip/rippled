@@ -81,6 +81,7 @@ struct TransactorExport
     checkPriorTxAndLastLedgerPtr checkPriorTxAndLastLedger = nullptr;
     checkFeePtr checkFee = nullptr;
     checkSignPtr checkSign = nullptr;
+    DeleterFuncPtr deleter = nullptr;
 };
 typedef Container<TransactorExport> (*getTransactorsPtr)();
 

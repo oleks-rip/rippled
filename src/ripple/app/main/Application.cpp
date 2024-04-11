@@ -1381,10 +1381,12 @@ addPlugin(std::string libPath)
         ((getTransactorsPtr)LIBFUNC(handle, "getTransactors"))();
     for (int i = 0; i < transactors.size; i++)
     {
-        auto const transactor = *(transactors.data + i);
+        auto const& transactor = transactors.data[i];
         registerTxFormat(
             transactor.txType, transactor.txName, transactor.txFormat);
         registerTxFunctions(transactor);
+        if (transactor.deleter)
+            registerDeleterFunction(transactor.txType, transactor.deleter);
     }
     if (LIBFUNC(handle, "getTERcodes") != NULL)
     {

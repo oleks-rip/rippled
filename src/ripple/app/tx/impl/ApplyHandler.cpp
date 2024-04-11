@@ -39,27 +39,27 @@ namespace ripple {
 //------------------------------------------------------------------------------
 
 ApplyHandler::ApplyHandler(ApplyContext& applyCtx, TransactorExport transactor)
-    : ctx(applyCtx), transactor_(transactor)
+    : ctx_(applyCtx), transactor_(transactor)
 {
 }
 
 TER
 ApplyHandler::payFee()
 {
-    auto const feePaid = ctx.tx[sfFee].xrp();
+    auto const feePaid = ctx_.tx[sfFee].xrp();
 
     auto const sle =
-        ctx.view().peek(keylet::account(ctx.tx.getAccountID(sfAccount)));
+        ctx_.view().peek(keylet::account(ctx_.tx.getAccountID(sfAccount)));
     if (!sle)
         return tefINTERNAL;
 
     // Deduct the fee, so it's not available during the transaction.
     // Will only write the account back if the transaction succeeds.
 
-    mSourceBalance -= feePaid;
-    sle->setFieldAmount(sfBalance, mSourceBalance);
+    mSourceBalance_ -= feePaid;
+    sle->setFieldAmount(sfBalance, mSourceBalance_);
 
-    // VFALCO Should we call ctx.view().rawDestroyXRP() here as well?
+    // VFALCO Should we call ctx_.view().rawDestroyXRP() here as well?
 
     return tesSUCCESS;
 }
@@ -68,7 +68,7 @@ TER
 ApplyHandler::consumeSeqProxy(SLE::pointer const& sleAccount)
 {
     assert(sleAccount);
-    SeqProxy const seqProx = ctx.tx.getSeqProxy();
+    SeqProxy const seqProx = ctx_.tx.getSeqProxy();
     if (seqProx.isSeq())
     {
         // Note that if this transaction is a TicketCreate, then
@@ -77,72 +77,26 @@ ApplyHandler::consumeSeqProxy(SLE::pointer const& sleAccount)
         sleAccount->setFieldU32(sfSequence, seqProx.value() + 1);
         return tesSUCCESS;
     }
-    return ticketDelete(
-        ctx.view(),
-        ctx.tx.getAccountID(sfAccount),
-        getTicketIndex(ctx.tx.getAccountID(sfAccount), seqProx),
-        ctx.journal);
-}
 
-// Remove a single Ticket from the ledger.
-TER
-ApplyHandler::ticketDelete(
-    ApplyView& view,
-    AccountID const& account,
-    uint256 const& ticketIndex,
-    beast::Journal j)
-{
-    // Delete the Ticket, adjust the account root ticket count, and
-    // reduce the owner count.
-    SLE::pointer const sleTicket = view.peek(keylet::ticket(ticketIndex));
-    if (!sleTicket)
-    {
-        JLOG(j.fatal()) << "Ticket disappeared from ledger.";
-        return tefBAD_LEDGER;
-    }
-
-    std::uint64_t const page{(*sleTicket)[sfOwnerNode]};
-    if (!view.dirRemove(keylet::ownerDir(account), page, ticketIndex, true))
-    {
-        JLOG(j.fatal()) << "Unable to delete Ticket from owner.";
-        return tefBAD_LEDGER;
-    }
-
-    // Update the account root's TicketCount.  If the ticket count drops to
-    // zero remove the (optional) field.
-    auto sleAccount = view.peek(keylet::account(account));
-    if (!sleAccount)
-    {
-        JLOG(j.fatal()) << "Could not find Ticket owner account root.";
-        return tefBAD_LEDGER;
-    }
-
-    if (auto ticketCount = (*sleAccount)[~sfTicketCount])
-    {
-        if (*ticketCount == 1)
-            sleAccount->makeFieldAbsent(sfTicketCount);
-        else
-            ticketCount = *ticketCount - 1;
-    }
-    else
-    {
-        JLOG(j.fatal()) << "TicketCount field missing from account root.";
-        return tefBAD_LEDGER;
-    }
-
-    // Update the Ticket owner's reserve.
-    adjustOwnerCount(view, sleAccount, -1, j);
-
-    // Remove Ticket from ledger.
-    view.erase(sleTicket);
-    return tesSUCCESS;
+    auto& view = ctx_.view();
+    auto idx = getTicketIndex(ctx_.tx.getAccountID(sfAccount), seqProx);
+    auto account = ctx_.tx.getAccountID(sfAccount);
+    return transactor_.deleter
+        ? transactor_.deleter(
+              ctx_.app,
+              view,
+              account,
+              idx,
+              view.peek(keylet::ticket(idx)),
+              ctx_.journal)
+        : Transactor::ticketDelete(view, account, idx, ctx_.journal);
 }
 
 // check stuff before you bother to lock the ledger
 void
 ApplyHandler::preCompute()
 {
-    assert(ctx.tx.getAccountID(sfAccount) != beast::zero);
+    assert(ctx_.tx.getAccountID(sfAccount) != beast::zero);
 }
 
 TER
@@ -153,16 +107,16 @@ ApplyHandler::apply()
     // If the transactor requires a valid account and the transaction doesn't
     // list one, preflight will have already a flagged a failure.
     auto const sle =
-        ctx.view().peek(keylet::account(ctx.tx.getAccountID(sfAccount)));
+        ctx_.view().peek(keylet::account(ctx_.tx.getAccountID(sfAccount)));
 
     // sle must exist except for transactions
     // that allow zero account.
-    assert(sle != nullptr || ctx.tx.getAccountID(sfAccount) == beast::zero);
+    assert(sle != nullptr || ctx_.tx.getAccountID(sfAccount) == beast::zero);
 
     if (sle)
     {
-        mPriorBalance = STAmount{(*sle)[sfBalance]}.xrp();
-        mSourceBalance = mPriorBalance;
+        mPriorBalance_ = STAmount{(*sle)[sfBalance]}.xrp();
+        mSourceBalance_ = mPriorBalance_;
 
         TER result = consumeSeqProxy(sle);
         if (result != tesSUCCESS)
@@ -173,14 +127,14 @@ ApplyHandler::apply()
             return result;
 
         if (sle->isFieldPresent(sfAccountTxnID))
-            sle->setFieldH256(sfAccountTxnID, ctx.tx.getTransactionID());
+            sle->setFieldH256(sfAccountTxnID, ctx_.tx.getTransactionID());
 
-        ctx.view().update(sle);
+        ctx_.view().update(sle);
     }
 
     if (transactor_.doApply == NULL)
         return tesSUCCESS;
-    return transactor_.doApply(ctx, mPriorBalance, mSourceBalance);
+    return transactor_.doApply(ctx_, mPriorBalance_, mSourceBalance_);
 }
 
 //------------------------------------------------------------------------------
@@ -228,10 +182,10 @@ removeExpiredNFTokenOffers2(
 std::pair<TER, XRPAmount>
 ApplyHandler::reset(XRPAmount fee)
 {
-    ctx.discard();
+    ctx_.discard();
 
     auto const txnAcct =
-        ctx.view().peek(keylet::account(ctx.tx.getAccountID(sfAccount)));
+        ctx_.view().peek(keylet::account(ctx_.tx.getAccountID(sfAccount)));
     if (!txnAcct)
         // The account should never be missing from the ledger.  But if it
         // is missing then we can't very well charge it a fee, can we?
@@ -240,7 +194,7 @@ ApplyHandler::reset(XRPAmount fee)
     auto const balance = txnAcct->getFieldAmount(sfBalance).xrp();
 
     // balance should have already been checked in checkFee / preFlight.
-    assert(balance != beast::zero && (!ctx.view().open() || balance >= fee));
+    assert(balance != beast::zero && (!ctx_.view().open() || balance >= fee));
 
     // We retry/reject the transaction if the account balance is zero or we're
     // applying against an open ledger and the balance is less than the fee
@@ -258,7 +212,7 @@ ApplyHandler::reset(XRPAmount fee)
     assert(isTesSuccess(ter));
 
     if (isTesSuccess(ter))
-        ctx.view().update(txnAcct);
+        ctx_.view().update(txnAcct);
 
     return {ter, fee};
 }
@@ -267,30 +221,30 @@ ApplyHandler::reset(XRPAmount fee)
 std::pair<TER, bool>
 ApplyHandler::operator()()
 {
-    JLOG(ctx.journal.trace()) << "apply: " << ctx.tx.getTransactionID();
+    JLOG(ctx_.journal.trace()) << "apply: " << ctx_.tx.getTransactionID();
 
-    STAmountSO stAmountSO{ctx.view().rules().enabled(fixSTAmountCanonicalize)};
-    NumberSO stNumberSO{ctx.view().rules().enabled(fixUniversalNumber)};
+    STAmountSO stAmountSO{ctx_.view().rules().enabled(fixSTAmountCanonicalize)};
+    NumberSO stNumberSO{ctx_.view().rules().enabled(fixUniversalNumber)};
 
 #ifdef DEBUG
     {
         Serializer ser;
-        ctx.tx.add(ser);
+        ctx_.tx.add(ser);
         SerialIter sit(ser.slice());
         STTx s2(sit);
 
-        if (!s2.isEquivalent(ctx.tx))
+        if (!s2.isEquivalent(ctx_.tx))
         {
-            JLOG(ctx.journal.fatal()) << "Transaction serdes mismatch";
-            JLOG(ctx.journal.info())
-                << to_string(ctx.tx.getJson(JsonOptions::none));
-            JLOG(ctx.journal.fatal()) << s2.getJson(JsonOptions::none);
+            JLOG(ctx_.journal.fatal()) << "Transaction serdes mismatch";
+            JLOG(ctx_.journal.info())
+                << to_string(ctx_.tx.getJson(JsonOptions::none));
+            JLOG(ctx_.journal.fatal()) << s2.getJson(JsonOptions::none);
             assert(false);
         }
     }
 #endif
 
-    auto result = ctx.preclaimResult;
+    auto result = ctx_.preclaimResult;
     if (result == tesSUCCESS)
         result = apply();
 
@@ -298,29 +252,29 @@ ApplyHandler::operator()()
     // and it can't be passed in from a preclaim.
     assert(result != temUNKNOWN);
 
-    if (auto stream = ctx.journal.trace())
+    if (auto stream = ctx_.journal.trace())
         stream << "preclaim result: " << transToken(result);
 
     bool applied = isTesSuccess(result);
-    auto fee = ctx.tx.getFieldAmount(sfFee).xrp();
+    auto fee = ctx_.tx.getFieldAmount(sfFee).xrp();
 
-    if (ctx.size() > oversizeMetaDataCap)
+    if (ctx_.size() > oversizeMetaDataCap)
         result = tecOVERSIZE;
 
-    if (isTecClaim(result) && (ctx.view().flags() & tapFAIL_HARD))
+    if (isTecClaim(result) && (ctx_.view().flags() & tapFAIL_HARD))
     {
         // If the tapFAIL_HARD flag is set, a tec result
         // must not do anything
 
-        ctx.discard();
+        ctx_.discard();
         applied = false;
     }
     else if (
         (result == tecOVERSIZE) || (result == tecKILLED) ||
         (result == tecEXPIRED) ||
-        (isTecClaimHardFail(result, ctx.view().flags())))
+        (isTecClaimHardFail(result, ctx_.view().flags())))
     {
-        JLOG(ctx.journal.trace())
+        JLOG(ctx_.journal.trace())
             << "reapplying because of " << transToken(result);
 
         // FIXME: This mechanism for doing work while returning a `tec` is
@@ -331,11 +285,11 @@ ApplyHandler::operator()()
 
         if ((result == tecOVERSIZE) || (result == tecKILLED))
         {
-            ctx.visit([&removedOffers](
-                          uint256 const& index,
-                          bool isDelete,
-                          std::shared_ptr<SLE const> const& before,
-                          std::shared_ptr<SLE const> const& after) {
+            ctx_.visit([&removedOffers](
+                           uint256 const& index,
+                           bool isDelete,
+                           std::shared_ptr<SLE const> const& before,
+                           std::shared_ptr<SLE const> const& after) {
                 if (isDelete)
                 {
                     assert(before && after);
@@ -354,11 +308,11 @@ ApplyHandler::operator()()
 
         if (result == tecEXPIRED)
         {
-            ctx.visit([&expiredNFTokenOffers](
-                          uint256 const& index,
-                          bool isDelete,
-                          std::shared_ptr<SLE const> const& before,
-                          std::shared_ptr<SLE const> const& after) {
+            ctx_.visit([&expiredNFTokenOffers](
+                           uint256 const& index,
+                           bool isDelete,
+                           std::shared_ptr<SLE const> const& before,
+                           std::shared_ptr<SLE const> const& after) {
                 if (isDelete)
                 {
                     assert(before && after);
@@ -381,11 +335,11 @@ ApplyHandler::operator()()
         // If necessary, remove any offers found unfunded during processing
         if ((result == tecOVERSIZE) || (result == tecKILLED))
             removeUnfundedOffers2(
-                ctx.view(), removedOffers, ctx.app.journal("View"));
+                ctx_.view(), removedOffers, ctx_.app.journal("View"));
 
         if (result == tecEXPIRED)
             removeExpiredNFTokenOffers2(
-                ctx.view(), expiredNFTokenOffers, ctx.app.journal("View"));
+                ctx_.view(), expiredNFTokenOffers, ctx_.app.journal("View"));
 
         applied = isTecClaim(result);
     }
@@ -394,7 +348,7 @@ ApplyHandler::operator()()
     {
         // Check invariants: if `tecINVARIANT_FAILED` is not returned, we can
         // proceed to apply the tx
-        result = ctx.checkInvariants(result, fee);
+        result = ctx_.checkInvariants(result, fee);
 
         if (result == tecINVARIANT_FAILED)
         {
@@ -409,7 +363,7 @@ ApplyHandler::operator()()
             // Check invariants again to ensure the fee claiming doesn't
             // violate invariants.
             if (isTesSuccess(result) || isTecClaim(result))
-                result = ctx.checkInvariants(result, fee);
+                result = ctx_.checkInvariants(result, fee);
         }
 
         // We ran through the invariant checker, which can, in some cases,
@@ -433,14 +387,14 @@ ApplyHandler::operator()()
         // deducted from the balance of the account that issued the
         // transaction. We just need to account for it in the ledger
         // header.
-        if (!ctx.view().open() && fee != beast::zero)
-            ctx.destroyXRP(fee);
+        if (!ctx_.view().open() && fee != beast::zero)
+            ctx_.destroyXRP(fee);
 
-        // Once we call apply, we will no longer be able to look at ctx.view()
-        ctx.apply(result);
+        // Once we call apply, we will no longer be able to look at ctx_.view()
+        ctx_.apply(result);
     }
 
-    JLOG(ctx.journal.trace())
+    JLOG(ctx_.journal.trace())
         << (applied ? "applied " : "not applied ") << transToken(result);
 
     return {result, applied};
