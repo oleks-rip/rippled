@@ -667,6 +667,12 @@ payFee(ApplyContext& ctx, XRPAmount& sourceBalance)
 }
 
 TER
+fakePayFee(ApplyContext&, XRPAmount&)
+{
+    return tecINTERNAL;
+}
+
+TER
 consumeSeqProxy(ApplyContext& ctx, SLE::pointer const& sleAccount)
 {
     assert(sleAccount);
@@ -686,11 +692,23 @@ consumeSeqProxy(ApplyContext& ctx, SLE::pointer const& sleAccount)
         ctx.journal);
 }
 
+TER
+fakeConsumeSeqProxy(ApplyContext&, SLE::pointer const&)
+{
+    return tecINTERNAL;
+}
+
 void
 preCompute(ApplyContext& ctx)
 {
     auto const acc = ctx.tx.getAccountID(sfAccount);
     assert(acc != beast::zero);
+}
+
+void
+fakePreCompute(ApplyContext&)
+{
+    throw std::runtime_error("fakePreCompute");
 }
 
 TER
@@ -727,6 +745,12 @@ apply(ApplyContext& ctx, XRPAmount& priorBalance, XRPAmount& sourceBalance)
     }
 
     return doApply(ctx, priorBalance, sourceBalance);
+}
+
+TER
+fakeApply(ApplyContext& ctx, XRPAmount& priorBalance, XRPAmount& sourceBalance)
+{
+    return tecINTERNAL;
 }
 
 NotTEC
@@ -801,6 +825,12 @@ checkSingleSign(PreclaimContext const& ctx)
     }
 
     return tesSUCCESS;
+}
+
+NotTEC
+fakeCheckSingleSign(PreclaimContext const&)
+{
+    return tefINTERNAL;
 }
 
 NotTEC
@@ -915,6 +945,12 @@ checkMultiSign(PreclaimContext const& ctx)
     return tesSUCCESS;
 }
 
+NotTEC
+fakeCheckMultiSign(PreclaimContext const&)
+{
+    return tefINTERNAL;
+}
+
 extern "C" Container<TransactorExport>
 getTransactors()
 {
@@ -945,9 +981,104 @@ getTransactors()
          preCompute,
          apply,
          checkSingleSign,
-         checkMultiSign}};
+         checkMultiSign},
+        {"TrustSet3",
+         73,
+         {formatPtr, 5},
+         ConsequencesFactoryType::Normal,
+         nullptr,
+         nullptr,
+         preflight,
+         preclaim,
+         doApply,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr,
+         fakePayFee,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr},
+        {"TrustSet4",
+         74,
+         {formatPtr, 5},
+         ConsequencesFactoryType::Normal,
+         nullptr,
+         nullptr,
+         preflight,
+         preclaim,
+         doApply,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr,
+         fakeConsumeSeqProxy,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr},
+        {"TrustSet5",
+         75,
+         {formatPtr, 5},
+         ConsequencesFactoryType::Normal,
+         nullptr,
+         nullptr,
+         preflight,
+         preclaim,
+         doApply,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr,
+         fakePreCompute,
+         nullptr,
+         nullptr,
+         nullptr},
+        {"TrustSet6",
+         76,
+         {formatPtr, 5},
+         ConsequencesFactoryType::Normal,
+         nullptr,
+         nullptr,
+         preflight,
+         preclaim,
+         doApply,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr,
+         fakeApply,
+         nullptr,
+         nullptr},
+        {"TrustSet7",
+         77,
+         {formatPtr, 5},
+         ConsequencesFactoryType::Normal,
+         nullptr,
+         nullptr,
+         preflight,
+         preclaim,
+         doApply,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr,
+         fakeCheckSingleSign,
+         fakeCheckMultiSign}};
     TransactorExport* ptr = list;
-    return {ptr, 1};
+    return {ptr, sizeof(list) / sizeof(list[0])};
 }
 
 EXPORT_STYPES({

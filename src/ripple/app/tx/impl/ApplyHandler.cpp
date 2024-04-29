@@ -260,7 +260,6 @@ ApplyHandler::reset(XRPAmount fee)
     TER const ter{
         transactor_.consumeSeqProxy ? transactor_.consumeSeqProxy(ctx, txnAcct)
                                     : consumeSeqProxy(txnAcct)};
-    assert(isTesSuccess(ter));
 
     if (isTesSuccess(ter))
         ctx.view().update(txnAcct);
