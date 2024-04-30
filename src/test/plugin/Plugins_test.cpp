@@ -643,11 +643,11 @@ public:
                     USD(1000).value().getJson(JsonOptions::none);
                 ja[jss::issuer] = bob.human();
             }
-            auto const& tx = env.jt(jv);
+            auto const tx = env.jt(jv);
 
             Serializer s;
             tx.stx->add(s);
-            auto const& jr = env.rpc("submit", strHex(s.slice()));
+            auto const jr = env.rpc("submit", strHex(s.slice()));
 
             if (BEAST_EXPECT(
                     jr.isObject() && jr.isMember(jss::result) &&
@@ -669,11 +669,11 @@ public:
                     USD(1000).value().getJson(JsonOptions::none);
                 ja[jss::issuer] = bob.human();
             }
-            auto const& tx = env.jt(jv);
+            auto const tx = env.jt(jv);
 
             Serializer s;
             tx.stx->add(s);
-            auto const& jr = env.rpc("submit", strHex(s.slice()));
+            auto const jr = env.rpc("submit", strHex(s.slice()));
 
             if (BEAST_EXPECT(
                     jr.isObject() && jr.isMember(jss::result) &&
@@ -695,12 +695,12 @@ public:
                     USD(1000).value().getJson(JsonOptions::none);
                 ja[jss::issuer] = bob.human();
             }
-            auto const& tx = env.jt(jv);
+            auto const tx = env.jt(jv);
 
             // submit tx without expecting a TER object
             Serializer s;
             tx.stx->add(s);
-            auto const& jr = env.rpc("submit", strHex(s.slice()));
+            auto const jr = env.rpc("submit", strHex(s.slice()));
 
             if (BEAST_EXPECT(
                     jr.isObject() && jr.isMember(jss::result) &&
@@ -722,12 +722,12 @@ public:
                     USD(1000).value().getJson(JsonOptions::none);
                 ja[jss::issuer] = bob.human();
             }
-            auto const& tx = env.jt(jv);
+            auto const tx = env.jt(jv);
 
             // submit tx without expecting a TER object
             Serializer s;
             tx.stx->add(s);
-            auto const& jr = env.rpc("submit", strHex(s.slice()));
+            auto const jr = env.rpc("submit", strHex(s.slice()));
 
             if (BEAST_EXPECT(
                     jr.isObject() && jr.isMember(jss::result) &&
@@ -754,7 +754,7 @@ public:
             // submit tx without expecting a TER object
             Serializer s;
             tx.stx->add(s);
-            auto const& jr = env.rpc("submit", strHex(s.slice()));
+            auto const jr = env.rpc("submit", strHex(s.slice()));
 
             if (BEAST_EXPECT(
                     jr.isObject() && jr.isMember(jss::result) &&

@@ -673,36 +673,9 @@ fakePayFee(ApplyContext&, XRPAmount&)
 }
 
 TER
-consumeSeqProxy(ApplyContext& ctx, SLE::pointer const& sleAccount)
-{
-    assert(sleAccount);
-    SeqProxy const seqProx = ctx.tx.getSeqProxy();
-    if (seqProx.isSeq())
-    {
-        // Note that if this transaction is a TicketCreate, then
-        // the transaction will modify the account root sfSequence
-        // yet again.
-        sleAccount->setFieldU32(sfSequence, seqProx.value() + 1);
-        return tesSUCCESS;
-    }
-    return Transactor::ticketDelete(
-        ctx.view(),
-        ctx.tx.getAccountID(sfAccount),
-        getTicketIndex(ctx.tx.getAccountID(sfAccount), seqProx),
-        ctx.journal);
-}
-
-TER
 fakeConsumeSeqProxy(ApplyContext&, SLE::pointer const&)
 {
     return tecINTERNAL;
-}
-
-void
-preCompute(ApplyContext& ctx)
-{
-    auto const acc = ctx.tx.getAccountID(sfAccount);
-    assert(acc != beast::zero);
 }
 
 void
@@ -712,237 +685,15 @@ fakePreCompute(ApplyContext&)
 }
 
 TER
-apply(ApplyContext& ctx, XRPAmount& priorBalance, XRPAmount& sourceBalance)
-{
-    preCompute(ctx);
-
-    // If the transactor requires a valid account and the transaction doesn't
-    // list one, preflight will have already a flagged a failure.
-    auto const sle =
-        ctx.view().peek(keylet::account(ctx.tx.getAccountID(sfAccount)));
-
-    // sle must exist except for transactions
-    // that allow zero account.
-    assert(sle != nullptr || ctx.tx.getAccountID(sfAccount) == beast::zero);
-
-    if (sle)
-    {
-        priorBalance = STAmount{(*sle)[sfBalance]}.xrp();
-        sourceBalance = priorBalance;
-
-        TER result = consumeSeqProxy(ctx, sle);
-        if (result != tesSUCCESS)
-            return result;
-
-        result = payFee(ctx, sourceBalance);
-        if (result != tesSUCCESS)
-            return result;
-
-        if (sle->isFieldPresent(sfAccountTxnID))
-            sle->setFieldH256(sfAccountTxnID, ctx.tx.getTransactionID());
-
-        ctx.view().update(sle);
-    }
-
-    return doApply(ctx, priorBalance, sourceBalance);
-}
-
-TER
 fakeApply(ApplyContext& ctx, XRPAmount& priorBalance, XRPAmount& sourceBalance)
 {
     return tecINTERNAL;
 }
 
 NotTEC
-checkSingleSign(PreclaimContext const& ctx)
-{
-    // Check that the value in the signing key slot is a public key.
-    auto const pkSigner = ctx.tx.getSigningPubKey();
-    if (!publicKeyType(makeSlice(pkSigner)))
-    {
-        JLOG(ctx.j.trace())
-            << "checkSingleSign: signing public key type is unknown";
-        return tefBAD_AUTH;  // FIXME: should be better error!
-    }
-
-    // Look up the account.
-    auto const idSigner = calcAccountID(PublicKey(makeSlice(pkSigner)));
-    auto const idAccount = ctx.tx.getAccountID(sfAccount);
-    auto const sleAccount = ctx.view.read(keylet::account(idAccount));
-    if (!sleAccount)
-        return terNO_ACCOUNT;
-
-    bool const isMasterDisabled = sleAccount->isFlag(lsfDisableMaster);
-
-    if (ctx.view.rules().enabled(fixMasterKeyAsRegularKey))
-    {
-        // Signed with regular key.
-        if ((*sleAccount)[~sfRegularKey] == idSigner)
-        {
-            return tesSUCCESS;
-        }
-
-        // Signed with enabled mater key.
-        if (!isMasterDisabled && idAccount == idSigner)
-        {
-            return tesSUCCESS;
-        }
-
-        // Signed with disabled master key.
-        if (isMasterDisabled && idAccount == idSigner)
-        {
-            return tefMASTER_DISABLED;
-        }
-
-        // Signed with any other key.
-        return tefBAD_AUTH;
-    }
-
-    if (idSigner == idAccount)
-    {
-        // Signing with the master key. Continue if it is not disabled.
-        if (isMasterDisabled)
-            return tefMASTER_DISABLED;
-    }
-    else if ((*sleAccount)[~sfRegularKey] == idSigner)
-    {
-        // Signing with the regular key. Continue.
-    }
-    else if (sleAccount->isFieldPresent(sfRegularKey))
-    {
-        // Signing key does not match master or regular key.
-        JLOG(ctx.j.trace())
-            << "checkSingleSign: Not authorized to use account.";
-        return tefBAD_AUTH;
-    }
-    else
-    {
-        // No regular key on account and signing key does not match master key.
-        // FIXME: Why differentiate this case from tefBAD_AUTH?
-        JLOG(ctx.j.trace())
-            << "checkSingleSign: Not authorized to use account.";
-        return tefBAD_AUTH_MASTER;
-    }
-
-    return tesSUCCESS;
-}
-
-NotTEC
 fakeCheckSingleSign(PreclaimContext const&)
 {
     return tefINTERNAL;
-}
-
-NotTEC
-checkMultiSign(PreclaimContext const& ctx)
-{
-    auto const id = ctx.tx.getAccountID(sfAccount);
-    std::shared_ptr<STLedgerEntry const> sleAccountSigners =
-        ctx.view.read(keylet::signers(id));
-    if (!sleAccountSigners)
-    {
-        JLOG(ctx.j.trace())
-            << "applyTransaction: Invalid: Not a multi-signing account.";
-        return tefNOT_MULTI_SIGNING;
-    }
-
-    assert(sleAccountSigners->isFieldPresent(sfSignerListID));
-    assert(sleAccountSigners->getFieldU32(sfSignerListID) == 0);
-
-    auto accountSigners =
-        SignerEntries::deserialize(*sleAccountSigners, ctx.j, "ledger");
-    if (!accountSigners)
-        return accountSigners.error();
-
-    // Get the array of transaction signers.
-    STArray const& txSigners(ctx.tx.getFieldArray(sfSigners));
-
-    std::uint32_t weightSum = 0;
-    auto iter = accountSigners->begin();
-    for (auto const& txSigner : txSigners)
-    {
-        AccountID const txSignerAcctID = txSigner.getAccountID(sfAccount);
-
-        while (iter->account < txSignerAcctID)
-        {
-            if (++iter == accountSigners->end())
-            {
-                JLOG(ctx.j.trace())
-                    << "applyTransaction: Invalid SigningAccount.Account.";
-                return tefBAD_SIGNATURE;
-            }
-        }
-        if (iter->account != txSignerAcctID)
-        {
-            // The SigningAccount is not in the SignerEntries.
-            JLOG(ctx.j.trace())
-                << "applyTransaction: Invalid SigningAccount.Account.";
-            return tefBAD_SIGNATURE;
-        }
-
-        auto const spk = txSigner.getFieldVL(sfSigningPubKey);
-
-        if (!publicKeyType(makeSlice(spk)))
-        {
-            JLOG(ctx.j.trace())
-                << "checkMultiSign: signing public key type is unknown";
-            return tefBAD_SIGNATURE;
-        }
-
-        AccountID const signingAcctIDFromPubKey =
-            calcAccountID(PublicKey(makeSlice(spk)));
-
-        auto sleTxSignerRoot = ctx.view.read(keylet::account(txSignerAcctID));
-
-        if (signingAcctIDFromPubKey == txSignerAcctID)
-        {
-            if (sleTxSignerRoot)
-            {
-                std::uint32_t const signerAccountFlags =
-                    sleTxSignerRoot->getFieldU32(sfFlags);
-
-                if (signerAccountFlags & lsfDisableMaster)
-                {
-                    JLOG(ctx.j.trace())
-                        << "applyTransaction: Signer:Account lsfDisableMaster.";
-                    return tefMASTER_DISABLED;
-                }
-            }
-        }
-        else
-        {
-            if (!sleTxSignerRoot)
-            {
-                JLOG(ctx.j.trace()) << "applyTransaction: Non-phantom signer "
-                                       "lacks account root.";
-                return tefBAD_SIGNATURE;
-            }
-
-            if (!sleTxSignerRoot->isFieldPresent(sfRegularKey))
-            {
-                JLOG(ctx.j.trace())
-                    << "applyTransaction: Account lacks RegularKey.";
-                return tefBAD_SIGNATURE;
-            }
-            if (signingAcctIDFromPubKey !=
-                sleTxSignerRoot->getAccountID(sfRegularKey))
-            {
-                JLOG(ctx.j.trace())
-                    << "applyTransaction: Account doesn't match RegularKey.";
-                return tefBAD_SIGNATURE;
-            }
-        }
-        weightSum += iter->weight;
-    }
-
-    if (weightSum < sleAccountSigners->getFieldU32(sfSignerQuorum))
-    {
-        JLOG(ctx.j.trace())
-            << "applyTransaction: Signers failed to meet quorum.";
-        return tefBAD_QUORUM;
-    }
-
-    return tesSUCCESS;
 }
 
 NotTEC
@@ -977,11 +728,11 @@ getTransactors()
          nullptr,
          nullptr,
          payFee,
-         consumeSeqProxy,
-         preCompute,
-         apply,
-         checkSingleSign,
-         checkMultiSign},
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr,
+         nullptr},
         {"TrustSet3",
          73,
          {formatPtr, 5},
