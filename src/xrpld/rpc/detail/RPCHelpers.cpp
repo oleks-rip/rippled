@@ -30,11 +30,17 @@
 #include <xrpld/rpc/detail/RPCHelpers.h>
 #include <xrpl/protocol/AccountID.h>
 #include <xrpl/protocol/Feature.h>
+#include <xrpl/protocol/LedgerFormats.h>
 #include <xrpl/protocol/RPCErr.h>
+#include <xrpl/protocol/jss.h>
 #include <xrpl/protocol/nftPageMask.h>
 #include <xrpl/resource/Fees.h>
+
 #include <boost/algorithm/string/case_conv.hpp>
+
 #include <regex>
+#include <string_view>
+#include <unordered_map>
 
 namespace ripple {
 namespace RPC {
@@ -934,31 +940,32 @@ chooseLedgerEntryType(Json::Value const& params)
     std::pair<RPC::Status, LedgerEntryType> result{RPC::Status::OK, ltANY};
     if (params.isMember(jss::type))
     {
-        static constexpr std::array<std::pair<char const*, LedgerEntryType>, 22>
+        static const std::unordered_map<std::string_view, LedgerEntryType>
             types{
-                {{jss::account, ltACCOUNT_ROOT},
-                 {jss::amendments, ltAMENDMENTS},
-                 {jss::amm, ltAMM},
-                 {jss::bridge, ltBRIDGE},
-                 {jss::check, ltCHECK},
-                 {jss::deposit_preauth, ltDEPOSIT_PREAUTH},
-                 {jss::did, ltDID},
-                 {jss::directory, ltDIR_NODE},
-                 {jss::escrow, ltESCROW},
-                 {jss::fee, ltFEE_SETTINGS},
-                 {jss::hashes, ltLEDGER_HASHES},
-                 {jss::nunl, ltNEGATIVE_UNL},
-                 {jss::oracle, ltORACLE},
-                 {jss::nft_offer, ltNFTOKEN_OFFER},
-                 {jss::nft_page, ltNFTOKEN_PAGE},
-                 {jss::offer, ltOFFER},
-                 {jss::payment_channel, ltPAYCHAN},
-                 {jss::signer_list, ltSIGNER_LIST},
-                 {jss::state, ltRIPPLE_STATE},
-                 {jss::ticket, ltTICKET},
-                 {jss::xchain_owned_claim_id, ltXCHAIN_OWNED_CLAIM_ID},
-                 {jss::xchain_owned_create_account_claim_id,
-                  ltXCHAIN_OWNED_CREATE_ACCOUNT_CLAIM_ID}}};
+                {jss::account.c_str(), ltACCOUNT_ROOT},
+                {jss::amendments.c_str(), ltAMENDMENTS},
+                {jss::amm.c_str(), ltAMM},
+                {jss::bridge.c_str(), ltBRIDGE},
+                {jss::check.c_str(), ltCHECK},
+                {jss::deposit_preauth.c_str(), ltDEPOSIT_PREAUTH},
+                {jss::did.c_str(), ltDID},
+                {jss::directory.c_str(), ltDIR_NODE},
+                {jss::escrow.c_str(), ltESCROW},
+                {jss::fee.c_str(), ltFEE_SETTINGS},
+                {jss::hashes.c_str(), ltLEDGER_HASHES},
+                {jss::nunl.c_str(), ltNEGATIVE_UNL},
+                {jss::oracle.c_str(), ltORACLE},
+                {jss::nft_offer.c_str(), ltNFTOKEN_OFFER},
+                {jss::nft_page.c_str(), ltNFTOKEN_PAGE},
+                {jss::offer.c_str(), ltOFFER},
+                {jss::payment_channel.c_str(), ltPAYCHAN},
+                {jss::signer_list.c_str(), ltSIGNER_LIST},
+                {jss::state.c_str(), ltRIPPLE_STATE},
+                {jss::ticket.c_str(), ltTICKET},
+                {jss::xchain_owned_claim_id.c_str(), ltXCHAIN_OWNED_CLAIM_ID},
+                {jss::xchain_owned_create_account_claim_id.c_str(),
+                 ltXCHAIN_OWNED_CREATE_ACCOUNT_CLAIM_ID},
+                {jss::credential.c_str(), ltCREDENTIAL}};
 
         auto const& p = params[jss::type];
         if (!p.isString())
@@ -970,10 +977,7 @@ chooseLedgerEntryType(Json::Value const& params)
         }
 
         auto const filter = p.asString();
-        auto iter = std::find_if(
-            types.begin(), types.end(), [&filter](decltype(types.front())& t) {
-                return t.first == filter;
-            });
+        auto const iter = types.find(filter);
         if (iter == types.end())
         {
             result.first =

@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <xrpld/app/tx/detail/DepositPreauth.h>
 #include <xrpld/app/tx/detail/PayChan.h>
 #include <xrpld/ledger/ApplyView.h>
 #include <xrpld/ledger/View.h>
@@ -453,6 +454,10 @@ PayChanClaim::preflight(PreflightContext const& ctx)
             return temBAD_SIGNATURE;
     }
 
+    auto const err = DepositPreauth::preauthPreflightCheck(ctx, ctx.j);
+    if (!isTesSuccess(err))
+        return err;
+
     return preflight2(ctx);
 }
 
@@ -516,19 +521,18 @@ PayChanClaim::doApply()
             (txAccount == src && (sled->getFlags() & lsfDisallowXRP)))
             return tecNO_TARGET;
 
-        // Check whether the destination account requires deposit authorization.
-        if (depositAuth && (sled->getFlags() & lsfDepositAuth))
-        {
-            // A destination account that requires authorization has two
-            // ways to get a Payment Channel Claim into the account:
-            //  1. If Account == Destination, or
-            //  2. If Account is deposit preauthorized by destination.
-            if (txAccount != dst)
-            {
-                if (!view().exists(keylet::depositPreauth(dst, txAccount)))
-                    return tecNO_PERMISSION;
-            }
-        }
+        // A destination account that requires authorization has two
+        // ways to get a Payment Channel Claim into the account:
+        //  1. If Account == Destination, or
+        //  2. If Account is deposit preauthorized by destination.
+        auto const e1 = DepositPreauth::preauthPreclaimCheck(
+            view(), ctx_.tx, txAccount, dst, sled, j_);
+        if (!isTesSuccess(e1))
+            return e1;
+        auto const e2 = DepositPreauth::preauthApplyCheck(
+            view(), ctx_.tx, txAccount, dst, sled, j_);
+        if (!isTesSuccess(e2))
+            return e2;
 
         (*slep)[sfBalance] = ctx_.tx[sfBalance];
         XRPAmount const reqDelta = reqBalance - chanBalance;

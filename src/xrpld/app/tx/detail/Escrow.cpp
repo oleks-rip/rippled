@@ -20,6 +20,7 @@
 #include <xrpld/app/tx/detail/Escrow.h>
 
 #include <xrpld/app/misc/HashRouter.h>
+#include <xrpld/app/tx/detail/DepositPreauth.h>
 #include <xrpld/conditions/Condition.h>
 #include <xrpld/conditions/Fulfillment.h>
 #include <xrpld/ledger/ApplyView.h>
@@ -347,6 +348,10 @@ EscrowFinish::preflight(PreflightContext const& ctx)
         }
     }
 
+    auto const err = DepositPreauth::preauthPreflightCheck(ctx, ctx.j);
+    if (!isTesSuccess(err))
+        return err;
+
     return tesSUCCESS;
 }
 
@@ -454,22 +459,19 @@ EscrowFinish::doApply()
     if (!sled)
         return tecNO_DST;
 
-    if (ctx_.view().rules().enabled(featureDepositAuth))
-    {
-        // Is EscrowFinished authorized?
-        if (sled->getFlags() & lsfDepositAuth)
-        {
-            // A destination account that requires authorization has two
-            // ways to get an EscrowFinished into the account:
-            //  1. If Account == Destination, or
-            //  2. If Account is deposit preauthorized by destination.
-            if (account_ != destID)
-            {
-                if (!view().exists(keylet::depositPreauth(destID, account_)))
-                    return tecNO_PERMISSION;
-            }
-        }
-    }
+    // A destination account that requires authorization has two
+    // ways to get an EscrowFinished into the account:
+    //  1. If Account == Destination, or
+    //  2. If Account is deposit preauthorized by destination.
+
+    auto const e1 = DepositPreauth::preauthPreclaimCheck(
+        view(), ctx_.tx, account_, destID, sled, j_);
+    if (!isTesSuccess(e1))
+        return e1;
+    auto const e2 = DepositPreauth::preauthApplyCheck(
+        view(), ctx_.tx, account_, destID, sled, j_);
+    if (!isTesSuccess(e2))
+        return e2;
 
     AccountID const account = (*slep)[sfAccount];
 

@@ -18,6 +18,7 @@
 //==============================================================================
 
 #include <xrpld/app/paths/RippleCalc.h>
+#include <xrpld/app/tx/detail/DepositPreauth.h>
 #include <xrpld/app/tx/detail/Payment.h>
 #include <xrpld/core/Config.h>
 #include <xrpl/basics/Log.h>
@@ -200,6 +201,10 @@ Payment::preflight(PreflightContext const& ctx)
         }
     }
 
+    auto const err = DepositPreauth::preauthPreflightCheck(ctx, j);
+    if (!isTesSuccess(err))
+        return err;
+
     return preflight2(ctx);
 }
 
@@ -214,6 +219,8 @@ Payment::preclaim(PreclaimContext const& ctx)
 
     AccountID const uDstAccountID(ctx.tx[sfDestination]);
     STAmount const saDstAmount(ctx.tx[sfAmount]);
+
+    bool const bRipple = paths || sendMax || !saDstAmount.native();
 
     auto const k = keylet::account(uDstAccountID);
     auto const sleDst = ctx.view.read(k);
@@ -271,7 +278,7 @@ Payment::preclaim(PreclaimContext const& ctx)
     }
 
     // Payment with at least one intermediate step and uses transitive balances.
-    if ((paths || sendMax || !saDstAmount.native()) && ctx.view.open())
+    if (bRipple && ctx.view.open())
     {
         STPathSet const& paths = ctx.tx.getFieldPathSet(sfPaths);
 
@@ -282,6 +289,26 @@ Payment::preclaim(PreclaimContext const& ctx)
         {
             return telBAD_PATH_COUNT;
         }
+    }
+
+    if (ctx.tx.isFieldPresent(sfCredentialIDs))
+    {
+        // Don't check for minimal balance with credentials provided.
+        // The rules have already been checked in preauthPreflightCheck()
+
+        bool const reqAuth = sleDst && (sleDst->getFlags() & lsfDepositAuth);
+        if (!reqAuth)
+            return tecNO_PERMISSION;
+
+        auto const err = DepositPreauth::preauthPreclaimCredentialsCheck(
+            ctx.view,
+            ctx.tx[sfAccount],
+            uDstAccountID,
+            ctx.tx.getFieldV256(sfCredentialIDs),
+            ctx.j);
+
+        if (!isTesSuccess(err))
+            return err;
     }
 
     return tesSUCCESS;
@@ -355,6 +382,8 @@ Payment::doApply()
     if (!depositPreauth && bRipple && reqDepositAuth)
         return tecNO_PERMISSION;
 
+    bool const credentialsPresent = ctx_.tx.isFieldPresent(sfCredentialIDs);
+
     if (bRipple)
     {
         // Ripple payment with at least one intermediate step and uses
@@ -366,7 +395,14 @@ Payment::doApply()
             // authorization has two ways to get an IOU Payment in:
             //  1. If Account == Destination, or
             //  2. If Account is deposit preauthorized by destination.
-            if (uDstAccountID != account_)
+
+            if (credentialsPresent)
+            {
+                if (DepositPreauth::credentialIDsRemoveExpired(
+                        view(), ctx_.tx, j_))
+                    return tecEXPIRED;
+            }
+            else if (uDstAccountID != account_)
             {
                 if (!view().exists(
                         keylet::depositPreauth(uDstAccountID, account_)))
@@ -480,7 +516,13 @@ Payment::doApply()
         // We choose the base reserve as our bound because it is
         // a small number that seldom changes but is always sufficient
         // to get the account un-wedged.
-        if (uDstAccountID != account_)
+
+        if (credentialsPresent)
+        {
+            if (DepositPreauth::credentialIDsRemoveExpired(view(), ctx_.tx, j_))
+                return tecEXPIRED;
+        }
+        else if (uDstAccountID != account_)
         {
             if (!view().exists(keylet::depositPreauth(uDstAccountID, account_)))
             {
