@@ -39,11 +39,11 @@ namespace jtx {
 // when we have moved to better compilers.
 template <typename Input>
 auto
-make_vector(Input const& input) requires requires(Input& v)
-{
-    std::begin(v);
-    std::end(v);
-}
+make_vector(Input const& input)
+    requires requires(Input& v) {
+        std::begin(v);
+        std::end(v);
+    }
 {
     return std::vector(std::begin(input), std::end(input));
 }
@@ -231,12 +231,20 @@ escrow(Account const& account, Account const& to, STAmount const& amount)
 }
 
 Json::Value
-finish(AccountID const& account, AccountID const& from, std::uint32_t seq);
+finish(
+    AccountID const& account,
+    AccountID const& from,
+    std::uint32_t seq,
+    std::vector<std::string> const& credentialIDs);
 
 inline Json::Value
-finish(Account const& account, Account const& from, std::uint32_t seq)
+finish(
+    Account const& account,
+    Account const& from,
+    std::uint32_t seq,
+    std::vector<std::string> const& credentialIDs = {})
 {
-    return finish(account.id(), from.id(), seq);
+    return finish(account.id(), from.id(), seq, credentialIDs);
 }
 
 Json::Value
@@ -380,7 +388,8 @@ claim(
     std::optional<STAmount> const& balance = std::nullopt,
     std::optional<STAmount> const& amount = std::nullopt,
     std::optional<Slice> const& signature = std::nullopt,
-    std::optional<PublicKey> const& pk = std::nullopt);
+    std::optional<PublicKey> const& pk = std::nullopt,
+    std::vector<std::string> const& credentialIDs = {});
 
 uint256
 channel(

@@ -117,6 +117,18 @@ CredentialCreate::preflight(PreflightContext const& ctx)
         return temMALFORMED;
     }
 
+    if (signature)
+    {
+        Json::Value j;
+        j[jss::Issuer] = to_string(*issuer);
+        j[jss::Subject] = to_string(tx[sfAccount]);
+        j["CredentialType"] = strHex(tx[sfCredentialType]);
+
+        std::string const s = j.toStyledString();
+        STTx txn;
+        checkSingleSign(requireCanonicalSig);
+    }
+
     return preflight2(ctx);
 }
 

@@ -833,6 +833,90 @@ struct PayChan_test : public beast::unit_test::suite
     }
 
     void
+    testDepositAuthCreds()
+    {
+        testcase("Deposit Authorization with Credentials");
+        using namespace jtx;
+        using namespace std::literals::chrono_literals;
+
+        const char credType[] = "abcde";
+
+        auto const alice = Account("alice");
+        auto const bob = Account("bob");
+        auto const carol = Account("carol");
+
+        {
+            Env env{*this};
+            env.fund(XRP(10000), alice, bob, carol);
+
+            env(fset(bob, asfDepositAuth));
+            env.close();
+            env(deposit::auth(
+                bob,
+                std::vector<deposit::AuthorizeCredentials>{{carol, credType}}));
+            env.close();
+
+            auto const pk = alice.pk();
+            auto const settleDelay = 100s;
+            auto const chan = channel(alice, bob, env.seq(alice));
+            env(create(alice, bob, XRP(1000), settleDelay, pk));
+            env.close();
+
+            // alice can add more funds to the channel even though bob has
+            // asfDepositAuth set.
+            env(fund(alice, chan, XRP(1000)));
+            env.close();
+
+            // alice claims. Fails because bob's lsfDepositAuth flag is set.
+            env(claim(alice, chan, XRP(500).value(), XRP(500).value()),
+                ter(tecNO_PERMISSION));
+
+            {
+                auto jv = credentials::create(alice, carol, credType);
+                uint32_t const t = env.now().time_since_epoch().count() + 100;
+                jv[sfExpiration.jsonName] = t;
+                env(jv);
+                env.close();
+                env(credentials::accept(alice, carol, credType));
+                env.close();
+            }
+
+            auto const jCred =
+                credentials::ledgerEntryCredential(env, alice, carol, credType);
+            std::string const credIdx =
+                jCred[jss::result][jss::index].asString();
+
+            {
+                // claim fails cause of empty credentials
+                auto jv =
+                    claim(alice, chan, XRP(500).value(), XRP(500).value());
+                jv[sfCredentialIDs.jsonName] = Json::arrayValue;
+                env(jv, ter(temMALFORMED));
+                env.close();
+            }
+
+            {
+                // claim fails cause of expired credentials
+
+                // Every cycle +10sec.
+                for (int i = 0; i < 10; ++i)
+                    env.close();
+
+                auto jv = claim(
+                    alice,
+                    chan,
+                    XRP(500).value(),
+                    XRP(500).value(),
+                    std::nullopt,
+                    std::nullopt,
+                    {credIdx});
+                env(jv, ter(tecEXPIRED));
+                env.close();
+            }
+        }
+    }
+
+    void
     testMultiple(FeatureBitset features)
     {
         // auth amount defaults to balance if not present
@@ -2116,6 +2200,7 @@ public:
         FeatureBitset const all{supported_amendments()};
         testWithFeats(all - disallowIncoming);
         testWithFeats(all);
+        testDepositAuthCreds();
     }
 };
 
