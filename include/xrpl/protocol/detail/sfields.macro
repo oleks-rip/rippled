@@ -181,6 +181,7 @@ TYPED_SFIELD(sfHookStateKey,             UINT256,   30)
 TYPED_SFIELD(sfHookHash,                 UINT256,   31)
 TYPED_SFIELD(sfHookNamespace,            UINT256,   32)
 TYPED_SFIELD(sfHookSetTxnID,             UINT256,   33)
+TYPED_SFIELD(sfDomainID,                 UINT256,   34)
 
 // currency amount (common)
 TYPED_SFIELD(sfAmount,                   AMOUNT,     1)
@@ -250,6 +251,7 @@ TYPED_SFIELD(sfDIDDocument,              VL,        26)
 TYPED_SFIELD(sfData,                     VL,        27)
 TYPED_SFIELD(sfAssetClass,               VL,        28)
 TYPED_SFIELD(sfProvider,                 VL,        29)
+TYPED_SFIELD(sfCredentialType,           VL,        30)
 
 // account (common)
 TYPED_SFIELD(sfAccount,                  ACCOUNT,    1)
@@ -328,6 +330,7 @@ UNTYPED_SFIELD(sfXChainCreateAccountProofSig, OBJECT, 29)
 UNTYPED_SFIELD(sfXChainClaimAttestationCollectionElement, OBJECT, 30)
 UNTYPED_SFIELD(sfXChainCreateAccountAttestationCollectionElement, OBJECT, 31)
 UNTYPED_SFIELD(sfPriceData,              OBJECT,    32)
+UNTYPED_SFIELD(sfAcceptedCredential,     OBJECT,    33)
 
 // array of objects (common)
 // ARRAY/1 is reserved for end of array
@@ -355,3 +358,4 @@ UNTYPED_SFIELD(sfXChainCreateAccountAttestations, ARRAY, 22)
 //                                                  23 unused
 UNTYPED_SFIELD(sfPriceDataSeries,        ARRAY,     24)
 UNTYPED_SFIELD(sfAuthAccounts,           ARRAY,     25)
+UNTYPED_SFIELD(sfAcceptedCredentials,    ARRAY,     26)

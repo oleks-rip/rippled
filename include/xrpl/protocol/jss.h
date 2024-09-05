@@ -91,6 +91,7 @@ JSS(OracleDocumentID);     // field
 JSS(Owner);                // field
 JSS(Paths);                // in/out: TransactionSign
 JSS(PayChannel);           // ledger type.
+JSS(PermissionedDomain);                 // ledger type.
 JSS(PriceDataSeries);                    // field.
 JSS(PriceData);                          // field.
 JSS(Provider);                           // field.
@@ -505,6 +506,7 @@ JSS(peers);                       // out: InboundLedger, handlers/Peers, Overlay
 JSS(peer_disconnects);            // Severed peer connection counter.
 JSS(peer_disconnects_resources);  // Severed peer connections because of
                                   // excess resource consumption.
+JSS(permissioned_domain);         // out: AccountObjects
 JSS(port);                        // in: Connect, out: NetworkOPs
 JSS(ports);                       // out: NetworkOPs
 JSS(previous);                    // out: Reservations
