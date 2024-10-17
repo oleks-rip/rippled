@@ -737,7 +737,7 @@ class LedgerRPC_test : public beast::unit_test::suite
         Env env{*this};
         Account const alice{"alice"};
         Account const becky{"becky"};
-        Account const iss{"issuer"};
+        Account const issuer{"issuer"};
 
         env.fund(XRP(10000), alice, becky);
         env.close();
@@ -867,25 +867,24 @@ class LedgerRPC_test : public beast::unit_test::suite
         using namespace test::jtx;
 
         Env env(*this);
-        Account const iss{"issuer"};
+        Account const issuer{"issuer"};
         Account const alice{"alice"};
         Account const bob{"bob"};
         const char credType[] = "abcde";
 
-        env.fund(XRP(5000), iss, alice, bob);
+        env.fund(XRP(5000), issuer, alice, bob);
         env.close();
 
         {
             // Setup credentials with DepositAuth object for Alice and Bob
-            env(credentials::createIssuer(alice, iss, credType));
+            env(credentials::create(alice, issuer, credType));
             env.close();
-            auto const jCred =
-                credentials::ledgerEntryCredential(env, alice, iss, credType);
-            std::string const credIdx =
-                jCred[jss::result][jss::index].asString();
+            auto const jv = credentials::ledgerEntryCredential(
+                env, alice, issuer, credType);
+            std::string const credIdx = jv[jss::result][jss::index].asString();
             env(fset(bob, asfDepositAuth), fee(drops(10)));
             env.close();
-            env(deposit::authCredentials(bob, {{iss, credType}}));
+            env(deposit::authCredentials(bob, {{issuer, credType}}));
             env.close();
         }
 
@@ -894,7 +893,7 @@ class LedgerRPC_test : public beast::unit_test::suite
             Json::Value jv;
             jv[jss::ledger_index] = jss::validated;
             jv[jss::credential][jss::subject] = 42;
-            jv[jss::credential][jss::issuer] = iss.human();
+            jv[jss::credential][jss::issuer] = issuer.human();
             jv[jss::credential][jss::credential_type] =
                 strHex(std::string_view(credType));
             auto const jrr = env.rpc("json", "ledger_entry", to_string(jv));
@@ -906,7 +905,7 @@ class LedgerRPC_test : public beast::unit_test::suite
             Json::Value jv;
             jv[jss::ledger_index] = jss::validated;
             jv[jss::credential][jss::subject] = "";
-            jv[jss::credential][jss::issuer] = iss.human();
+            jv[jss::credential][jss::issuer] = issuer.human();
             jv[jss::credential][jss::credential_type] =
                 strHex(std::string_view(credType));
             auto const jrr = env.rpc("json", "ledger_entry", to_string(jv));
@@ -930,7 +929,7 @@ class LedgerRPC_test : public beast::unit_test::suite
             Json::Value jv;
             jv[jss::ledger_index] = jss::validated;
             jv[jss::credential][jss::subject] = alice.human();
-            jv[jss::credential][jss::issuer] = iss.human();
+            jv[jss::credential][jss::issuer] = issuer.human();
             jv[jss::credential][jss::credential_type] = "";
             auto const jrr = env.rpc("json", "ledger_entry", to_string(jv));
             checkErrorValue(jrr[jss::result], "malformedRequest", "");
@@ -963,7 +962,7 @@ class LedgerRPC_test : public beast::unit_test::suite
                 jvParams[jss::deposit_preauth][jss::authorize_credentials] =
                     Json::arrayValue);
             Json::Value jo;
-            jo[jss::issuer] = iss.human();
+            jo[jss::issuer] = issuer.human();
             jo[jss::credential_type] = "";
             arr.append(std::move(jo));
 

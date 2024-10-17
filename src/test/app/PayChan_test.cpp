@@ -868,17 +868,16 @@ struct PayChan_test : public beast::unit_test::suite
             auto const delta = XRP(500).value();
 
             {  // create credentials
-                auto jv = credentials::createIssuer(alice, carol, credType);
+                auto jv = credentials::create(alice, carol, credType);
                 uint32_t const t = env.now().time_since_epoch().count() + 100;
                 jv[sfExpiration.jsonName] = t;
                 env(jv);
                 env.close();
             }
 
-            auto const jCred =
+            auto const jv =
                 credentials::ledgerEntryCredential(env, alice, carol, credType);
-            std::string const credIdx =
-                jCred[jss::result][jss::index].asString();
+            std::string const credIdx = jv[jss::result][jss::index].asString();
 
             // Bob require preauthorization
             env(fset(bob, asfDepositAuth));
@@ -935,15 +934,15 @@ struct PayChan_test : public beast::unit_test::suite
             }
 
             {  // create credentials once more
-                env(credentials::createIssuer(alice, carol, credType));
+                env(credentials::create(alice, carol, credType));
                 env.close();
                 env(credentials::accept(alice, carol, credType));
                 env.close();
 
-                auto const jCred = credentials::ledgerEntryCredential(
+                auto const jv = credentials::ledgerEntryCredential(
                     env, alice, carol, credType);
                 std::string const credIdx =
-                    jCred[jss::result][jss::index].asString();
+                    jv[jss::result][jss::index].asString();
 
                 // Success
                 env(claim(alice, chan, delta, delta),

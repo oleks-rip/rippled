@@ -1550,12 +1550,11 @@ struct Escrow_test : public beast::unit_test::suite
             env.fund(XRP(5000), alice, bob, carol, dillon, zelda);
             env.close();
 
-            env(credentials::createIssuer(carol, zelda, credType));
+            env(credentials::create(carol, zelda, credType));
             env.close();
-            auto const jCred =
+            auto const jv =
                 credentials::ledgerEntryCredential(env, carol, zelda, credType);
-            std::string const credIdx =
-                jCred[jss::result][jss::index].asString();
+            std::string const credIdx = jv[jss::result][jss::index].asString();
 
             auto const seq = env.seq(alice);
             env(escrow(alice, bob, XRP(1000)),

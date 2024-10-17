@@ -54,24 +54,10 @@ checkExpired(
     std::shared_ptr<SLE const> const& sle,
     NetClock::time_point const& closed)
 {
-    std::uint32_t const exp = (*sle)[~sfExpiration].value_or(0);
+    std::uint32_t const exp = (*sle)[~sfExpiration].value_or(
+        std::numeric_limits<std::uint32_t>::max());
     std::uint32_t const now = closed.time_since_epoch().count();
-    return (exp != 0) && (now > exp);
-}
-
-// special check for deletion
-static bool
-checkNotExpired(
-    std::shared_ptr<SLE const> const& sle,
-    NetClock::time_point const& closed)
-{
-    if (!sle->isFieldPresent(sfExpiration))
-        return false;
-
-    std::uint32_t const exp = sle->getFieldU32(sfExpiration);
-    std::uint32_t const now = closed.time_since_epoch().count();
-
-    return now <= exp;
+    return now > exp;
 }
 
 bool
@@ -357,7 +343,7 @@ CredentialDelete::doApply()
         view().peek(keylet::credential(subject, issuer, credType));
 
     if ((subject != account_) && (issuer != account_) &&
-        checkNotExpired(sleCred, ctx_.view().info().parentCloseTime))
+        !checkExpired(sleCred, ctx_.view().info().parentCloseTime))
     {
         JLOG(j_.trace()) << "Can't delete non-expired credential.";
         return tecNO_PERMISSION;

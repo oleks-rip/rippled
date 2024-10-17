@@ -704,22 +704,22 @@ doLedgerEntry(RPC::JsonContext& context)
             }
             else
             {
-                auto const subj =
+                auto const subject =
                     parseBase58<AccountID>(cred[jss::subject].asString());
-                auto const iss =
+                auto const issuer =
                     parseBase58<AccountID>(cred[jss::issuer].asString());
                 auto const credType =
                     strUnHex(cred[jss::credential_type].asString());
-                if (!subj || subj->isZero() || !iss || iss->isZero() ||
-                    !credType || credType->empty())
+                if (!subject || subject->isZero() || !issuer ||
+                    issuer->isZero() || !credType || credType->empty())
                 {
                     jvResult[jss::error] = "malformedRequest";
                 }
                 else
                 {
                     uNodeIndex = keylet::credential(
-                                     *subj,
-                                     *iss,
+                                     *subject,
+                                     *issuer,
                                      Slice(credType->data(), credType->size()))
                                      .key;
                 }

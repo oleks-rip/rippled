@@ -28,7 +28,7 @@ namespace jtx {
 namespace credentials {
 
 Json::Value
-createIssuer(
+create(
     jtx::Account const& subject,
     jtx::Account const& issuer,
     std::string_view credType)

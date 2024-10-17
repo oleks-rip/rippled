@@ -301,12 +301,12 @@ public:
         env.close();
 
         // carol recognize becky
-        env(credentials::createIssuer(alice, carol, credType));
+        env(credentials::create(alice, carol, credType));
         env.close();
         // retrieve the index of the credentials
-        auto const jCred =
+        auto const jv =
             credentials::ledgerEntryCredential(env, alice, carol, credType);
-        std::string const credIdx = jCred[jss::result][jss::index].asString();
+        std::string const credIdx = jv[jss::result][jss::index].asString();
 
         // becky sets the DepositAuth flag in the current ledger.
         env(fset(becky, asfDepositAuth));
@@ -323,7 +323,7 @@ public:
             auto args = depositAuthArgs(alice, becky, "validated");
             args[jss::credentials] = Json::arrayValue;
 
-            auto jv =
+            auto const jv =
                 env.rpc("json", "deposit_authorized", args.toStyledString());
             auto const& result{jv[jss::result]};
             BEAST_EXPECT(result.isMember(jss::error));
@@ -339,7 +339,7 @@ public:
             args[jss::credentials].append(1);
             args[jss::credentials].append(3);
 
-            auto jv =
+            auto const jv =
                 env.rpc("json", "deposit_authorized", args.toStyledString());
             auto const& result{jv[jss::result]};
             BEAST_EXPECT(result.isMember(jss::error));
@@ -354,7 +354,7 @@ public:
             args[jss::credentials] = Json::arrayValue;
             args[jss::credentials].append("hello world");
 
-            auto jv =
+            auto const jv =
                 env.rpc("json", "deposit_authorized", args.toStyledString());
             auto const& result{jv[jss::result]};
             BEAST_EXPECT(result.isMember(jss::error));
@@ -372,7 +372,7 @@ public:
                 {"0127AB8B4B29CCDBB61AA51C0799A8A6BB80B86A9899807C11ED576AF8516"
                  "473"});
 
-            auto jv =
+            auto const jv =
                 env.rpc("json", "deposit_authorized", args.toStyledString());
 
             auto const& result{jv[jss::result]};
@@ -384,7 +384,7 @@ public:
             testcase(
                 "deposit_authorized with credentials not authorized: "
                 "credential not accepted");
-            auto jv = env.rpc(
+            auto const jv = env.rpc(
                 "json",
                 "deposit_authorized",
                 depositAuthArgs(alice, becky, "validated", {credIdx})
@@ -400,7 +400,7 @@ public:
 
         {
             testcase("deposit_authorized with credentials");
-            auto jv = env.rpc(
+            auto const jv = env.rpc(
                 "json",
                 "deposit_authorized",
                 depositAuthArgs(alice, becky, "validated", {credIdx})
@@ -412,7 +412,7 @@ public:
 
         {
             testcase("deposit_authorized  account without preauth");
-            auto jv = env.rpc(
+            auto const jv = env.rpc(
                 "json",
                 "deposit_authorized",
                 depositAuthArgs(becky, alice, "validated", {credIdx})
@@ -430,16 +430,15 @@ public:
             std::uint32_t const x = env.now().time_since_epoch().count() + 40;
 
             // create credentials with expire time 1s
-            auto jv = credentials::createIssuer(alice, carol, credType2);
+            auto jv = credentials::create(alice, carol, credType2);
             jv[sfExpiration.jsonName] = x;
             env(jv);
             env.close();
             env(credentials::accept(alice, carol, credType2));
             env.close();
-            auto const jCred2 = credentials::ledgerEntryCredential(
+            jv = credentials::ledgerEntryCredential(
                 env, alice, carol, credType2);
-            std::string const credIdx2 =
-                jCred2[jss::result][jss::index].asString();
+            std::string const credIdx2 = jv[jss::result][jss::index].asString();
 
             // becky sets the DepositAuth flag in the current ledger.
             env(fset(becky, asfDepositAuth));

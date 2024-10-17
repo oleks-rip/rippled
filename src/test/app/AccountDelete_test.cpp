@@ -931,14 +931,13 @@ public:
             env.close();
 
             // carol issue credentials for becky
-            env(credentials::createIssuer(becky, carol, credType));
+            env(credentials::create(becky, carol, credType));
             env.close();
 
             // get credentials index
-            auto const jCred =
+            auto const jv =
                 credentials::ledgerEntryCredential(env, becky, carol, credType);
-            std::string const credIdx =
-                jCred[jss::result][jss::index].asString();
+            std::string const credIdx = jv[jss::result][jss::index].asString();
 
             // Close enough ledgers to be able to delete becky's account.
             incLgrSeqForAccDel(env, becky);
@@ -1028,17 +1027,17 @@ public:
                 env.fund(XRP(100000), john);
                 env.close();
 
-                auto jv = credentials::createIssuer(john, carol, credType);
+                auto jv = credentials::create(john, carol, credType);
                 uint32_t const t = env.now().time_since_epoch().count() + 20;
                 jv[sfExpiration.jsonName] = t;
                 env(jv);
                 env.close();
                 env(credentials::accept(john, carol, credType));
                 env.close();
-                auto const jCred = credentials::ledgerEntryCredential(
+                jv = credentials::ledgerEntryCredential(
                     env, john, carol, credType);
                 std::string const credIdx =
-                    jCred[jss::result][jss::index].asString();
+                    jv[jss::result][jss::index].asString();
 
                 incLgrSeqForAccDel(env, john);
 
@@ -1050,12 +1049,14 @@ public:
                     ter(tecEXPIRED));
                 env.close();
 
-                // check that credential object deleted
-                auto const jNoCred = credentials::ledgerEntryCredential(
-                    env, john, carol, credType);
-                BEAST_EXPECT(
-                    jNoCred.isObject() && jNoCred.isMember(jss::result) &&
-                    jNoCred[jss::result].isMember(jss::error));
+                {
+                    // check that credential object deleted
+                    auto jv = credentials::ledgerEntryCredential(
+                        env, john, carol, credType);
+                    BEAST_EXPECT(
+                        jv.isObject() && jv.isMember(jss::result) &&
+                        jv[jss::result].isMember(jss::error));
+                }
             }
         }
 
@@ -1075,16 +1076,15 @@ public:
             env.close();
 
             // carol issue credentials for becky
-            env(credentials::createIssuer(becky, carol, credType));
+            env(credentials::create(becky, carol, credType));
             env.close();
             env(credentials::accept(becky, carol, credType));
             env.close();
 
             // get credentials index
-            auto const jCred =
+            auto const jv =
                 credentials::ledgerEntryCredential(env, becky, carol, credType);
-            std::string const credIdx =
-                jCred[jss::result][jss::index].asString();
+            std::string const credIdx = jv[jss::result][jss::index].asString();
 
             // Close enough ledgers to be able to delete carol's account.
             incLgrSeqForAccDel(env, carol);
@@ -1093,13 +1093,14 @@ public:
             env(acctdelete(carol, alice), fee(acctDelFee));
             env.close();
 
-            // check that credential object deleted too
-            BEAST_EXPECT(!env.le(credIdx));
-            auto const jNoCred =
-                credentials::ledgerEntryCredential(env, becky, carol, credType);
-            BEAST_EXPECT(
-                jNoCred.isObject() && jNoCred.isMember(jss::result) &&
-                jNoCred[jss::result].isMember(jss::error));
+            {  // check that credential object deleted too
+                BEAST_EXPECT(!env.le(credIdx));
+                auto const jv = credentials::ledgerEntryCredential(
+                    env, becky, carol, credType);
+                BEAST_EXPECT(
+                    jv.isObject() && jv.isMember(jss::result) &&
+                    jv[jss::result].isMember(jss::error));
+            }
         }
 
         {
@@ -1118,16 +1119,15 @@ public:
             env.close();
 
             // carol issue credentials for becky
-            env(credentials::createIssuer(becky, carol, credType));
+            env(credentials::create(becky, carol, credType));
             env.close();
             env(credentials::accept(becky, carol, credType));
             env.close();
 
             // get credentials index
-            auto const jCred =
+            auto const jv =
                 credentials::ledgerEntryCredential(env, becky, carol, credType);
-            std::string const credIdx =
-                jCred[jss::result][jss::index].asString();
+            std::string const credIdx = jv[jss::result][jss::index].asString();
 
             // Close enough ledgers to be able to delete carol's account.
             incLgrSeqForAccDel(env, becky);
@@ -1136,13 +1136,14 @@ public:
             env(acctdelete(becky, alice), fee(acctDelFee));
             env.close();
 
-            // check that credential object deleted too
-            BEAST_EXPECT(!env.le(credIdx));
-            auto const jNoCred =
-                credentials::ledgerEntryCredential(env, becky, carol, credType);
-            BEAST_EXPECT(
-                jNoCred.isObject() && jNoCred.isMember(jss::result) &&
-                jNoCred[jss::result].isMember(jss::error));
+            {  // check that credential object deleted too
+                BEAST_EXPECT(!env.le(credIdx));
+                auto const jv = credentials::ledgerEntryCredential(
+                    env, becky, carol, credType);
+                BEAST_EXPECT(
+                    jv.isObject() && jv.isMember(jss::result) &&
+                    jv[jss::result].isMember(jss::error));
+            }
         }
 
         {
