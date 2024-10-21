@@ -1,7 +1,7 @@
 //------------------------------------------------------------------------------
 /*
     This file is part of rippled: https://github.com/ripple/rippled
-    Copyright (c) 2019 Ripple Labs Inc.
+    Copyright (c) 2024 Ripple Labs Inc.
 
     Permission to use, copy, modify, and/or distribute this software for any
     purpose  with  or without fee is hereby granted, provided that the above
@@ -89,6 +89,15 @@ ledgerEntryCredential(
     jvParams[jss::credential][jss::subject] = subject.human();
     jvParams[jss::credential][jss::issuer] = issuer.human();
     jvParams[jss::credential][jss::credential_type] = strHex(credType);
+    return env.rpc("json", "ledger_entry", to_string(jvParams));
+}
+
+Json::Value
+ledgerEntryCredential(jtx::Env& env, std::string const& credIdx)
+{
+    Json::Value jvParams;
+    jvParams[jss::ledger_index] = jss::validated;
+    jvParams[jss::credential] = credIdx;
     return env.rpc("json", "ledger_entry", to_string(jvParams));
 }
 

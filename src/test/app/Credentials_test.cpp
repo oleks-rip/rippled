@@ -1,7 +1,7 @@
 //------------------------------------------------------------------------------
 /*
     This file is part of rippled: https://github.com/ripple/rippled
-    Copyright (c) 2012, 2013 Ripple Labs Inc.
+    Copyright (c) 2024 Ripple Labs Inc.
 
     Permission to use, copy, modify, and/or distribute this software for any
     purpose  with  or without fee is hereby granted, provided that the above
@@ -37,10 +37,10 @@ namespace test {
 static inline std::uint32_t
 ownerCnt(test::jtx::Env const& env, test::jtx::Account const& acct)
 {
-    std::uint32_t ret{0};
     if (auto const sleAcct = env.le(acct))
-        ret = sleAcct->at(sfOwnerCount);
-    return ret;
+        return sleAcct->at(sfOwnerCount);
+    else
+        return 0;
 }
 
 static inline bool
@@ -49,12 +49,11 @@ checkVL(
     SField const& field,
     std::string const& expected)
 {
-    auto const b = sle->getFieldVL(field);
-    return strHex(expected) == strHex(b);
+    return strHex(expected) == strHex(sle->getFieldVL(field));
 }
 
 static inline Keylet
-credKL(
+credentialKeylet(
     test::jtx::Account const& subject,
     test::jtx::Account const& issuer,
     std::string_view credType)
@@ -83,7 +82,7 @@ struct Credentials_test : public beast::unit_test::suite
             Account const subject{"subject"};
             Account const other{"other"};
 
-            auto const credKey = credKL(subject, issuer, credType);
+            auto const credKey = credentialKeylet(subject, issuer, credType);
 
             env.fund(XRP(5000), subject, issuer, other);
             env.close();
@@ -119,7 +118,7 @@ struct Credentials_test : public beast::unit_test::suite
             env(credentials::accept(subject, issuer, credType));
             env.close();
             {
-                // check switching owner of the credentials from isser to
+                // check switching owner of the credentials from issuer to
                 // subject
                 auto const sleCred = env.le(credKey);
                 BEAST_EXPECT(static_cast<bool>(sleCred));
@@ -153,7 +152,7 @@ struct Credentials_test : public beast::unit_test::suite
             {
                 testcase("Credentials for themself.");
 
-                auto const credKey = credKL(issuer, issuer, credType);
+                auto const credKey = credentialKeylet(issuer, issuer, credType);
 
                 env(credentials::create(issuer, issuer, credType),
                     credentials::uri(uri));
@@ -280,7 +279,7 @@ struct Credentials_test : public beast::unit_test::suite
 
             testcase("CredentialsDelete other");
 
-            auto const credKey = credKL(issuer, issuer, credType);
+            auto const credKey = credentialKeylet(issuer, issuer, credType);
             auto jv = credentials::create(subject, issuer, credType);
             uint32_t const t = env.now().time_since_epoch().count();
             jv[sfExpiration.jsonName] = t + 20;
@@ -331,7 +330,8 @@ struct Credentials_test : public beast::unit_test::suite
             env(credentials::del(subject, subject, issuer, credType));
             env.close();
             {
-                auto const credKey = credKL(subject, issuer, credType);
+                auto const credKey =
+                    credentialKeylet(subject, issuer, credType);
                 BEAST_EXPECT(!env.le(credKey));
                 BEAST_EXPECT(!ownerCnt(env, subject));
                 BEAST_EXPECT(!ownerCnt(env, issuer));
@@ -351,7 +351,8 @@ struct Credentials_test : public beast::unit_test::suite
             env(credentials::del(issuer, subject, issuer, credType));
             env.close();
             {
-                auto const credKey = credKL(subject, issuer, credType);
+                auto const credKey =
+                    credentialKeylet(subject, issuer, credType);
                 BEAST_EXPECT(!env.le(credKey));
                 BEAST_EXPECT(!ownerCnt(env, subject));
                 BEAST_EXPECT(!ownerCnt(env, issuer));

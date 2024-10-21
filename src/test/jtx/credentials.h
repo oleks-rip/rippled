@@ -1,7 +1,7 @@
 //------------------------------------------------------------------------------
 /*
     This file is part of rippled: https://github.com/ripple/rippled
-    Copyright (c) 2019 Ripple Labs Inc.
+    Copyright (c) 2024 Ripple Labs Inc.
 
     Permission to use, copy, modify, and/or distribute this software for any
     purpose  with  or without fee is hereby granted, provided that the above
@@ -91,6 +91,9 @@ ledgerEntryCredential(
     jtx::Account const& subject,
     jtx::Account const& issuer,
     std::string_view credType);
+
+Json::Value
+ledgerEntryCredential(jtx::Env& env, std::string const& credIdx);
 
 }  // namespace credentials
 

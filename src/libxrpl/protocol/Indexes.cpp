@@ -307,7 +307,6 @@ depositPreauth(AccountID const& owner, AccountID const& preauthorized) noexcept
 Keylet
 depositPreauth(AccountID const& owner, STArray const& authCreds) noexcept
 {
-    std::string s;
     std::vector<uint256> hashes;
     hashes.reserve(authCreds.size());
     for (auto const& o : authCreds)

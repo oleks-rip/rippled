@@ -390,9 +390,9 @@ ledgerEntryDepositPreauth(
     Json::Value jvParams;
     jvParams[jss::ledger_index] = jss::validated;
     jvParams[jss::deposit_preauth][jss::owner] = acc.human();
-    auto& arr(
-        jvParams[jss::deposit_preauth][jss::authorize_credentials] =
-            Json::arrayValue);
+    jvParams[jss::deposit_preauth][jss::authorize_credentials] =
+        Json::arrayValue;
+    auto& arr(jvParams[jss::deposit_preauth][jss::authorize_credentials]);
     for (auto const& o : auth)
     {
         arr.append(o.toLEJson());

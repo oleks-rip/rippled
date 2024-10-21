@@ -728,6 +728,44 @@ class LedgerRPC_test : public beast::unit_test::suite
     }
 
     void
+    testLedgerEntryCredentials()
+    {
+        testcase("ledger_entry Deposit Preauth with credentials");
+
+        using namespace test::jtx;
+
+        Env env(*this);
+        Account const issuer{"issuer"};
+        Account const alice{"alice"};
+        Account const bob{"bob"};
+        const char credType[] = "abcde";
+
+        env.fund(XRP(5000), issuer, alice, bob);
+        env.close();
+
+        // Setup credentials with DepositAuth object for Alice and Bob
+        env(credentials::create(alice, issuer, credType));
+        env.close();
+        auto jv =
+            credentials::ledgerEntryCredential(env, alice, issuer, credType);
+        std::string const credIdx = jv[jss::result][jss::index].asString();
+
+        jv = credentials::ledgerEntryCredential(env, credIdx);
+        BEAST_EXPECT(
+            jv.isObject() && jv.isMember(jss::result) &&
+            !jv[jss::result].isMember(jss::error) &&
+            jv[jss::result].isMember(jss::node) &&
+            jv[jss::result][jss::node].isMember("LedgerEntryType") &&
+            jv[jss::result][jss::node]["LedgerEntryType"] == jss::Credential);
+
+        // Fail with invalid index
+        jv = credentials::ledgerEntryCredential(env, "0011KK");
+        BEAST_EXPECT(
+            jv.isObject() && jv.isMember(jss::result) &&
+            jv[jss::result].isMember(jss::error));
+    }
+
+    void
     testLedgerEntryDepositPreauth()
     {
         testcase("ledger_entry Deposit Preauth");
@@ -2489,6 +2527,7 @@ public:
         testLedgerAccounts();
         testLedgerEntryAccountRoot();
         testLedgerEntryCheck();
+        testLedgerEntryCredentials();
         testLedgerEntryDepositPreauth();
         testLedgerEntryDepositPreauthCred();
         testLedgerEntryDirectory();

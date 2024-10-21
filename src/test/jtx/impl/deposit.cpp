@@ -56,7 +56,8 @@ authCredentials(
 {
     Json::Value jv;
     jv[sfAccount.jsonName] = account.human();
-    auto& arr(jv[sfAuthorizeCredentials.jsonName] = Json::arrayValue);
+    jv[sfAuthorizeCredentials.jsonName] = Json::arrayValue;
+    auto& arr(jv[sfAuthorizeCredentials.jsonName]);
     for (auto const& o : auth)
     {
         Json::Value j2;
@@ -75,7 +76,8 @@ unauthCredentials(
 {
     Json::Value jv;
     jv[sfAccount.jsonName] = account.human();
-    auto& arr(jv[sfUnauthorizeCredentials.jsonName] = Json::arrayValue);
+    jv[sfUnauthorizeCredentials.jsonName] = Json::arrayValue;
+    auto& arr(jv[sfUnauthorizeCredentials.jsonName]);
     for (auto const& o : auth)
     {
         Json::Value j2;
