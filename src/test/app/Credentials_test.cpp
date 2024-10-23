@@ -18,7 +18,7 @@
 //==============================================================================
 
 #include <test/jtx.h>
-#include <xrpld/app/tx/detail/Credentials.h>
+#include <xrpld/app/misc/CredentialsHelper.h>
 #include <xrpld/ledger/ApplyViewImpl.h>
 #include <xrpl/basics/strHex.h>
 #include <xrpl/protocol/Feature.h>
@@ -32,16 +32,6 @@
 
 namespace ripple {
 namespace test {
-
-// Helper function that returns the owner count of an account root.
-static inline std::uint32_t
-ownerCnt(test::jtx::Env const& env, test::jtx::Account const& acct)
-{
-    if (auto const sleAcct = env.le(acct))
-        return sleAcct->at(sfOwnerCount);
-    else
-        return 0;
-}
 
 static inline bool
 checkVL(
@@ -99,8 +89,8 @@ struct Credentials_test : public beast::unit_test::suite
                 BEAST_EXPECT(sleCred->getAccountID(sfSubject) == subject.id());
                 BEAST_EXPECT(sleCred->getAccountID(sfIssuer) == issuer.id());
                 BEAST_EXPECT(!(sleCred->getFieldU32(sfFlags) & lsfAccepted));
-                BEAST_EXPECT(ownerCnt(env, issuer) == 1);
-                BEAST_EXPECT(!ownerCnt(env, subject));
+                BEAST_EXPECT(ownerCount(env, issuer) == 1);
+                BEAST_EXPECT(!ownerCount(env, subject));
                 BEAST_EXPECT(checkVL(sleCred, sfCredentialType, credType));
                 BEAST_EXPECT(checkVL(sleCred, sfURI, uri));
                 auto const jle = credentials::ledgerEntryCredential(
@@ -126,19 +116,19 @@ struct Credentials_test : public beast::unit_test::suite
 
                 BEAST_EXPECT(sleCred->getAccountID(sfSubject) == subject.id());
                 BEAST_EXPECT(sleCred->getAccountID(sfIssuer) == issuer.id());
-                BEAST_EXPECT(!ownerCnt(env, issuer));
-                BEAST_EXPECT(ownerCnt(env, subject) == 1);
+                BEAST_EXPECT(!ownerCount(env, issuer));
+                BEAST_EXPECT(ownerCount(env, subject) == 1);
                 BEAST_EXPECT(checkVL(sleCred, sfCredentialType, credType));
                 BEAST_EXPECT(checkVL(sleCred, sfURI, uri));
                 BEAST_EXPECT(sleCred->getFieldU32(sfFlags) == lsfAccepted);
             }
 
-            env(credentials::del(subject, subject, issuer, credType));
+            env(credentials::deleteCred(subject, subject, issuer, credType));
             env.close();
             {
                 BEAST_EXPECT(!env.le(credKey));
-                BEAST_EXPECT(!ownerCnt(env, issuer));
-                BEAST_EXPECT(!ownerCnt(env, subject));
+                BEAST_EXPECT(!ownerCount(env, issuer));
+                BEAST_EXPECT(!ownerCount(env, subject));
 
                 // check no credential exists anymore
                 auto const jle = credentials::ledgerEntryCredential(
@@ -170,7 +160,7 @@ struct Credentials_test : public beast::unit_test::suite
                     BEAST_EXPECT(
                         sleCred->getFieldU64(sfIssuerNode) ==
                         sleCred->getFieldU64(sfSubjectNode));
-                    BEAST_EXPECT(ownerCnt(env, issuer) == 1);
+                    BEAST_EXPECT(ownerCount(env, issuer) == 1);
                     BEAST_EXPECT(checkVL(sleCred, sfCredentialType, credType));
                     BEAST_EXPECT(checkVL(sleCred, sfURI, uri));
                     auto const jle = credentials::ledgerEntryCredential(
@@ -185,11 +175,11 @@ struct Credentials_test : public beast::unit_test::suite
                             jss::Credential);
                 }
 
-                env(credentials::del(issuer, issuer, issuer, credType));
+                env(credentials::deleteCred(issuer, issuer, issuer, credType));
                 env.close();
                 {
                     BEAST_EXPECT(!env.le(credKey));
-                    BEAST_EXPECT(!ownerCnt(env, issuer));
+                    BEAST_EXPECT(!ownerCount(env, issuer));
 
                     // check no credential exists anymore
                     auto const jle = credentials::ledgerEntryCredential(
@@ -220,7 +210,7 @@ struct Credentials_test : public beast::unit_test::suite
                 // check credentials deleted too
                 {
                     BEAST_EXPECT(!env.le(credKey));
-                    BEAST_EXPECT(!ownerCnt(env, subject));
+                    BEAST_EXPECT(!ownerCount(env, subject));
 
                     // check no credential exists anymore
                     auto const jle = credentials::ledgerEntryCredential(
@@ -254,7 +244,7 @@ struct Credentials_test : public beast::unit_test::suite
                 // check credentials deleted too
                 {
                     BEAST_EXPECT(!env.le(credKey));
-                    BEAST_EXPECT(!ownerCnt(env, issuer));
+                    BEAST_EXPECT(!ownerCount(env, issuer));
 
                     // check no credential exists anymore
                     auto const jle = credentials::ledgerEntryCredential(
@@ -287,14 +277,14 @@ struct Credentials_test : public beast::unit_test::suite
             env.close();
 
             // Other account delete credentials when expired
-            env(credentials::del(other, subject, issuer, credType));
+            env(credentials::deleteCred(other, subject, issuer, credType));
             env.close();
 
             // check credentials object
             {
                 BEAST_EXPECT(!env.le(credKey));
-                BEAST_EXPECT(!ownerCnt(env, issuer));
-                BEAST_EXPECT(!ownerCnt(env, subject));
+                BEAST_EXPECT(!ownerCount(env, issuer));
+                BEAST_EXPECT(!ownerCount(env, subject));
 
                 // check no credential exists anymore
                 auto const jle = credentials::ledgerEntryCredential(
@@ -321,14 +311,14 @@ struct Credentials_test : public beast::unit_test::suite
             env.close();
 
             // Subject can delete non-expired
-            env(credentials::del(subject, subject, issuer, credType));
+            env(credentials::deleteCred(subject, subject, issuer, credType));
             env.close();
             {
                 auto const credKey =
                     credentialKeylet(subject, issuer, credType);
                 BEAST_EXPECT(!env.le(credKey));
-                BEAST_EXPECT(!ownerCnt(env, subject));
-                BEAST_EXPECT(!ownerCnt(env, issuer));
+                BEAST_EXPECT(!ownerCount(env, subject));
+                BEAST_EXPECT(!ownerCount(env, issuer));
                 auto const jle = credentials::ledgerEntryCredential(
                     env, subject, issuer, credType);
                 BEAST_EXPECT(
@@ -342,14 +332,14 @@ struct Credentials_test : public beast::unit_test::suite
             env.close();
 
             // Issuer can delete non-expired
-            env(credentials::del(issuer, subject, issuer, credType));
+            env(credentials::deleteCred(issuer, subject, issuer, credType));
             env.close();
             {
                 auto const credKey =
                     credentialKeylet(subject, issuer, credType);
                 BEAST_EXPECT(!env.le(credKey));
-                BEAST_EXPECT(!ownerCnt(env, subject));
-                BEAST_EXPECT(!ownerCnt(env, issuer));
+                BEAST_EXPECT(!ownerCount(env, subject));
+                BEAST_EXPECT(!ownerCount(env, issuer));
                 auto const jle = credentials::ledgerEntryCredential(
                     env, subject, issuer, credType);
                 BEAST_EXPECT(
@@ -642,14 +632,15 @@ struct Credentials_test : public beast::unit_test::suite
 
             {
                 testcase("CredentialsDelete fail, no Credentials.");
-                env(credentials::del(subject, subject, issuer, credType),
+                env(credentials::deleteCred(subject, subject, issuer, credType),
                     ter(tecNO_ENTRY));
                 env.close();
             }
 
             {
                 testcase("CredentialsDelete fail, invalid Subject account.");
-                auto jv = credentials::del(subject, subject, issuer, credType);
+                auto jv =
+                    credentials::deleteCred(subject, subject, issuer, credType);
                 jv[jss::Subject] = to_string(xrpAccount());
                 env(jv, ter(temINVALID_ACCOUNT_ID));
                 env.close();
@@ -657,7 +648,8 @@ struct Credentials_test : public beast::unit_test::suite
 
             {
                 testcase("CredentialsDelete fail, invalid Issuer account.");
-                auto jv = credentials::del(subject, subject, issuer, credType);
+                auto jv =
+                    credentials::deleteCred(subject, subject, issuer, credType);
                 jv[jss::Issuer] = to_string(xrpAccount());
                 env(jv, ter(temINVALID_ACCOUNT_ID));
                 env.close();
@@ -670,7 +662,7 @@ struct Credentials_test : public beast::unit_test::suite
                 env.close();
 
                 // Other account can't delete credentials without expiration
-                env(credentials::del(other, subject, issuer, credType2),
+                env(credentials::deleteCred(other, subject, issuer, credType2),
                     ter(tecNO_PERMISSION));
                 env.close();
             }
@@ -686,7 +678,7 @@ struct Credentials_test : public beast::unit_test::suite
                 env.close();
 
                 // Other account can't delete credentials that not expired
-                env(credentials::del(other, subject, issuer, credType),
+                env(credentials::deleteCred(other, subject, issuer, credType),
                     ter(tecNO_PERMISSION));
                 env.close();
             }
@@ -694,7 +686,8 @@ struct Credentials_test : public beast::unit_test::suite
             {
                 testcase("CredentialsDelete fail, no Issuer and Subject.");
 
-                auto jv = credentials::del(subject, subject, issuer, credType);
+                auto jv =
+                    credentials::deleteCred(subject, subject, issuer, credType);
                 jv.removeMember(jss::Subject);
                 jv.removeMember(jss::Issuer);
                 env(jv, ter(temMALFORMED));
@@ -704,7 +697,8 @@ struct Credentials_test : public beast::unit_test::suite
             {
                 testcase("CredentialsDelete fail, invalid fee.");
 
-                auto jv = credentials::del(subject, subject, issuer, credType);
+                auto jv =
+                    credentials::deleteCred(subject, subject, issuer, credType);
                 jv[jss::Fee] = -1;
                 env(jv, ter(temBAD_FEE));
                 env.close();
@@ -714,7 +708,8 @@ struct Credentials_test : public beast::unit_test::suite
                 testcase("deleteSLE fail, bad SLE.");
                 auto view = std::make_shared<ApplyViewImpl>(
                     env.current().get(), ApplyFlags::tapNONE);
-                auto ter = CredentialDelete::deleteSLE(*view, {}, env.journal);
+                auto ter =
+                    ripple::credentials::deleteSLE(*view, {}, env.journal);
                 BEAST_EXPECT(ter == tecNO_ENTRY);
             }
         }
@@ -742,7 +737,7 @@ struct Credentials_test : public beast::unit_test::suite
                     ter(temDISABLED));
                 env(credentials::accept(subject, issuer, credType),
                     ter(temDISABLED));
-                env(credentials::del(subject, subject, issuer, credType),
+                env(credentials::deleteCred(subject, subject, issuer, credType),
                     ter(temDISABLED));
             }
         }

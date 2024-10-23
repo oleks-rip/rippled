@@ -863,7 +863,7 @@ struct DepositPreauth_test : public beast::unit_test::suite
             env(pay(alice, bob, XRP(100)), credentials::IDs({credIdx}));
             env.close();
 
-            // Alice can pay John without depositPreauth enabled
+            // Alice can pay Maria without depositPreauth enabled
             env(pay(alice, maria, XRP(250)), credentials::IDs({credIdx}));
             env.close();
         }

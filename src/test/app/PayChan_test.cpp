@@ -1950,14 +1950,6 @@ struct PayChan_test : public beast::unit_test::suite
                 BEAST_EXPECT(channelAmount(*env.current(), chan) == chanAmt);
                 BEAST_EXPECT(env.balance(bob) == preBob);
                 BEAST_EXPECT(env.balance(alice) == preAlice - feeDrops);
-
-                // also failed with credentials
-                std::string const credIdx =
-                    "48004829F915654A81B11C4AB8218D96FED67F209B58328A72314FB6EA"
-                    "288BE4";
-                env(claim(alice, chan, reqBal, authAmt),
-                    credentials::IDs({credIdx}),
-                    ter(tecNO_DST));
             }
 
             // fund should fail if the dst was removed

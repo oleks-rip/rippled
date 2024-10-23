@@ -80,7 +80,8 @@ accept(
     std::string_view credType);
 
 Json::Value
-del(jtx::Account const& acc,
+deleteCred(
+    jtx::Account const& acc,
     jtx::Account const& subject,
     jtx::Account const& issuer,
     std::string_view credType);
