@@ -19,7 +19,6 @@
 
 #include <xrpld/app/paths/RippleCalc.h>
 #include <xrpld/app/tx/detail/Credentials.h>
-#include <xrpld/app/tx/detail/DepositPreauth.h>
 #include <xrpld/app/tx/detail/Payment.h>
 #include <xrpld/core/Config.h>
 #include <xrpl/basics/Log.h>
@@ -202,9 +201,7 @@ Payment::preflight(PreflightContext const& ctx)
 
     if (ctx.tx.isFieldPresent(sfCredentialIDs))
     {
-        if (!ctx.rules.enabled(featureCredentials) ||
-            !ctx.rules.enabled(featureDepositPreauth) ||
-            !ctx.rules.enabled(featureDepositAuth))
+        if (!ctx.rules.enabled(featureCredentials))
         {
             JLOG(ctx.j.trace()) << "Credentials rule is disabled.";
             return temDISABLED;
@@ -235,8 +232,6 @@ Payment::preclaim(PreclaimContext const& ctx)
 
     AccountID const uDstAccountID(ctx.tx[sfDestination]);
     STAmount const saDstAmount(ctx.tx[sfAmount]);
-
-    bool const bRipple = paths || sendMax || !saDstAmount.native();
 
     auto const k = keylet::account(uDstAccountID);
     auto const sleDst = ctx.view.read(k);
@@ -294,7 +289,7 @@ Payment::preclaim(PreclaimContext const& ctx)
     }
 
     // Payment with at least one intermediate step and uses transitive balances.
-    if (bRipple && ctx.view.open())
+    if ((paths || sendMax || !saDstAmount.native()) && ctx.view.open())
     {
         STPathSet const& paths = ctx.tx.getFieldPathSet(sfPaths);
 

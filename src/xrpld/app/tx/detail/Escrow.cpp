@@ -21,7 +21,6 @@
 
 #include <xrpld/app/misc/HashRouter.h>
 #include <xrpld/app/tx/detail/Credentials.h>
-#include <xrpld/app/tx/detail/DepositPreauth.h>
 #include <xrpld/conditions/Condition.h>
 #include <xrpld/conditions/Fulfillment.h>
 #include <xrpld/ledger/ApplyView.h>
@@ -351,9 +350,7 @@ EscrowFinish::preflight(PreflightContext const& ctx)
 
     if (ctx.tx.isFieldPresent(sfCredentialIDs))
     {
-        if (!ctx.rules.enabled(featureCredentials) ||
-            !ctx.rules.enabled(featureDepositPreauth) ||
-            !ctx.rules.enabled(featureDepositAuth))
+        if (!ctx.rules.enabled(featureCredentials))
         {
             JLOG(ctx.j.trace()) << "Credentials rule is disabled.";
             return temDISABLED;

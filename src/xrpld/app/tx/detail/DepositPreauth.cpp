@@ -258,12 +258,12 @@ DepositPreauth::doApply()
         STArray const& authCred(ctx_.tx.getFieldArray(sfAuthorizeCredentials));
         Keylet const preauthKey = keylet::depositPreauth(account_, authCred);
         auto slePreauth = std::make_shared<SLE>(preauthKey);
-        slePreauth->setAccountID(sfAccount, account_);
-        auto* credentialsField =
-            slePreauth->makeFieldPresent(sfAuthorizeCredentials);
-        if (!credentialsField)
+        if (!slePreauth)
             return tefINTERNAL;
-        STArray& credentialsArray = *static_cast<STArray*>(credentialsField);
+
+        slePreauth->setAccountID(sfAccount, account_);
+        STArray& credentialsArray =
+            slePreauth->peekFieldArray(sfAuthorizeCredentials);
         credentialsArray.reserve(authCred.size());
 
         // eliminate duplicates

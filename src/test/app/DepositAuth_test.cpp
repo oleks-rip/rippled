@@ -656,32 +656,30 @@ struct DepositPreauth_test : public beast::unit_test::suite
 
             {
                 // becky setup depositpreauth with credentials
-
                 const char credType[] = "abcde";
                 Account const carol{"carol"};
-
                 env.fund(XRP(5000), carol);
-
-                if (supportsPreauth)
-                {
-                    env(deposit::authCredentials(becky, {{carol, credType}}));
-                    env.close();
-                }
-
-                // gw accept credentials
-                auto jv = credentials::create(gw, carol, credType);
-                env(jv);
-                env.close();
-                env(credentials::accept(gw, carol, credType));
-                env.close();
-
-                jv = credentials::ledgerEntryCredential(
-                    env, gw, carol, credType);
-                std::string const credIdx =
-                    jv[jss::result][jss::index].asString();
 
                 TER const expect{
                     supportsPreauth ? TER{tesSUCCESS} : TER{temDISABLED}};
+
+                env(deposit::authCredentials(becky, {{carol, credType}}),
+                    ter(expect));
+                env.close();
+
+                // gw accept credentials
+                env(credentials::create(gw, carol, credType), ter(expect));
+                env.close();
+                env(credentials::accept(gw, carol, credType), ter(expect));
+                env.close();
+
+                auto jv = credentials::ledgerEntryCredential(
+                    env, gw, carol, credType);
+                std::string const credIdx = supportsPreauth
+                    ? jv[jss::result][jss::index].asString()
+                    : "48004829F915654A81B11C4AB8218D96FED67F209B58328A72314FB6"
+                      "EA288BE4";
+
                 env(pay(gw, becky, USD(100)),
                     credentials::IDs({credIdx}),
                     ter(expect));
@@ -801,14 +799,16 @@ struct DepositPreauth_test : public beast::unit_test::suite
         using namespace jtx;
 
         const char credType[] = "abcde";
+        Account const issuer{"issuer"};
+        Account const alice{"alice"};
+        Account const bob{"bob"};
+        Account const john("john");
+        Account const maria{"maria"};
 
         {
             testcase("Payment with credentials.");
 
             Env env(*this);
-            Account const issuer{"issuer"};
-            Account const alice{"alice"};
-            Account const bob{"bob"};
 
             env.fund(XRP(5000), issuer, alice, bob);
             env.close();
@@ -863,123 +863,15 @@ struct DepositPreauth_test : public beast::unit_test::suite
             env(pay(alice, bob, XRP(100)), credentials::IDs({credIdx}));
             env.close();
 
-            {
-                testcase("Escrow with credentials.");
-                using namespace std::chrono;
-                auto const seq1 = env.seq(alice);
-                env(escrow(alice, bob, XRP(1000)), finish_time(env.now() + 1s));
-                env.close();
-
-                Account const john("john");
-
-                env.fund(XRP(5000), john);
-                env.close();
-
-                {
-                    // Don't use invalids credentials
-                    env(finish(bob, alice, seq1),
-                        credentials::IDs({credIdx}),
-                        fee(1500),
-                        ter(tecBAD_CREDENTIALS));
-                    env.close();
-                }
-                {
-                    env(credentials::create(john, issuer, credType));
-                    env.close();
-                    env(credentials::accept(john, issuer, credType));
-                    env.close();
-                    auto const jv = credentials::ledgerEntryCredential(
-                        env, john, issuer, credType);
-                    std::string const credIdx =
-                        jv[jss::result][jss::index].asString();
-
-                    // john is pre-authorized and can finish escrow for bob
-                    env(finish(john, alice, seq1),
-                        credentials::IDs({credIdx}),
-                        fee(1500));
-                    env.close();
-                }
-            }
-        }
-
-        {
-            Env env(*this);
-            Account const issuer{"issuer"};
-            Account const alice{"alice"};
-            Account const bob{"bob"};
-            Account const john("john");
-
-            env.fund(XRP(5000), issuer, alice, bob, john);
+            // Alice can pay John without depositPreauth enabled
+            env(pay(alice, maria, XRP(250)), credentials::IDs({credIdx}));
             env.close();
-
-            {
-                testcase("Escrow with credentials without depositPreauth");
-                using namespace std::chrono;
-
-                const char credType2[] = "fghijk";
-
-                env(credentials::create(bob, issuer, credType2));
-                env.close();
-                env(credentials::accept(bob, issuer, credType2));
-                env.close();
-
-                env(credentials::create(john, issuer, credType));
-                env.close();
-                env(credentials::accept(john, issuer, credType));
-                env.close();
-
-                // Get the index of the credentials
-                auto const credIdxBob =
-                    credentials::ledgerEntryCredential(
-                        env, bob, issuer, credType2)[jss::result][jss::index]
-                        .asString();
-                auto const credIdxJohn =
-                    credentials::ledgerEntryCredential(
-                        env, john, issuer, credType)[jss::result][jss::index]
-                        .asString();
-
-                {
-                    auto const seq1 = env.seq(alice);
-                    env(escrow(alice, bob, XRP(1000)),
-                        finish_time(env.now() + 1s));
-                    env.close();
-
-                    // Use any valid credentials without depositPreauth
-                    // requirements
-                    env(finish(john, alice, seq1),
-                        credentials::IDs({credIdxJohn}),
-                        fee(1500));
-                    env.close();
-                }
-
-                {
-                    auto const seq1 = env.seq(alice);
-                    env(escrow(alice, bob, XRP(1000)),
-                        finish_time(env.now() + 1s));
-                    env.close();
-
-                    // Bob require preauthorization
-                    env(fset(bob, asfDepositAuth), fee(drops(10)));
-                    env.close();
-                    env(deposit::authCredentials(bob, {{issuer, credType}}));
-                    env.close();
-
-                    // Use any valid credentials without if src == dst
-                    env(finish(bob, alice, seq1),
-                        credentials::IDs({credIdxBob}),
-                        fee(1500));
-                    env.close();
-                }
-            }
         }
 
         {
             testcase("Creating / deleting with credentials.");
 
             Env env(*this);
-            Account const issuer{"issuer"};
-            Account const alice{"alice"};
-            Account const bob{"bob"};
 
             env.fund(XRP(5000), issuer, alice, bob);
             env.close();
@@ -1109,15 +1001,8 @@ struct DepositPreauth_test : public beast::unit_test::suite
             testcase("Payment failed with invalid credentials.");
 
             Env env(*this);
-            Account const issuer{"issuer"};
-            Account const alice{"alice"};
-            Account const bob{"bob"};
-            Account const maria{"maria"};
 
-            Account const gw{"gw"};
-            IOU const USD = gw["USD"];
-
-            env.fund(XRP(10000), issuer, alice, bob, maria, gw);
+            env.fund(XRP(10000), issuer, alice, bob, maria);
             env.close();
 
             // Issuer create credentials, but Alice didn't accept them yet
@@ -1200,8 +1085,6 @@ struct DepositPreauth_test : public beast::unit_test::suite
             testcase("Payment failed with disabled rules.");
 
             Env env(*this, supported_amendments() - featureCredentials);
-            Account const issuer{"issuer"};
-            Account const bob{"bob"};
 
             env.fund(XRP(5000), issuer, bob);
             env.close();
@@ -1233,16 +1116,17 @@ struct DepositPreauth_test : public beast::unit_test::suite
     {
         using namespace jtx;
         const char credType[] = "abcde";
+        Account const issuer{"issuer"};
+        Account const alice{"alice"};
+        Account const bob{"bob"};
+        Account const gw{"gw"};
+        IOU const USD = gw["USD"];
+        Account const zelda{"zelda"};
 
         {
             testcase("Payment failed with expired credentials.");
 
             Env env(*this);
-            Account const issuer{"issuer"};
-            Account const alice{"alice"};
-            Account const bob{"bob"};
-            Account const gw{"gw"};
-            IOU const USD = gw["USD"];
 
             env.fund(XRP(10000), issuer, alice, bob, gw);
             env.close();
@@ -1330,10 +1214,6 @@ struct DepositPreauth_test : public beast::unit_test::suite
             testcase("Escrow failed with expired credentials.");
 
             Env env(*this);
-            Account const issuer{"issuer"};
-            Account const alice{"alice"};
-            Account const bob{"bob"};
-            Account const zelda{"zelda"};
 
             env.fund(XRP(5000), issuer, alice, bob, zelda);
             env.close();
@@ -1410,7 +1290,7 @@ struct DepositPreauth_test : public beast::unit_test::suite
         testEnable();
         testInvalid();
         auto const supported{jtx::supported_amendments()};
-        testPayment(supported - featureDepositPreauth);
+        testPayment(supported - featureDepositPreauth - featureCredentials);
         testPayment(supported);
         testCredentials();
         testExpCreds();

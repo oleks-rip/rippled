@@ -1516,21 +1516,29 @@ struct Escrow_test : public beast::unit_test::suite
         using namespace jtx;
         using namespace std::chrono;
 
+        Account const alice{"alice"};
+        Account const bob{"bob"};
+        Account const carol{"carol"};
+        Account const dillon{"dillon "};
+        Account const zelda{"zelda"};
+
+        const char credType[] = "abcde";
+
         {
             // Credentials amendment not enabled
             Env env(*this, supported_amendments() - featureCredentials);
-            env.fund(XRP(5000), "alice", "bob");
+            env.fund(XRP(5000), alice, bob);
             env.close();
 
-            auto const seq2 = env.seq("alice");
-            env(escrow("alice", "bob", XRP(1000)),
+            auto const seq2 = env.seq(alice);
+            env(escrow(alice, bob, XRP(1000)),
                 finish_time(env.now() + 1s),
                 fee(1500));
             env.close();
             std::string const credIdx =
                 "48004829F915654A81B11C4AB8218D96FED67F209B58328A72314FB6EA288B"
                 "E4";
-            env(finish("bob", "alice", seq2),
+            env(finish(bob, alice, seq2),
                 credentials::IDs({credIdx}),
                 fee(1500),
                 ter(temDISABLED));
@@ -1538,14 +1546,6 @@ struct Escrow_test : public beast::unit_test::suite
 
         {
             Env env(*this);
-
-            const char credType[] = "abcde";
-
-            Account const alice{"alice"};
-            Account const bob{"bob"};
-            Account const carol{"carol"};
-            Account const dillon{"dillon "};
-            Account const zelda{"zelda"};
 
             env.fund(XRP(5000), alice, bob, carol, dillon, zelda);
             env.close();
@@ -1566,7 +1566,7 @@ struct Escrow_test : public beast::unit_test::suite
             env(fset(bob, asfDepositAuth), fee(drops(10)));
             env.close();
 
-            // Fail, credentials doesn’t belong to
+            // Fail, credentials doesn’t belong to root account
             env(finish(dillon, alice, seq),
                 credentials::IDs({credIdx}),
                 fee(1500),
@@ -1583,7 +1583,7 @@ struct Escrow_test : public beast::unit_test::suite
             env(credentials::accept(carol, zelda, credType));
             env.close();
 
-            // Fail, credentials no depositPreauth
+            // Fail, no depositPreauth
             env(finish(carol, alice, seq),
                 credentials::IDs({credIdx}),
                 fee(1500),
@@ -1598,6 +1598,71 @@ struct Escrow_test : public beast::unit_test::suite
                 credentials::IDs({credIdx}),
                 fee(1500));
             env.close();
+        }
+
+        {
+            testcase("Escrow with credentials without depositPreauth");
+            using namespace std::chrono;
+
+            Env env(*this);
+
+            env.fund(XRP(5000), alice, bob, carol, dillon, zelda);
+            env.close();
+
+            env(credentials::create(carol, zelda, credType));
+            env.close();
+            env(credentials::accept(carol, zelda, credType));
+            env.close();
+            auto const jv =
+                credentials::ledgerEntryCredential(env, carol, zelda, credType);
+            std::string const credIdx = jv[jss::result][jss::index].asString();
+
+            auto const seq = env.seq(alice);
+            env(escrow(alice, bob, XRP(1000)),
+                finish_time(env.now() + 50s),
+                fee(1500));
+            // time advance
+            env.close();
+            env.close();
+            env.close();
+            env.close();
+            env.close();
+            env.close();
+
+            // Succeed, Bob doesn't require preauthorization
+            env(finish(carol, alice, seq),
+                credentials::IDs({credIdx}),
+                fee(1500));
+            env.close();
+
+            {
+                const char credType2[] = "fghijk";
+
+                env(credentials::create(bob, zelda, credType2));
+                env.close();
+                env(credentials::accept(bob, zelda, credType2));
+                env.close();
+                auto const credIdxBob =
+                    credentials::ledgerEntryCredential(
+                        env, bob, zelda, credType2)[jss::result][jss::index]
+                        .asString();
+
+                auto const seq1 = env.seq(alice);
+                env(escrow(alice, bob, XRP(1000)), finish_time(env.now() + 1s));
+                env.close();
+
+                // Bob require preauthorization
+                env(fset(bob, asfDepositAuth), fee(drops(10)));
+                env.close();
+                env(deposit::authCredentials(bob, {{zelda, credType}}));
+                env.close();
+
+                // Use any valid credentials if src == dst
+                env(finish(bob, alice, seq1),
+                    credentials::IDs({credIdxBob}),
+                    fee(1500));
+                env.close();
+            }
         }
     }
 

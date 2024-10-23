@@ -883,7 +883,7 @@ struct PayChan_test : public beast::unit_test::suite
             env(fset(bob, asfDepositAuth));
             env.close();
 
-            // Fail, credentials doesn’t belong to
+            // Fail, credentials doesn’t belong to root account
             env(claim(dillon, chan, delta, delta),
                 credentials::IDs({credIdx}),
                 ter(tecBAD_CREDENTIALS));
@@ -948,6 +948,38 @@ struct PayChan_test : public beast::unit_test::suite
                 env(claim(alice, chan, delta, delta),
                     credentials::IDs({credIdx}));
             }
+        }
+
+        {
+            Env env{*this};
+            env.fund(XRP(10000), alice, bob, carol, dillon, zelda);
+
+            auto const pk = alice.pk();
+            auto const settleDelay = 100s;
+            auto const chan = channel(alice, bob, env.seq(alice));
+            env(create(alice, bob, XRP(1000), settleDelay, pk));
+            env.close();
+
+            // alice add funds to the channel
+            env(fund(alice, chan, XRP(1000)));
+            env.close();
+
+            auto const delta = XRP(500).value();
+
+            {  // create credentials
+                env(credentials::create(alice, carol, credType));
+                env.close();
+                env(credentials::accept(alice, carol, credType));
+                env.close();
+            }
+
+            auto const jv =
+                credentials::ledgerEntryCredential(env, alice, carol, credType);
+            std::string const credIdx = jv[jss::result][jss::index].asString();
+
+            // Suceed, lsfDepositAuth is not set
+            env(claim(alice, chan, delta, delta), credentials::IDs({credIdx}));
+            env.close();
         }
 
         {

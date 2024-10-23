@@ -72,15 +72,14 @@ struct Credentials_test : public beast::unit_test::suite
         const char credType[] = "abcde";
         const char uri[] = "uri";
 
+        Account const issuer{"issuer"};
+        Account const subject{"subject"};
+        Account const other{"other"};
+
         {
             testcase("Credentials from issuing side.");
 
-            using namespace jtx;
             Env env{*this, features};
-
-            Account const issuer{"issuer"};
-            Account const subject{"subject"};
-            Account const other{"other"};
 
             auto const credKey = credentialKeylet(subject, issuer, credType);
 
@@ -270,9 +269,6 @@ struct Credentials_test : public beast::unit_test::suite
         {
             using namespace jtx;
             Env env{*this, features};
-            Account const issuer{"issuer"};
-            Account const subject{"subject"};
-            Account const other{"other"};
 
             env.fund(XRP(5000), subject, issuer, other);
             env.close();
@@ -314,8 +310,6 @@ struct Credentials_test : public beast::unit_test::suite
 
             using namespace jtx;
             Env env{*this, features};
-            Account const issuer{"issuer"};
-            Account const subject{"subject"};
 
             env.fund(XRP(5000), subject, issuer);
             env.close();
@@ -372,11 +366,12 @@ struct Credentials_test : public beast::unit_test::suite
 
         const char credType[] = "abcde";
 
+        Account const issuer{"issuer"};
+        Account const subject{"subject"};
+
         {
             using namespace jtx;
             Env env{*this, features};
-            Account const issuer{"issuer"};
-            Account const subject{"subject"};
 
             env.fund(XRP(5000), subject, issuer);
             env.close();
@@ -475,8 +470,6 @@ struct Credentials_test : public beast::unit_test::suite
         {
             using namespace jtx;
             Env env{*this, features};
-            Account const issuer{"issuer"};
-            Account const subject{"subject"};
 
             env.fund(XRP(5000), issuer);
             env.close();
@@ -491,8 +484,6 @@ struct Credentials_test : public beast::unit_test::suite
         {
             using namespace jtx;
             Env env{*this, features};
-            Account const issuer{"issuer"};
-            Account const subject{"subject"};
 
             auto const reserve = drops(env.current()->fees().accountReserve(0));
             env.fund(reserve, subject, issuer);
@@ -510,13 +501,15 @@ struct Credentials_test : public beast::unit_test::suite
     void
     testAcceptFailed(FeatureBitset features)
     {
+        using namespace jtx;
+
         const char credType[] = "abcde";
+        Account const issuer{"issuer"};
+        Account const subject{"subject"};
+        Account const other{"other"};
 
         {
-            using namespace jtx;
             Env env{*this, features};
-            Account const issuer{"issuer"};
-            Account const subject{"subject"};
 
             env.fund(XRP(5000), subject, issuer);
 
@@ -537,10 +530,7 @@ struct Credentials_test : public beast::unit_test::suite
         }
 
         {
-            using namespace jtx;
             Env env{*this, features};
-            Account const issuer{"issuer"};
-            Account const subject{"subject"};
 
             env.fund(drops(env.current()->fees().accountReserve(1)), issuer);
             env.fund(drops(env.current()->fees().accountReserve(0)), subject);
@@ -560,8 +550,6 @@ struct Credentials_test : public beast::unit_test::suite
         {
             using namespace jtx;
             Env env{*this, features};
-            Account const issuer{"issuer"};
-            Account const subject{"subject"};
 
             env.fund(XRP(5000), subject, issuer);
             env.close();
@@ -610,9 +598,6 @@ struct Credentials_test : public beast::unit_test::suite
         {
             using namespace jtx;
             Env env{*this, features};
-            Account const issuer{"issuer"};
-            Account const subject{"subject"};
-            Account const other{"other"};
 
             env.fund(XRP(5000), issuer, subject, other);
             env.close();
@@ -644,20 +629,19 @@ struct Credentials_test : public beast::unit_test::suite
         using namespace test::jtx;
 
         const char credType[] = "abcde";
+        Account const issuer{"issuer"};
+        Account const subject{"subject"};
+        Account const other{"other"};
 
         {
             using namespace jtx;
             Env env{*this, features};
-            Account const issuer{"issuer"};
-            Account const subject{"subject"};
-            Account const other{"other"};
 
             env.fund(XRP(5000), subject, issuer, other);
             env.close();
 
             {
                 testcase("CredentialsDelete fail, no Credentials.");
-
                 env(credentials::del(subject, subject, issuer, credType),
                     ter(tecNO_ENTRY));
                 env.close();
@@ -742,12 +726,12 @@ struct Credentials_test : public beast::unit_test::suite
         using namespace test::jtx;
 
         const char credType[] = "abcde";
+        Account const issuer{"issuer"};
+        Account const subject{"subject"};
 
         {
             using namespace jtx;
             Env env{*this, features};
-            Account const issuer{"issuer"};
-            Account const subject{"subject"};
 
             env.fund(XRP(5000), subject, issuer);
             env.close();

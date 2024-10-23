@@ -135,7 +135,6 @@ TER
 CredentialCreate::preclaim(PreclaimContext const& ctx)
 {
     auto const credType(ctx.tx[sfCredentialType]);
-    AccountID const issuer(ctx.tx[sfAccount]);
     auto const subject = ctx.tx[sfSubject];
 
     if (!ctx.view.exists(keylet::account(subject)))
@@ -144,7 +143,8 @@ CredentialCreate::preclaim(PreclaimContext const& ctx)
         return tecNO_TARGET;
     }
 
-    if (ctx.view.exists(keylet::credential(subject, issuer, credType)))
+    if (ctx.view.exists(
+            keylet::credential(subject, ctx.tx[sfAccount], credType)))
     {
         JLOG(ctx.j.trace()) << "Credential already exists.";
         return tecDUPLICATE;
@@ -157,10 +157,13 @@ TER
 CredentialCreate::doApply()
 {
     auto const subject = ctx_.tx[sfSubject];
-    auto const issuer = account_;
     auto const credType(ctx_.tx[sfCredentialType]);
-    Keylet const credentialKey = keylet::credential(subject, issuer, credType);
+    Keylet const credentialKey =
+        keylet::credential(subject, account_, credType);
+
     auto const sleCred = std::make_shared<SLE>(credentialKey);
+    if (!sleCred)
+        return tefINTERNAL;
 
     auto const optExp = ctx_.tx[~sfExpiration];
     if (optExp)
@@ -179,6 +182,9 @@ CredentialCreate::doApply()
     }
 
     auto const sleIssuer = view().peek(keylet::account(account_));
+    if (!sleIssuer)
+        return tefINTERNAL;
+
     {
         STAmount const reserve{view().fees().accountReserve(
             sleIssuer->getFieldU32(sfOwnerCount) + 1)};
@@ -187,18 +193,20 @@ CredentialCreate::doApply()
     }
 
     sleCred->setAccountID(sfSubject, subject);
-    sleCred->setAccountID(sfIssuer, issuer);
+    sleCred->setAccountID(sfIssuer, account_);
     sleCred->setFieldVL(sfCredentialType, credType);
 
     if (ctx_.tx.isFieldPresent(sfURI))
         sleCred->setFieldVL(sfURI, ctx_.tx.getFieldVL(sfURI));
 
-    if (subject == issuer)
+    if (subject == account_)
         sleCred->setFieldU32(sfFlags, lsfAccepted);
 
     {
         auto const page = view().dirInsert(
-            keylet::ownerDir(issuer), credentialKey, describeOwnerDir(issuer));
+            keylet::ownerDir(account_),
+            credentialKey,
+            describeOwnerDir(account_));
         JLOG(j_.trace()) << "Adding Credential to owner directory "
                          << to_string(credentialKey.key) << ": "
                          << (page ? "success" : "failure");
@@ -209,7 +217,7 @@ CredentialCreate::doApply()
         adjustOwnerCount(view(), sleIssuer, 1, j_);
     }
 
-    if (subject != issuer)
+    if (subject != account_)
     {
         auto const page = view().dirInsert(
             keylet::ownerDir(subject),
@@ -341,6 +349,8 @@ CredentialDelete::doApply()
     auto const credType(ctx_.tx[sfCredentialType]);
     auto const sleCred =
         view().peek(keylet::credential(subject, issuer, credType));
+    if (!sleCred)
+        return tefINTERNAL;
 
     if ((subject != account_) && (issuer != account_) &&
         !checkExpired(sleCred, ctx_.view().info().parentCloseTime))
@@ -411,12 +421,14 @@ CredentialAccept::preclaim(PreclaimContext const& ctx)
 TER
 CredentialAccept::doApply()
 {
-    AccountID const subject{account_};
     AccountID const issuer{ctx_.tx[sfIssuer]};
 
     // Both exist as credential object exist itself (checked in preclaim)
-    auto const sleSubject = view().peek(keylet::account(subject));
+    auto const sleSubject = view().peek(keylet::account(account_));
     auto const sleIssuer = view().peek(keylet::account(issuer));
+
+    if (!sleSubject || !sleIssuer)
+        return tefINTERNAL;
 
     {
         STAmount const reserve{view().fees().accountReserve(
@@ -426,7 +438,7 @@ CredentialAccept::doApply()
     }
 
     auto const credType(ctx_.tx[sfCredentialType]);
-    Keylet const credentialKey = keylet::credential(subject, issuer, credType);
+    Keylet const credentialKey = keylet::credential(account_, issuer, credType);
     auto const sleCred = view().peek(credentialKey);  // Checked in preclaim()
 
     if (checkExpired(sleCred, view().info().parentCloseTime))
