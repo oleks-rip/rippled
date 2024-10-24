@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <xrpld/app/misc/CredentialsHelper.h>
 #include <xrpld/app/paths/RippleCalc.h>
 #include <xrpld/app/tx/detail/Payment.h>
 #include <xrpld/core/Config.h>
@@ -198,6 +199,9 @@ Payment::preflight(PreflightContext const& ctx)
         }
     }
 
+    if (auto const err = credentials::check(ctx); !isTesSuccess(err))
+        return err;
+
     return preflight2(ctx);
 }
 
@@ -282,6 +286,11 @@ Payment::preclaim(PreclaimContext const& ctx)
         }
     }
 
+    if (auto const err =
+            credentials::valid(ctx, ctx.tx[sfAccount], uDstAccountID, sleDst);
+        !isTesSuccess(err))
+        return err;
+
     return tesSUCCESS;
 }
 
@@ -353,6 +362,8 @@ Payment::doApply()
     if (!depositPreauth && bRipple && reqDepositAuth)
         return tecNO_PERMISSION;
 
+    bool const credentialsPresent = ctx_.tx.isFieldPresent(sfCredentialIDs);
+
     if (bRipple)
     {
         // Ripple payment with at least one intermediate step and uses
@@ -364,7 +375,13 @@ Payment::doApply()
             // authorization has two ways to get an IOU Payment in:
             //  1. If Account == Destination, or
             //  2. If Account is deposit preauthorized by destination.
-            if (uDstAccountID != account_)
+
+            if (credentialsPresent)
+            {
+                if (credentials::removeExpired(view(), ctx_.tx, j_))
+                    return tecEXPIRED;
+            }
+            else if (uDstAccountID != account_)
             {
                 if (!view().exists(
                         keylet::depositPreauth(uDstAccountID, account_)))
@@ -478,7 +495,13 @@ Payment::doApply()
         // We choose the base reserve as our bound because it is
         // a small number that seldom changes but is always sufficient
         // to get the account un-wedged.
-        if (uDstAccountID != account_)
+
+        if (credentialsPresent)
+        {
+            if (credentials::removeExpired(view(), ctx_.tx, j_))
+                return tecEXPIRED;
+        }
+        else if (uDstAccountID != account_)
         {
             if (!view().exists(keylet::depositPreauth(uDstAccountID, account_)))
             {
