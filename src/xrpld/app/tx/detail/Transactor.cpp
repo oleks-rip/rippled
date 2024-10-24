@@ -18,9 +18,9 @@
 //==============================================================================
 
 #include <xrpld/app/main/Application.h>
+#include <xrpld/app/misc/CredentialsHelper.h>
 #include <xrpld/app/misc/LoadFeeTrack.h>
 #include <xrpld/app/tx/apply.h>
-#include <xrpld/app/tx/detail/Credentials.h>
 #include <xrpld/app/tx/detail/NFTokenUtils.h>
 #include <xrpld/app/tx/detail/SignerEntries.h>
 #include <xrpld/app/tx/detail/Transactor.h>
@@ -770,7 +770,7 @@ removeExpiredCredentials(
     for (auto const& index : creds)
     {
         if (auto const sle = view.peek(keylet::credential(index)))
-            CredentialDelete::deleteSLE(view, sle, viewJ);
+            credentials::deleteSLE(view, sle, viewJ);
     }
 }
 

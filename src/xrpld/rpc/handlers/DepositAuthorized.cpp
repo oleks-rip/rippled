@@ -17,7 +17,7 @@
 */
 //==============================================================================
 
-#include <xrpld/app/tx/detail/Credentials.h>
+#include <xrpld/app/misc/CredentialsHelper.h>
 #include <xrpld/ledger/ReadView.h>
 #include <xrpld/rpc/Context.h>
 #include <xrpld/rpc/detail/RPCHelpers.h>
@@ -90,7 +90,8 @@ doDepositAuthorized(RPC::JsonContext& context)
         return result;
     }
 
-    bool const reqAuth = sleDest->getFlags() & lsfDepositAuth;
+    bool const reqAuth =
+        (sleDest->getFlags() & lsfDepositAuth) && (srcAcct != dstAcct);
     bool const credentialsPresent = params.isMember(jss::credentials);
 
     STArray authCreds;
@@ -134,14 +135,14 @@ doDepositAuthorized(RPC::JsonContext& context)
                 return result;
             }
 
-            if (Credentials::checkExpired(
+            if (credentials::checkExpired(
                     sleCred, context.app.timeKeeper().now()))
             {
                 RPC::inject_error(rpcBAD_CREDENTIALS, result);
                 return result;
             }
 
-            if (reqAuth && (srcAcct != dstAcct))
+            if (reqAuth)
             {
                 auto credential = STObject::makeInnerObject(sfCredential);
                 credential.setAccountID(sfIssuer, (*sleCred)[sfIssuer]);
@@ -156,7 +157,7 @@ doDepositAuthorized(RPC::JsonContext& context)
     // not set, then the deposit should be fine.
     bool depositAuthorized = true;
 
-    if (reqAuth && (srcAcct != dstAcct))
+    if (reqAuth)
         depositAuthorized = credentialsPresent
             ? ledger->exists(keylet::depositPreauth(dstAcct, authCreds))
             : ledger->exists(keylet::depositPreauth(dstAcct, srcAcct));

@@ -59,12 +59,6 @@ public:
     static TER
     preclaim(PreclaimContext const& ctx);
 
-    static TER
-    deleteSLE(
-        ApplyView& view,
-        std::shared_ptr<SLE> const& sle,
-        beast::Journal j);
-
     TER
     doApply() override;
 };
@@ -89,17 +83,5 @@ public:
     TER
     doApply() override;
 };
-
-namespace Credentials {
-bool
-checkExpired(
-    std::shared_ptr<SLE const> const& sle,
-    NetClock::time_point const& closed);
-
-// return true if at least 1 expired credentials was found(and deleted)
-bool
-removeExpired(ApplyView& view, STTx const& tx, beast::Journal const j);
-
-}  // namespace Credentials
 
 }  // namespace ripple

@@ -17,7 +17,7 @@
 */
 //==============================================================================
 
-#include <xrpld/app/tx/detail/Credentials.h>
+#include <xrpld/app/misc/CredentialsHelper.h>
 #include <xrpld/app/tx/detail/DID.h>
 #include <xrpld/app/tx/detail/DeleteAccount.h>
 #include <xrpld/app/tx/detail/DeleteOracle.h>
@@ -52,24 +52,8 @@ DeleteAccount::preflight(PreflightContext const& ctx)
         // An account cannot be deleted and give itself the resulting XRP.
         return temDST_IS_SRC;
 
-    if (ctx.tx.isFieldPresent(sfCredentialIDs))
-    {
-        if (!ctx.rules.enabled(featureCredentials))
-        {
-            JLOG(ctx.j.trace()) << "Credentials rule is disabled.";
-            return temDISABLED;
-        }
-
-        auto const& credentials = ctx.tx.getFieldV256(sfCredentialIDs);
-        if (credentials.empty() ||
-            (credentials.size() > credentialsArrayMaxSize))
-        {
-            JLOG(ctx.j.trace())
-                << "Malformed transaction: Credentials array size is invalid: "
-                << credentials.size();
-            return temMALFORMED;
-        }
-    }
+    if (auto const err = credentials::check(ctx); !isTesSuccess(err))
+        return err;
 
     return preflight2(ctx);
 }
@@ -188,7 +172,7 @@ removeCredentialFromLedger(
     std::shared_ptr<SLE> const& sleDel,
     beast::Journal j)
 {
-    return CredentialDelete::deleteSLE(view, sleDel, j);
+    return credentials::deleteSLE(view, sleDel, j);
 }
 
 // Return nullptr if the LedgerEntryType represents an obligation that can't
@@ -236,65 +220,22 @@ DeleteAccount::preclaim(PreclaimContext const& ctx)
     if ((*sleDst)[sfFlags] & lsfRequireDestTag && !ctx.tx[~sfDestinationTag])
         return tecDST_TAG_NEEDED;
 
-    bool const authEnabled = sleDst->getFlags() & lsfDepositAuth;
+    auto sleAccount = ctx.view.read(keylet::account(account));
+    assert(sleAccount);
+    if (!sleAccount)
+        return terNO_ACCOUNT;
 
     // Check whether the destination account requires deposit authorization.
-    if (ctx.tx.isFieldPresent(sfCredentialIDs))
-    {
-        STArray authCreds;
-        for (auto const& h : ctx.tx.getFieldV256(sfCredentialIDs))
-        {
-            auto const sleCred = ctx.view.read(keylet::credential(h));
-            if (!sleCred)
-            {
-                JLOG(ctx.j.trace()) << "Credential doesn't exist. Cred: " << h;
-                return tecBAD_CREDENTIALS;
-            }
-
-            if (sleCred->getAccountID(sfSubject) != account)
-            {
-                JLOG(ctx.j.trace())
-                    << "Credential doesn’t belong to current account. Cred: "
-                    << h;
-                return tecBAD_CREDENTIALS;
-            }
-
-            if (!(sleCred->getFlags() & lsfAccepted))
-            {
-                JLOG(ctx.j.trace()) << "Credential not accepted. Cred: " << h;
-                return tecBAD_CREDENTIALS;
-            }
-
-            if (authEnabled)
-            {
-                auto credential = STObject::makeInnerObject(sfCredential);
-                credential.setAccountID(
-                    sfIssuer, sleCred->getAccountID(sfIssuer));
-                credential.setFieldVL(
-                    sfCredentialType, sleCred->getFieldVL(sfCredentialType));
-                authCreds.push_back(std::move(credential));
-            }
-        }
-
-        if (authEnabled &&
-            !ctx.view.exists(keylet::depositPreauth(dst, authCreds)))
-        {
-            JLOG(ctx.j.trace()) << "DepositPreauth doesn't exist";
-            return tecNO_PERMISSION;
-        }
-    }
-    else if (
+    if (auto const err = credentials::valid(ctx, account, dst, sleDst);
+        !isTesSuccess(err))
+        return err;
+    if (!ctx.tx.isFieldPresent(sfCredentialIDs) &&
         ctx.view.rules().enabled(featureDepositAuth) &&
         (sleDst->getFlags() & lsfDepositAuth))
     {
         if (!ctx.view.exists(keylet::depositPreauth(dst, account)))
             return tecNO_PERMISSION;
     }
-
-    auto sleAccount = ctx.view.read(keylet::account(account));
-    assert(sleAccount);
-    if (!sleAccount)
-        return terNO_ACCOUNT;
 
     if (ctx.view.rules().enabled(featureNonFungibleTokensV1))
     {
@@ -405,7 +346,7 @@ DeleteAccount::doApply()
 
     if (ctx_.tx.isFieldPresent(sfCredentialIDs))
     {
-        if (Credentials::removeExpired(view(), ctx_.tx, j_))
+        if (credentials::removeExpired(view(), ctx_.tx, j_))
             return tecEXPIRED;
     }
 

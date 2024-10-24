@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <xrpld/app/misc/CredentialsHelper.h>
 #include <xrpld/app/tx/detail/Credentials.h>
 
 #include <xrpld/core/TimeKeeper.h>
@@ -45,50 +46,7 @@ namespace ripple {
    directly involving the issuer at all.
 */
 
-//------------------------------------------------------------------------------
-
-namespace Credentials {
-
-bool
-checkExpired(
-    std::shared_ptr<SLE const> const& sle,
-    NetClock::time_point const& closed)
-{
-    std::uint32_t const exp = (*sle)[~sfExpiration].value_or(
-        std::numeric_limits<std::uint32_t>::max());
-    std::uint32_t const now = closed.time_since_epoch().count();
-    return now > exp;
-}
-
-bool
-removeExpired(ApplyView& view, STTx const& tx, beast::Journal const j)
-{
-    auto const closeTime = view.info().parentCloseTime;
-    bool foundExpired = false;
-
-    STVector256 const& arr(tx.getFieldV256(sfCredentialIDs));
-    for (auto const& h : arr)
-    {
-        // Credentials already checked in preclaim. Look only for expired here.
-        auto const k = keylet::credential(h);
-        auto const sleCred = view.peek(k);
-
-        if (checkExpired(sleCred, closeTime))
-        {
-            JLOG(j.trace())
-                << "Credentials are expired. Cred: " << sleCred->getText();
-            // delete expired credentials even if the transaction failed
-            CredentialDelete::deleteSLE(view, sleCred, j);
-            foundExpired = true;
-        }
-    }
-
-    return foundExpired;
-}
-
-}  // namespace Credentials
-
-using namespace Credentials;
+using namespace credentials;
 
 // ------- CREATE --------------------------
 
@@ -287,60 +245,6 @@ CredentialDelete::preclaim(PreclaimContext const& ctx)
 }
 
 TER
-CredentialDelete::deleteSLE(
-    ApplyView& view,
-    std::shared_ptr<SLE> const& sle,
-    beast::Journal j)
-{
-    if (!sle)
-        return tecNO_ENTRY;
-
-    auto delSLE =
-        [&view, &sle, j](
-            AccountID const& account, SField const& node, bool isOwner) -> TER {
-        auto const sleAccount = view.peek(keylet::account(account));
-        if (!sleAccount)
-        {
-            JLOG(j.fatal()) << "Internal error: can't retrieve Owner account.";
-            return tecINTERNAL;
-        }
-
-        // Remove object from owner directory
-        std::uint64_t const page = sle->getFieldU64(node);
-        if (!view.dirRemove(keylet::ownerDir(account), page, sle->key(), false))
-        {
-            JLOG(j.fatal()) << "Unable to delete Credential from owner.";
-            return tefBAD_LEDGER;
-        }
-
-        if (isOwner)
-            adjustOwnerCount(view, sleAccount, -1, j);
-
-        return tesSUCCESS;
-    };
-
-    auto const issuer = sle->getAccountID(sfIssuer);
-    auto const subject = sle->getAccountID(sfSubject);
-    bool const accepted = sle->getFlags() & lsfAccepted;
-
-    auto err = delSLE(issuer, sfIssuerNode, !accepted || (subject == issuer));
-    if (!isTesSuccess(err))
-        return err;
-
-    if (subject != issuer)
-    {
-        err = delSLE(subject, sfSubjectNode, accepted);
-        if (!isTesSuccess(err))
-            return err;
-    }
-
-    // Remove object from ledger
-    view.erase(sle);
-
-    return tesSUCCESS;
-}
-
-TER
 CredentialDelete::doApply()
 {
     auto const subject = ctx_.tx[~sfSubject].value_or(account_);
@@ -445,7 +349,7 @@ CredentialAccept::doApply()
     {
         JLOG(j_.trace()) << "Credential is expired: " << sleCred->getText();
         // delete expired credentials even if the transaction failed
-        CredentialDelete::deleteSLE(view(), sleCred, j_);
+        credentials::deleteSLE(view(), sleCred, j_);
         return tecEXPIRED;
     }
 

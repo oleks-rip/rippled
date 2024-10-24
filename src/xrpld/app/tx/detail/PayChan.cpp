@@ -17,7 +17,7 @@
 */
 //==============================================================================
 
-#include <xrpld/app/tx/detail/Credentials.h>
+#include <xrpld/app/misc/CredentialsHelper.h>
 #include <xrpld/app/tx/detail/PayChan.h>
 #include <xrpld/ledger/ApplyView.h>
 #include <xrpld/ledger/View.h>
@@ -454,24 +454,8 @@ PayChanClaim::preflight(PreflightContext const& ctx)
             return temBAD_SIGNATURE;
     }
 
-    if (ctx.tx.isFieldPresent(sfCredentialIDs))
-    {
-        if (!ctx.rules.enabled(featureCredentials))
-        {
-            JLOG(ctx.j.trace()) << "Credentials rule is disabled.";
-            return temDISABLED;
-        }
-
-        auto const& credentials = ctx.tx.getFieldV256(sfCredentialIDs);
-        if (credentials.empty() ||
-            (credentials.size() > credentialsArrayMaxSize))
-        {
-            JLOG(ctx.j.trace())
-                << "Malformed transaction: Credentials array size is invalid: "
-                << credentials.size();
-            return temMALFORMED;
-        }
-    }
+    if (auto const err = credentials::check(ctx); !isTesSuccess(err))
+        return err;
 
     return preflight2(ctx);
 }
@@ -484,53 +468,10 @@ PayChanClaim::preclaim(PreclaimContext const& ctx)
     if (!slep)
         return tecNO_TARGET;
 
-    if (ctx.tx.isFieldPresent(sfCredentialIDs))
-    {
-        AccountID const dst = slep->getAccountID(sfDestination);
-        auto const sleDst = ctx.view.read(keylet::account(dst));
-        if (!sleDst)
-            return tecNO_DST;
-
-        AccountID const src = ctx.tx[sfAccount];
-
-        STArray authCreds;
-        for (auto const& h : ctx.tx.getFieldV256(sfCredentialIDs))
-        {
-            auto const sleCred = ctx.view.read(keylet::credential(h));
-            if (!sleCred)
-            {
-                JLOG(ctx.j.trace()) << "Credential doesn't exist. Cred: " << h;
-                return tecBAD_CREDENTIALS;
-            }
-
-            if (sleCred->getAccountID(sfSubject) != src)
-            {
-                JLOG(ctx.j.trace())
-                    << "Credential doesn’t belong to current account. Cred: "
-                    << h;
-                return tecBAD_CREDENTIALS;
-            }
-
-            if (!(sleCred->getFlags() & lsfAccepted))
-            {
-                JLOG(ctx.j.trace()) << "Credential not accepted. Cred: " << h;
-                return tecBAD_CREDENTIALS;
-            }
-
-            auto credential = STObject::makeInnerObject(sfCredential);
-            credential.setAccountID(sfIssuer, sleCred->getAccountID(sfIssuer));
-            credential.setFieldVL(
-                sfCredentialType, sleCred->getFieldVL(sfCredentialType));
-            authCreds.push_back(std::move(credential));
-        }
-
-        if (((sleDst->getFlags() & lsfDepositAuth) && (src != dst)) &&
-            !ctx.view.exists(keylet::depositPreauth(dst, authCreds)))
-        {
-            JLOG(ctx.j.trace()) << "DepositPreauth doesn't exist";
-            return tecNO_PERMISSION;
-        }
-    }
+    if (auto const err = credentials::valid(
+            ctx, ctx.tx[sfAccount], slep->getAccountID(sfDestination));
+        !isTesSuccess(err))
+        return err;
 
     return tesSUCCESS;
 }
@@ -596,7 +537,7 @@ PayChanClaim::doApply()
         // Check whether the destination account requires deposit authorization.
         if (ctx_.tx.isFieldPresent(sfCredentialIDs))
         {
-            if (Credentials::removeExpired(view(), ctx_.tx, j_))
+            if (credentials::removeExpired(view(), ctx_.tx, j_))
                 return tecEXPIRED;
         }
         else if (depositAuth && (sled->getFlags() & lsfDepositAuth))

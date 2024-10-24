@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
+#include <xrpld/app/misc/CredentialsHelper.h>
 #include <xrpld/app/paths/RippleCalc.h>
-#include <xrpld/app/tx/detail/Credentials.h>
 #include <xrpld/app/tx/detail/Payment.h>
 #include <xrpld/core/Config.h>
 #include <xrpl/basics/Log.h>
@@ -199,24 +199,8 @@ Payment::preflight(PreflightContext const& ctx)
         }
     }
 
-    if (ctx.tx.isFieldPresent(sfCredentialIDs))
-    {
-        if (!ctx.rules.enabled(featureCredentials))
-        {
-            JLOG(ctx.j.trace()) << "Credentials rule is disabled.";
-            return temDISABLED;
-        }
-
-        auto const& credentials = ctx.tx.getFieldV256(sfCredentialIDs);
-        if (credentials.empty() ||
-            (credentials.size() > credentialsArrayMaxSize))
-        {
-            JLOG(ctx.j.trace())
-                << "Malformed transaction: Credentials array size is invalid: "
-                << credentials.size();
-            return temMALFORMED;
-        }
-    }
+    if (auto const err = credentials::check(ctx); !isTesSuccess(err))
+        return err;
 
     return preflight2(ctx);
 }
@@ -302,58 +286,10 @@ Payment::preclaim(PreclaimContext const& ctx)
         }
     }
 
-    if (ctx.tx.isFieldPresent(sfCredentialIDs))
-    {
-        // Don't check for minimal balance with credentials provided.
-        // The amendement rules have already been checked in
-        // preflight().
-
-        auto const src = ctx.tx[sfAccount];
-
-        STArray authCreds;
-        for (auto const& h : ctx.tx.getFieldV256(sfCredentialIDs))
-        {
-            auto const sleCred = ctx.view.read(keylet::credential(h));
-            if (!sleCred)
-            {
-                JLOG(ctx.j.trace()) << "Credential doesn't exist. Cred: " << h;
-                return tecBAD_CREDENTIALS;
-            }
-
-            if (sleCred->getAccountID(sfSubject) != src)
-            {
-                JLOG(ctx.j.trace())
-                    << "Credential doesn’t belong to current account. Cred: "
-                    << h;
-                return tecBAD_CREDENTIALS;
-            }
-
-            if (!(sleCred->getFlags() & lsfAccepted))
-            {
-                JLOG(ctx.j.trace()) << "Credential not accepted. Cred: " << h;
-                return tecBAD_CREDENTIALS;
-            }
-
-            if ((sleDst && (sleDst->getFlags() & lsfDepositAuth)) &&
-                (src != uDstAccountID))
-            {
-                auto credential = STObject::makeInnerObject(sfCredential);
-                credential.setAccountID(
-                    sfIssuer, sleCred->getAccountID(sfIssuer));
-                credential.setFieldVL(
-                    sfCredentialType, sleCred->getFieldVL(sfCredentialType));
-                authCreds.push_back(std::move(credential));
-            }
-        }
-
-        if (((sleDst && (sleDst->getFlags() & lsfDepositAuth)) &&
-             (src != uDstAccountID)) &&
-            !ctx.view.exists(keylet::depositPreauth(uDstAccountID, authCreds)))
-        {
-            JLOG(ctx.j.trace()) << "DepositPreauth doesn't exist";
-            return tecNO_PERMISSION;
-        }
-    }
+    if (auto const err =
+            credentials::valid(ctx, ctx.tx[sfAccount], uDstAccountID, sleDst);
+        !isTesSuccess(err))
+        return err;
 
     return tesSUCCESS;
 }
@@ -442,7 +378,7 @@ Payment::doApply()
 
             if (credentialsPresent)
             {
-                if (Credentials::removeExpired(view(), ctx_.tx, j_))
+                if (credentials::removeExpired(view(), ctx_.tx, j_))
                     return tecEXPIRED;
             }
             else if (uDstAccountID != account_)
@@ -562,7 +498,7 @@ Payment::doApply()
 
         if (credentialsPresent)
         {
-            if (Credentials::removeExpired(view(), ctx_.tx, j_))
+            if (credentials::removeExpired(view(), ctx_.tx, j_))
                 return tecEXPIRED;
         }
         else if (uDstAccountID != account_)
