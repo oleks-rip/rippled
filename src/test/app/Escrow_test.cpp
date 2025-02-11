@@ -25,6 +25,8 @@
 #include <xrpl/protocol/TxFlags.h>
 #include <xrpl/protocol/jss.h>
 
+#include <xrpld/app/misc/WasmVM.h>
+
 #include <algorithm>
 #include <iterator>
 
@@ -1657,15 +1659,19 @@ struct Escrow_test : public beast::unit_test::suite
     }
 
     void
-    testFinishFunction()
+    testFinishFunction(wasmEngines engine)
     {
-        testcase("PoC escrow function");
+        testcase(
+            "PoC escrow function, engine: " +
+            std::to_string(static_cast<int>(engine)));
 
         using namespace jtx;
         using namespace std::chrono;
 
         Account const alice{"alice"};
         Account const carol{"carol"};
+
+        setWasmEngine(engine);
 
         // P4
         static auto wasmHex =
@@ -1729,7 +1735,8 @@ struct Escrow_test : public beast::unit_test::suite
         // testConsequences();
         // testEscrowWithTickets();
         // testCredentials();
-        testFinishFunction();
+        testFinishFunction(wasmEngines::Edge);
+        testFinishFunction(wasmEngines::Time);
     }
 };
 

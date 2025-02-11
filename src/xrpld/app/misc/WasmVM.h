@@ -20,36 +20,54 @@
 #define RIPPLE_APP_MISC_WASMVM_H_INLCUDED
 
 #include <xrpl/basics/Expected.h>
-// #include <xrpl/beast/utility/Journal.h>
+#include <xrpl/beast/utility/Journal.h>
 #include <xrpl/protocol/TER.h>
 
 #include <wasmedge/wasmedge.h>
 
+#include <wasm.h>
+#include <wasmtime.h>
+
+#include <string_view>
+
 namespace ripple {
+
+enum class wasmEngines: int
+{
+    Edge, Time
+};
+
+void setWasmEngine(wasmEngines);
 
 Expected<bool, TER>
 runEscrowWasm(
     std::vector<uint8_t> const& wasmCode,
-    std::string const& funcName,
+    std::string_view funcName,
+    int32_t input);
+
+Expected<bool, TER>
+runEscrowWasmWTime(
+    std::vector<uint8_t> const& wasmCode,
+    std::string_view funcName,
     int32_t input);
 
 Expected<bool, TER>
 runEscrowWasm(
     std::vector<uint8_t> const& wasmCode,
-    std::string const& funcName,
+    std::string_view funcName,
     std::vector<uint8_t> const& accountID);
 
 Expected<bool, TER>
 runEscrowWasm(
     std::vector<uint8_t> const& wasmCode,
-    std::string const& funcName,
+    std::string_view funcName,
     std::vector<uint8_t> const& escrow_tx_json_data,
     std::vector<uint8_t> const& escrow_lo_json_data);
 
 Expected<std::pair<bool, std::string>, TER>
 runEscrowWasmP4(
     std::vector<uint8_t> const& wasmCode,
-    std::string const& funcName,
+    std::string_view funcName,
     std::vector<uint8_t> const& escrow_tx_json_data,
     std::vector<uint8_t> const& escrow_lo_json_data);
 
@@ -67,7 +85,7 @@ struct LedgerDataProvider
 Expected<bool, TER>
 runEscrowWasm(
     std::vector<uint8_t> const& wasmCode,
-    std::string const& funcName,
+    std::string_view funcName,
     LedgerDataProvider* ledgerDataProvider);
 
 }  // namespace ripple
