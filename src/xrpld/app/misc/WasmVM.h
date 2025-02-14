@@ -16,60 +16,55 @@
     OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 //==============================================================================
-#ifndef RIPPLE_APP_MISC_WASMVM_H_INLCUDED
-#define RIPPLE_APP_MISC_WASMVM_H_INLCUDED
+#pragma once
 
 #include <xrpl/basics/Expected.h>
 #include <xrpl/beast/utility/Journal.h>
 #include <xrpl/protocol/TER.h>
 
-#include <wasmedge/wasmedge.h>
-
-#include <wasm.h>
-#include <wasmtime.h>
-
 #include <string_view>
 
 namespace ripple {
 
+using vbytes = std::vector<std::uint8_t>;
+
 enum class wasmEngines: int
 {
-    Edge, Time
+    Edge, Time, Er, END
 };
-
 void setWasmEngine(wasmEngines);
 
 Expected<bool, TER>
 runEscrowWasm(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
     int32_t input);
 
 Expected<bool, TER>
 runEscrowWasmWTime(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
     int32_t input);
 
 Expected<bool, TER>
 runEscrowWasm(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
-    std::vector<uint8_t> const& accountID);
+    vbytes const& accountID);
 
 Expected<bool, TER>
 runEscrowWasm(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
-    std::vector<uint8_t> const& escrow_tx_json_data,
-    std::vector<uint8_t> const& escrow_lo_json_data);
+    vbytes const& escrow_tx_json_data,
+    vbytes const& escrow_lo_json_data);
 
 Expected<std::pair<bool, std::string>, TER>
 runEscrowWasmP4(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
-    std::vector<uint8_t> const& escrow_tx_json_data,
-    std::vector<uint8_t> const& escrow_lo_json_data);
+    vbytes const& escrow_tx_json_data,
+    vbytes const& escrow_lo_json_data);
 
 struct LedgerDataProvider
 {
@@ -84,19 +79,60 @@ struct LedgerDataProvider
 
 Expected<bool, TER>
 runEscrowWasm(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
     LedgerDataProvider* ledgerDataProvider);
 
-}  // namespace ripple
-#endif  // RIPPLE_APP_MISC_WASMVM_H_INLCUDED
 
-// class WasmVM final
-//{
-// public:
-//     explicit WasmVM(beast::Journal j);
-//     ~WasmVM() = default;
-//
-// private:
-//     beast::Journal j_;
-// };
+class WasmEngine
+{
+public:
+    virtual ~WasmEngine() = default;
+
+    virtual Expected<bool, TER>
+    run(vbytes const& wasmCode, std::string_view funcName, int32_t input)
+    {
+        return Unexpected<TER>(tecFAILED_PROCESSING);
+    }
+
+    virtual Expected<bool, TER>
+    run(vbytes const& wasmCode,
+        std::string_view funcName,
+        vbytes const& accountID)
+    {
+        return Unexpected<TER>(tecFAILED_PROCESSING);
+    }
+
+    virtual Expected<bool, TER>
+    run(vbytes const& wasmCode,
+        std::string_view funcName,
+        vbytes const& escrow_tx_json_data,
+        vbytes const& escrow_lo_json_data)
+    {
+        return Unexpected<TER>(tecFAILED_PROCESSING);
+    }
+
+    virtual Expected<std::pair<bool, std::string>, TER>
+    runP4(
+        vbytes const& wasmCode,
+        std::string_view funcName,
+        vbytes const& escrow_tx_json_data,
+        vbytes const& escrow_lo_json_data)
+    {
+        return Unexpected<TER>(tecFAILED_PROCESSING);
+    }
+
+    virtual Expected<bool, TER>
+    run(vbytes const& wasmCode,
+        std::string_view funcName,
+        LedgerDataProvider* ledgerDataProvider)
+    {
+        return Unexpected<TER>(tecFAILED_PROCESSING);
+    }
+
+    static std::unique_ptr<WasmEngine>
+    instance();
+};
+
+
+}  // namespace ripple

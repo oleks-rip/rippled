@@ -34,6 +34,7 @@ class Xrpl(ConanFile):
         'zlib/1.3.1',
         'wasmedge/0.14.1',
         'wasmtime/21.0.0',
+        'wasmer/5.0.0',
     ]
 
     tool_requires = [

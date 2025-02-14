@@ -18,6 +18,10 @@
 //==============================================================================
 
 #include <xrpld/app/misc/WasmVM.h>
+#include <xrpld/app/misc/WasmerVM.h>
+
+#include <wasmedge/wasmedge.h>
+#include <wasmtime.h>
 
 #include <memory>
 
@@ -40,66 +44,8 @@ setWasmEngine(wasmEngines engine)
     // printf("Set Engine: %d\n", static_cast<int>(engine));
 }
 
-class WasmEngineEdge;
-class WasmEngineTime;
-
-class WasmEngine
-{
-public:
-    virtual ~WasmEngine() = default;
-
-    virtual Expected<bool, TER>
-    run(std::vector<uint8_t> const& wasmCode,
-        std::string_view funcName,
-        int32_t input)
-    {
-        return Unexpected<TER>(tecFAILED_PROCESSING);
-    }
-
-    virtual Expected<bool, TER>
-    run(std::vector<uint8_t> const& wasmCode,
-        std::string_view funcName,
-        std::vector<uint8_t> const& accountID)
-    {
-        return Unexpected<TER>(tecFAILED_PROCESSING);
-    }
-
-    virtual Expected<bool, TER>
-    run(std::vector<uint8_t> const& wasmCode,
-        std::string_view funcName,
-        std::vector<uint8_t> const& escrow_tx_json_data,
-        std::vector<uint8_t> const& escrow_lo_json_data)
-    {
-        return Unexpected<TER>(tecFAILED_PROCESSING);
-    }
-
-    virtual Expected<std::pair<bool, std::string>, TER>
-    runP4(
-        std::vector<uint8_t> const& wasmCode,
-        std::string_view funcName,
-        std::vector<uint8_t> const& escrow_tx_json_data,
-        std::vector<uint8_t> const& escrow_lo_json_data)
-    {
-        return Unexpected<TER>(tecFAILED_PROCESSING);
-    }
-
-    virtual Expected<bool, TER>
-    run(std::vector<uint8_t> const& wasmCode,
-        std::string_view funcName,
-        LedgerDataProvider* ledgerDataProvider)
-    {
-        return Unexpected<TER>(tecFAILED_PROCESSING);
-    }
-
-    static std::unique_ptr<WasmEngine>
-    instance();
-};
-
 Expected<bool, TER>
-runEscrowWasm(
-    std::vector<uint8_t> const& wasmCode,
-    std::string_view funcName,
-    int32_t input)
+runEscrowWasm(vbytes const& wasmCode, std::string_view funcName, int32_t input)
 {
     std::unique_ptr<WasmEngine> engine = WasmEngine::instance();
     return engine->run(wasmCode, funcName, input);
@@ -107,9 +53,9 @@ runEscrowWasm(
 
 Expected<bool, TER>
 runEscrowWasm(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
-    std::vector<uint8_t> const& accountID)
+    vbytes const& accountID)
 {
     std::unique_ptr<WasmEngine> engine = WasmEngine::instance();
     return engine->run(wasmCode, funcName, accountID);
@@ -117,10 +63,10 @@ runEscrowWasm(
 
 Expected<bool, TER>
 runEscrowWasm(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
-    std::vector<uint8_t> const& escrow_tx_json_data,
-    std::vector<uint8_t> const& escrow_lo_json_data)
+    vbytes const& escrow_tx_json_data,
+    vbytes const& escrow_lo_json_data)
 {
     std::unique_ptr<WasmEngine> engine = WasmEngine::instance();
     return engine->run(
@@ -129,10 +75,10 @@ runEscrowWasm(
 
 Expected<std::pair<bool, std::string>, TER>
 runEscrowWasmP4(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
-    std::vector<uint8_t> const& escrow_tx_json_data,
-    std::vector<uint8_t> const& escrow_lo_json_data)
+    vbytes const& escrow_tx_json_data,
+    vbytes const& escrow_lo_json_data)
 {
     std::unique_ptr<WasmEngine> engine = WasmEngine::instance();
     return engine->runP4(
@@ -141,7 +87,7 @@ runEscrowWasmP4(
 
 Expected<bool, TER>
 runEscrowWasm(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
     LedgerDataProvider* ledgerDataProvider)
 {
@@ -149,7 +95,9 @@ runEscrowWasm(
     return engine->run(wasmCode, funcName, ledgerDataProvider);
 }
 
-WasmEdge_Result
+//////////////////////////////////////////////////////////////////////////////////////////
+
+static WasmEdge_Result
 get_ledger_sqn(
     void* data,
     const WasmEdge_CallingFrameContext*,
@@ -161,45 +109,43 @@ get_ledger_sqn(
     return WasmEdge_Result_Success;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////
-
 class WasmEngineEdge final : public WasmEngine
 {
 public:
     ~WasmEngineEdge() = default;
 
     virtual Expected<bool, TER>
-    run(std::vector<uint8_t> const& wasmCode,
+    run(vbytes const& wasmCode,
         std::string_view funcName,
         int32_t input) override;
 
     virtual Expected<bool, TER>
-    run(std::vector<uint8_t> const& wasmCode,
+    run(vbytes const& wasmCode,
         std::string_view funcName,
-        std::vector<uint8_t> const& accountID) override;
+        vbytes const& accountID) override;
 
     virtual Expected<bool, TER>
-    run(std::vector<uint8_t> const& wasmCode,
+    run(vbytes const& wasmCode,
         std::string_view funcName,
-        std::vector<uint8_t> const& escrow_tx_json_data,
-        std::vector<uint8_t> const& escrow_lo_json_data) override;
+        vbytes const& escrow_tx_json_data,
+        vbytes const& escrow_lo_json_data) override;
 
     virtual Expected<std::pair<bool, std::string>, TER>
     runP4(
-        std::vector<uint8_t> const& wasmCode,
+        vbytes const& wasmCode,
         std::string_view funcName,
-        std::vector<uint8_t> const& escrow_tx_json_data,
-        std::vector<uint8_t> const& escrow_lo_json_data) override;
+        vbytes const& escrow_tx_json_data,
+        vbytes const& escrow_lo_json_data) override;
 
     virtual Expected<bool, TER>
-    run(std::vector<uint8_t> const& wasmCode,
+    run(vbytes const& wasmCode,
         std::string_view funcName,
         LedgerDataProvider* ledgerDataProvider) override;
 };
 
 Expected<bool, TER>
 WasmEngineEdge::run(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
     int32_t input)
 {
@@ -241,9 +187,9 @@ WasmEngineEdge::run(
 
 Expected<bool, TER>
 WasmEngineEdge::run(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
-    std::vector<uint8_t> const& accountID)
+    vbytes const& accountID)
 {
     auto dataLen = (int32_t)accountID.size();
     // printf("accountID size: %d\n", dataLen);
@@ -328,10 +274,10 @@ WasmEngineEdge::run(
 
 Expected<bool, TER>
 WasmEngineEdge::run(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
-    std::vector<uint8_t> const& escrow_tx_json_data,
-    std::vector<uint8_t> const& escrow_lo_json_data)
+    vbytes const& escrow_tx_json_data,
+    vbytes const& escrow_lo_json_data)
 {
     WasmEdge_VMContext* VMCxt = WasmEdge_VMCreate(NULL, NULL);
 
@@ -357,7 +303,7 @@ WasmEngineEdge::run(
         return Unexpected<TER>(tecFAILED_PROCESSING);
     }
 
-    auto wasmAlloc = [VMCxt](std::vector<uint8_t> const& data) -> int32_t {
+    auto wasmAlloc = [VMCxt](vbytes const& data) -> int32_t {
         auto dataLen = (int32_t)data.size();
         WasmEdge_Value allocParams[1] = {WasmEdge_ValueGenI32(dataLen)};
         WasmEdge_Value allocReturns[1];
@@ -421,10 +367,10 @@ WasmEngineEdge::run(
 
 Expected<std::pair<bool, std::string>, TER>
 WasmEngineEdge::runP4(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
-    std::vector<uint8_t> const& escrow_tx_json_data,
-    std::vector<uint8_t> const& escrow_lo_json_data)
+    vbytes const& escrow_tx_json_data,
+    vbytes const& escrow_lo_json_data)
 {
     WasmEdge_VMContext* VMCxt = WasmEdge_VMCreate(NULL, NULL);
 
@@ -450,7 +396,7 @@ WasmEngineEdge::runP4(
         return Unexpected<TER>(tecFAILED_PROCESSING);
     }
 
-    auto wasmAlloc = [VMCxt](std::vector<uint8_t> const& data) -> int32_t {
+    auto wasmAlloc = [VMCxt](vbytes const& data) -> int32_t {
         auto dataLen = (int32_t)data.size();
         WasmEdge_Value allocParams[1] = {WasmEdge_ValueGenI32(dataLen)};
         WasmEdge_Value allocReturns[1];
@@ -534,7 +480,7 @@ WasmEngineEdge::runP4(
         //        printf("re flag %d, ptr %d, len %d\n", flag, ret_pointer,
         //        ret_len);
 
-        std::vector<uint8_t> buff2(ret_len);
+        vbytes buff2(ret_len);
         getRes = WasmEdge_MemoryInstanceGetData(
             mi, buff2.data(), ret_pointer, ret_len);
         if (!WasmEdge_ResultOK(getRes))
@@ -569,7 +515,7 @@ WasmEngineEdge::runP4(
 
 Expected<bool, TER>
 WasmEngineEdge::run(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
     LedgerDataProvider* ledgerDataProvider)
 {
@@ -651,6 +597,24 @@ WasmEngineEdge::run(
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
+static wasm_trap_t*
+get_ledger_sqn_WTime(
+    void* env,
+    wasmtime_caller_t*,
+    const wasmtime_val_t*,
+    size_t,
+    wasmtime_val_t* results,
+    size_t nresults)
+{
+    auto sqn = reinterpret_cast<LedgerDataProvider*>(env)->get_ledger_sqn();
+    if (nresults)
+    {
+        results[0].kind = WASMTIME_I32;
+        results[0].of.i32 = sqn;
+    }
+    return nullptr;
+}
+
 class WasmEngineTime final : public WasmEngine
 {
     std::unique_ptr<wasm_engine_t, decltype(&wasm_engine_delete)> engine;
@@ -667,30 +631,30 @@ public:
     ~WasmEngineTime() = default;
 
     virtual Expected<bool, TER>
-    run(std::vector<uint8_t> const& wasmCode,
+    run(vbytes const& wasmCode,
         std::string_view funcName,
         int32_t input) override;
 
     virtual Expected<bool, TER>
-    run(std::vector<uint8_t> const& wasmCode,
+    run(vbytes const& wasmCode,
         std::string_view funcName,
-        std::vector<uint8_t> const& accountID) override;
+        vbytes const& accountID) override;
 
     virtual Expected<bool, TER>
-    run(std::vector<uint8_t> const& wasmCode,
+    run(vbytes const& wasmCode,
         std::string_view funcName,
-        std::vector<uint8_t> const& escrow_tx_json_data,
-        std::vector<uint8_t> const& escrow_lo_json_data) override;
+        vbytes const& escrow_tx_json_data,
+        vbytes const& escrow_lo_json_data) override;
 
     virtual Expected<std::pair<bool, std::string>, TER>
     runP4(
-        std::vector<uint8_t> const& wasmCode,
+        vbytes const& wasmCode,
         std::string_view funcName,
-        std::vector<uint8_t> const& escrow_tx_json_data,
-        std::vector<uint8_t> const& escrow_lo_json_data) override;
+        vbytes const& escrow_tx_json_data,
+        vbytes const& escrow_lo_json_data) override;
 
     virtual Expected<bool, TER>
-    run(std::vector<uint8_t> const& wasmCode,
+    run(vbytes const& wasmCode,
         std::string_view funcName,
         LedgerDataProvider* ledgerDataProvider) override;
 
@@ -706,7 +670,7 @@ protected:
 
     wasmtime_error_t*
     makeModule(
-        std::vector<uint8_t> const& wasmCode,
+        vbytes const& wasmCode,
         std::vector<wasmtime_extern_t> const& import = {});
 
     std::pair<bool, wasmtime_extern_t>
@@ -762,7 +726,7 @@ protected:
     call(
         wasmtime_extern_t const& func,
         std::vector<wasmtime_val_t>& in,
-        std::vector<uint8_t> const& p,
+        vbytes const& p,
         Types... args);
 };
 
@@ -801,7 +765,7 @@ WasmEngineTime::WasmEngineTime()
 
 wasmtime_error_t*
 WasmEngineTime::makeModule(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::vector<wasmtime_extern_t> const& import)
 {
     wasmtime_module_t* m = nullptr;
@@ -865,9 +829,7 @@ WasmEngineTime::add_param(std::vector<wasmtime_val_t>& in, int32_t p)
 {
     in.emplace_back();
     auto& el(in.back());
-    memset(&el, 0, sizeof(el));
-    el.kind = WASMTIME_I32;
-    el.of.i32 = p;
+    el = WASM_I32_VAL(p);
 }
 
 void
@@ -875,9 +837,7 @@ WasmEngineTime::add_param(std::vector<wasmtime_val_t>& in, int64_t p)
 {
     in.emplace_back();
     auto& el(in.back());
-    memset(&el, 0, sizeof(el));
-    el.kind = WASMTIME_I64;
-    el.of.i32 = p;
+    el = WASM_I64_VAL(p);
 }
 
 template <int NR, class... Types>
@@ -980,7 +940,7 @@ inline std::vector<wasmtime_val_t>
 WasmEngineTime::call(
     wasmtime_extern_t const& func,
     std::vector<wasmtime_val_t>& in,
-    std::vector<uint8_t> const& p,
+    vbytes const& p,
     Types... args)
 {
     return call<NR>(func, in, p.data(), p.size(), std::forward<Types>(args)...);
@@ -988,7 +948,7 @@ WasmEngineTime::call(
 
 Expected<bool, TER>
 WasmEngineTime::run(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
     int32_t input)
 {
@@ -1008,9 +968,9 @@ WasmEngineTime::run(
 
 Expected<bool, TER>
 WasmEngineTime::run(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
-    std::vector<uint8_t> const& accountID)
+    vbytes const& accountID)
 {
     // Create and instantiate the module.
     if (makeModule(wasmCode))
@@ -1027,10 +987,10 @@ WasmEngineTime::run(
 
 Expected<bool, TER>
 WasmEngineTime::run(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
-    std::vector<uint8_t> const& escrow_tx_json_data,
-    std::vector<uint8_t> const& escrow_lo_json_data)
+    vbytes const& escrow_tx_json_data,
+    vbytes const& escrow_lo_json_data)
 {
     // Create and instantiate the module.
     if (makeModule(wasmCode))
@@ -1048,10 +1008,10 @@ WasmEngineTime::run(
 
 Expected<std::pair<bool, std::string>, TER>
 WasmEngineTime::runP4(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
-    std::vector<uint8_t> const& escrow_tx_json_data,
-    std::vector<uint8_t> const& escrow_lo_json_data)
+    vbytes const& escrow_tx_json_data,
+    vbytes const& escrow_lo_json_data)
 {
     // Create and instantiate the module.
     if (makeModule(wasmCode))
@@ -1077,7 +1037,7 @@ WasmEngineTime::runP4(
     auto const ret_len = *reinterpret_cast<int32_t const*>(buf + 5);
     // printf("re flag %d, ptr %d, len %d\n", flag, ret_pointer, ret_len);
 
-    std::vector<uint8_t> buf2(ret_len);
+    vbytes buf2(ret_len);
     memcpy(buf2.data(), mem + ret_pointer, ret_len);
 
     std::string newData(buf2.begin(), buf2.end());
@@ -1092,27 +1052,9 @@ WasmEngineTime::runP4(
     return std::pair<bool, std::string>(flag == 1, newData);
 }
 
-static wasm_trap_t*
-get_ledger_sqn_WTime(
-    void* env,
-    wasmtime_caller_t*,
-    const wasmtime_val_t*,
-    size_t,
-    wasmtime_val_t* results,
-    size_t nresults)
-{
-    auto sqn = reinterpret_cast<LedgerDataProvider*>(env)->get_ledger_sqn();
-    if (nresults)
-    {
-        results[0].kind = WASMTIME_I32;
-        results[0].of.i32 = sqn;
-    }
-    return nullptr;
-}
-
 Expected<bool, TER>
 WasmEngineTime::run(
-    std::vector<uint8_t> const& wasmCode,
+    vbytes const& wasmCode,
     std::string_view funcName,
     LedgerDataProvider* ledgerDataProvider)
 {
@@ -1154,6 +1096,8 @@ WasmEngine::instance()
 {
     switch (g_engine)
     {
+        case wasmEngines::Er:
+            return std::make_unique<WasmEngineEr>();
         case wasmEngines::Time:
             return std::make_unique<WasmEngineTime>();
         case wasmEngines::Edge:

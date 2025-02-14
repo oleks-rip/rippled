@@ -67,6 +67,8 @@ target_link_libraries(xrpl.imports.main
     $<$<BOOL:${voidstar}>:antithesis-sdk-cpp>
     wasmedge::wasmedge
     wasmtime::wasmtime
+    wasmer_so::wasmer_so
+    #wasmer::wasmer
 )
 
 include(add_module)

@@ -128,9 +128,9 @@ invokeAdd()
 struct Wasm_test : public beast::unit_test::suite
 {
     void
-    testWasmtimeLib()
+    testWasmLib()
     {
-        testcase("wasmtime lib test");
+        testcase("wasmEdge lib test");
         invokeAdd();
         BEAST_EXPECT(true);
     }
@@ -151,19 +151,6 @@ struct Wasm_test : public beast::unit_test::suite
         re = runEscrowWasm(wasm, funcName, 11);
         if (BEAST_EXPECT(re.has_value()))
             BEAST_EXPECT(!re.value());
-
-        testcase("wasmTime P0 test");
-        setWasmEngine(wasmEngines::Time);
-        {
-            re = runEscrowWasm(wasm, funcName, 15);
-            if (BEAST_EXPECT(re.has_value()))
-                BEAST_EXPECT(re.value());
-
-            re = runEscrowWasm(wasm, funcName, 11);
-            if (BEAST_EXPECT(re.has_value()))
-                BEAST_EXPECT(!re.value());
-        }
-        setWasmEngine(wasmEngines::Edge);
     }
 
     void
@@ -200,24 +187,6 @@ struct Wasm_test : public beast::unit_test::suite
             if (BEAST_EXPECT(re.has_value()))
                 BEAST_EXPECT(!re.value());
         }
-
-        testcase("wasmTime P1 test");
-        setWasmEngine(wasmEngines::Time);
-        {
-            std::string str = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh";
-            std::vector<uint8_t> data(str.begin(), str.end());
-            auto re = runEscrowWasm(wasm, funcName, data);
-            if (BEAST_EXPECT(re.has_value()))
-                BEAST_EXPECT(re.value());
-        }
-        {
-            std::string str = "rHb9CJAWyB4rj91VRWn96DkukG4bwdty00";
-            std::vector<uint8_t> data(str.begin(), str.end());
-            auto re = runEscrowWasm(wasm, funcName, data);
-            if (BEAST_EXPECT(re.has_value()))
-                BEAST_EXPECT(!re.value());
-        }
-        setWasmEngine(wasmEngines::Edge);
     }
 
     void
@@ -267,16 +236,6 @@ struct Wasm_test : public beast::unit_test::suite
                 wasm, funcName, escrow_tx_json_data, escrow_lo_json_data);
             if (BEAST_EXPECT(re.has_value()))
                 BEAST_EXPECT(re.value());
-
-            testcase("wasmTime P2 test");
-            setWasmEngine(wasmEngines::Time);
-            {
-                auto re = runEscrowWasm(
-                    wasm, funcName, escrow_tx_json_data, escrow_lo_json_data);
-                if (BEAST_EXPECT(re.has_value()))
-                    BEAST_EXPECT(re.value());
-            }
-            setWasmEngine(wasmEngines::Edge);
         }
 
         {
@@ -302,16 +261,6 @@ struct Wasm_test : public beast::unit_test::suite
                 wasm, funcName, escrow_tx_json_data, escrow_lo_json_data);
             if (BEAST_EXPECT(re.has_value()))
                 BEAST_EXPECT(!re.value());
-
-            testcase("wasmTime P3 test");
-            setWasmEngine(wasmEngines::Time);
-            {
-                auto re = runEscrowWasm(
-                    wasm, funcName, escrow_tx_json_data, escrow_lo_json_data);
-                if (BEAST_EXPECT(re.has_value()))
-                    BEAST_EXPECT(!re.value());
-            }
-            setWasmEngine(wasmEngines::Edge);
         }
     }
 
@@ -372,20 +321,6 @@ struct Wasm_test : public beast::unit_test::suite
                 BEAST_EXPECT(!reValue.first);
                 BEAST_EXPECT(reValue.second == "1");
             }
-
-            testcase("wasmTime P4 test");
-            setWasmEngine(wasmEngines::Time);
-            {
-                auto re = runEscrowWasmP4(
-                    wasm, funcName, escrow_tx_json_data, escrow_lo_json_data);
-                if (BEAST_EXPECT(re.has_value()))
-                {
-                    auto reValue = re.value();
-                    BEAST_EXPECT(!reValue.first);
-                    BEAST_EXPECT(reValue.second == "1");
-                }
-            }
-            setWasmEngine(wasmEngines::Edge);
         }
 
         {
@@ -419,20 +354,6 @@ struct Wasm_test : public beast::unit_test::suite
                 BEAST_EXPECT(reValue.first);
                 BEAST_EXPECT(reValue.second == "0");
             }
-
-            testcase("wasmTime P4.2 test");
-            setWasmEngine(wasmEngines::Time);
-            {
-                auto re = runEscrowWasmP4(
-                    wasm, funcName, escrow_tx_json_data, escrow_lo_json_data);
-                if (BEAST_EXPECT(re.has_value()))
-                {
-                    auto reValue = re.value();
-                    BEAST_EXPECT(reValue.first);
-                    BEAST_EXPECT(reValue.second == "0");
-                }
-            }
-            setWasmEngine(wasmEngines::Edge);
         }
     }
 
@@ -468,15 +389,6 @@ struct Wasm_test : public beast::unit_test::suite
         if (BEAST_EXPECT(re.has_value()))
             BEAST_EXPECT(!re.value());
 
-        testcase("wasmTime P5 test");
-        setWasmEngine(wasmEngines::Time);
-        {
-            auto re = runEscrowWasm(wasm, funcName, &ledgerDataProvider);
-            if (BEAST_EXPECT(re.has_value()))
-                BEAST_EXPECT(!re.value());
-        }
-        setWasmEngine(wasmEngines::Edge);
-
         env.close();
         env.close();
         env.close();
@@ -485,28 +397,26 @@ struct Wasm_test : public beast::unit_test::suite
         re = runEscrowWasm(wasm, funcName, &ledgerDataProvider);
         if (BEAST_EXPECT(re.has_value()))
             BEAST_EXPECT(re.value());
-
-        testcase("wasmTime P5.2 test");
-        setWasmEngine(wasmEngines::Time);
-        {
-            auto re = runEscrowWasm(wasm, funcName, &ledgerDataProvider);
-            if (BEAST_EXPECT(re.has_value()))
-                BEAST_EXPECT(re.value());
-        }
-        setWasmEngine(wasmEngines::Edge);
     }
 
     void
     run() override
     {
         using namespace test::jtx;
-        testWasmtimeLib();
-        testEscrowWasmP0();
-        testBadWasm();
-        testEscrowWasmP1();
-        testEscrowWasmP2P3();
-        testEscrowWasmP4();
-        testEscrowWasmP5();
+        testWasmLib();
+
+        for (int i = 0; i < static_cast<int>(wasmEngines::END); ++i)
+        {
+            setWasmEngine(static_cast<wasmEngines>(i));
+            std::cout << "===========\nEngine: " << i
+                      << "\n===========" << std::endl;
+            testEscrowWasmP0();
+            testBadWasm();
+            testEscrowWasmP1();
+            testEscrowWasmP2P3();
+            testEscrowWasmP4();
+            testEscrowWasmP5();
+        }
     }
 };
 
