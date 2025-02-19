@@ -1735,8 +1735,10 @@ struct Escrow_test : public beast::unit_test::suite
         // testConsequences();
         // testEscrowWithTickets();
         // testCredentials();
-        testFinishFunction(wasmEngines::Edge);
-        testFinishFunction(wasmEngines::Time);
+        for (int i = 0; i < static_cast<int>(wasmEngines::END); ++i)
+        {
+            testFinishFunction(static_cast<wasmEngines>(i));
+        }
     }
 };
 

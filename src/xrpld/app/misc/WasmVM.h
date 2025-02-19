@@ -28,17 +28,19 @@ namespace ripple {
 
 using vbytes = std::vector<std::uint8_t>;
 
-enum class wasmEngines: int
-{
-    Edge, Time, Er, END
-};
+static const std::string_view V_MEM = "memory";
+static const std::string_view V_STORE = "store";
+static const std::string_view V_LOAD = "load";
+static const std::string_view V_SIZE = "size";
+
+static const std::string_view V_ALLOC = "allocate";
+static const std::string_view V_DEALLOC = "deallocate";
+
+enum class wasmEngines : int { Edge, Time, Er, I, END };
 void setWasmEngine(wasmEngines);
 
 Expected<bool, TER>
-runEscrowWasm(
-    vbytes const& wasmCode,
-    std::string_view funcName,
-    int32_t input);
+runEscrowWasm(vbytes const& wasmCode, std::string_view funcName, int32_t input);
 
 Expected<bool, TER>
 runEscrowWasmWTime(
@@ -82,7 +84,6 @@ runEscrowWasm(
     vbytes const& wasmCode,
     std::string_view funcName,
     LedgerDataProvider* ledgerDataProvider);
-
 
 class WasmEngine
 {
@@ -133,6 +134,5 @@ public:
     static std::unique_ptr<WasmEngine>
     instance();
 };
-
 
 }  // namespace ripple

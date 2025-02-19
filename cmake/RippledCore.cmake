@@ -68,7 +68,7 @@ target_link_libraries(xrpl.imports.main
     wasmedge::wasmedge
     wasmtime::wasmtime
     wasmer_so::wasmer_so
-    #wasmer::wasmer
+    wasmi_so::wasmi_so
 )
 
 include(add_module)

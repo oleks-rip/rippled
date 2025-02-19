@@ -83,6 +83,7 @@ add_library(secp256k1::secp256k1 ALIAS secp256k1)
 add_subdirectory(external/ed25519-donna)
 add_subdirectory(external/antithesis-sdk)
 add_subdirectory(external/wasmer)
+add_subdirectory(external/wasmi_so)
 
 find_package(gRPC REQUIRED)
 find_package(lz4 REQUIRED)
