@@ -84,6 +84,7 @@ add_subdirectory(external/ed25519-donna)
 add_subdirectory(external/antithesis-sdk)
 add_subdirectory(external/wasmer)
 add_subdirectory(external/wasmi_so)
+add_subdirectory(external/wamr)
 
 find_package(gRPC REQUIRED)
 find_package(lz4 REQUIRED)

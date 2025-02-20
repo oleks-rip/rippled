@@ -36,7 +36,7 @@ static const std::string_view V_SIZE = "size";
 static const std::string_view V_ALLOC = "allocate";
 static const std::string_view V_DEALLOC = "deallocate";
 
-enum class wasmEngines : int { Edge, Time, Er, I, END };
+enum class wasmEngines : int { Edge, Time, Er, I, Wamr, END };
 void setWasmEngine(wasmEngines);
 
 Expected<bool, TER>

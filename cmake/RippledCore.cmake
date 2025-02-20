@@ -69,6 +69,7 @@ target_link_libraries(xrpl.imports.main
     wasmtime::wasmtime
     wasmer_so::wasmer_so
     wasmi_so::wasmi_so
+    wamr_so::wamr_so
 )
 
 include(add_module)
