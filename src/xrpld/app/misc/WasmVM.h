@@ -27,6 +27,12 @@
 namespace ripple {
 
 using vbytes = std::vector<std::uint8_t>;
+struct vmem
+{
+    std::uint8_t* p = nullptr;
+    std::size_t s = 0;
+};
+
 
 static const std::string_view V_MEM = "memory";
 static const std::string_view V_STORE = "store";

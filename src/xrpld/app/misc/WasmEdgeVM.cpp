@@ -19,7 +19,7 @@
 
 #include <xrpld/app/misc/WasmEdgeVM.h>
 
-#include <wasmedge/wasmedge.h>
+#include <wasmedge_so.h>
 
 #include <memory>
 
@@ -35,7 +35,7 @@ get_ledger_sqn(
     WasmEdge_Value* Out)
 {
     Out[0] =
-        WasmEdge_ValueGenI32(((LedgerDataProvider*)data)->get_ledger_sqn());
+        WasmEdge2_ValueGenI32(((LedgerDataProvider*)data)->get_ledger_sqn());
     return WasmEdge_Result_Success;
 }
 
@@ -77,11 +77,11 @@ WasmEngineEdgeImpl::run(
     std::string_view funcName,
     int32_t input)
 {
-    WasmEdge_VMContext* VMCxt = WasmEdge_VMCreate(NULL, NULL);
-    WasmEdge_Value Params[1] = {WasmEdge_ValueGenI32(input)};
+    WasmEdge_VMContext* VMCxt = WasmEdge2_VMCreate(NULL, NULL);
+    WasmEdge_Value Params[1] = {WasmEdge2_ValueGenI32(input)};
     WasmEdge_Value Returns[1];
-    WasmEdge_String FuncName = WasmEdge_StringCreateByCString(funcName.data());
-    WasmEdge_Result Res = WasmEdge_VMRunWasmFromBuffer(
+    WasmEdge_String FuncName = WasmEdge2_StringCreateByCString(funcName.data());
+    WasmEdge_Result Res = WasmEdge2_VMRunWasmFromBuffer(
         VMCxt,
         wasmCode.data(),
         wasmCode.size(),
@@ -91,22 +91,22 @@ WasmEngineEdgeImpl::run(
         Returns,
         1);
 
-    bool ok = WasmEdge_ResultOK(Res);
+    bool ok = WasmEdge2_ResultOK(Res);
     bool re = false;
     if (ok)
     {
-        auto result = WasmEdge_ValueGetI32(Returns[0]);
+        auto result = WasmEdge2_ValueGetI32(Returns[0]);
         // printf("Get the result: %d\n", result);
         if (result != 0)
             re = true;
     }
     else
     {
-        printf("Error message: %s\n", WasmEdge_ResultGetMessage(Res));
+        printf("Error message: %s\n", WasmEdge2_ResultGetMessage(Res));
     }
 
-    WasmEdge_VMDelete(VMCxt);
-    WasmEdge_StringDelete(FuncName);
+    WasmEdge2_VMDelete(VMCxt);
+    WasmEdge2_StringDelete(FuncName);
     if (ok)
         return re;
     else
@@ -121,12 +121,12 @@ WasmEngineEdgeImpl::run(
 {
     auto dataLen = (int32_t)accountID.size();
     // printf("accountID size: %d\n", dataLen);
-    WasmEdge_VMContext* VMCxt = WasmEdge_VMCreate(NULL, NULL);
+    WasmEdge_VMContext* VMCxt = WasmEdge2_VMCreate(NULL, NULL);
 
-    WasmEdge_Value allocParams[1] = {WasmEdge_ValueGenI32(dataLen)};
+    WasmEdge_Value allocParams[1] = {WasmEdge2_ValueGenI32(dataLen)};
     WasmEdge_Value allocReturns[1];
-    WasmEdge_String allocFunc = WasmEdge_StringCreateByCString("allocate");
-    WasmEdge_Result allocRes = WasmEdge_VMRunWasmFromBuffer(
+    WasmEdge_String allocFunc = WasmEdge2_StringCreateByCString("allocate");
+    WasmEdge_Result allocRes = WasmEdge2_VMRunWasmFromBuffer(
         VMCxt,
         wasmCode.data(),
         wasmCode.size(),
@@ -136,61 +136,61 @@ WasmEngineEdgeImpl::run(
         allocReturns,
         1);
 
-    bool ok = WasmEdge_ResultOK(allocRes);
+    bool ok = WasmEdge2_ResultOK(allocRes);
     bool re = false;
     if (ok)
     {
-        auto pointer = WasmEdge_ValueGetI32(allocReturns[0]);
+        auto pointer = WasmEdge2_ValueGetI32(allocReturns[0]);
         // printf("Alloc pointer: %d\n", pointer);
 
         const WasmEdge_ModuleInstanceContext* m =
-            WasmEdge_VMGetActiveModule(VMCxt);
-        WasmEdge_String mName = WasmEdge_StringCreateByCString("memory");
+            WasmEdge2_VMGetActiveModule(VMCxt);
+        WasmEdge_String mName = WasmEdge2_StringCreateByCString("memory");
         WasmEdge_MemoryInstanceContext* mi =
-            WasmEdge_ModuleInstanceFindMemory(m, mName);
-        WasmEdge_Result setRes = WasmEdge_MemoryInstanceSetData(
+            WasmEdge2_ModuleInstanceFindMemory(m, mName);
+        WasmEdge_Result setRes = WasmEdge2_MemoryInstanceSetData(
             mi, accountID.data(), pointer, dataLen);
 
-        ok = WasmEdge_ResultOK(setRes);
+        ok = WasmEdge2_ResultOK(setRes);
         if (ok)
         {
             // printf("Set data ok\n");
 
             WasmEdge_Value params[2] = {
-                WasmEdge_ValueGenI32(pointer), WasmEdge_ValueGenI32(dataLen)};
+                WasmEdge2_ValueGenI32(pointer), WasmEdge2_ValueGenI32(dataLen)};
             WasmEdge_Value returns[1];
             WasmEdge_String func =
-                WasmEdge_StringCreateByCString(funcName.data());
+                WasmEdge2_StringCreateByCString(funcName.data());
             WasmEdge_Result funcRes =
-                WasmEdge_VMExecute(VMCxt, func, params, 2, returns, 1);
+                WasmEdge2_VMExecute(VMCxt, func, params, 2, returns, 1);
 
-            ok = WasmEdge_ResultOK(funcRes);
+            ok = WasmEdge2_ResultOK(funcRes);
             if (ok)
             {
                 // printf("func ok\n");
-                re = (WasmEdge_ValueGetI32(returns[0]) == 1);
+                re = (WasmEdge2_ValueGetI32(returns[0]) == 1);
             }
             else
             {
                 printf(
-                    "Func message: %s\n", WasmEdge_ResultGetMessage(funcRes));
+                    "Func message: %s\n", WasmEdge2_ResultGetMessage(funcRes));
             }
         }
         else
         {
             printf(
-                "Set error message: %s\n", WasmEdge_ResultGetMessage(setRes));
+                "Set error message: %s\n", WasmEdge2_ResultGetMessage(setRes));
         }
     }
     else
     {
         printf(
-            "Alloc error message: %s\n", WasmEdge_ResultGetMessage(allocRes));
+            "Alloc error message: %s\n", WasmEdge2_ResultGetMessage(allocRes));
     }
 
-    WasmEdge_VMDelete(VMCxt);
+    WasmEdge2_VMDelete(VMCxt);
     // TODO free everything
-    //    WasmEdge_StringDelete(FuncName);
+    //    WasmEdge2_StringDelete(FuncName);
     if (ok)
     {
         // printf("runEscrowWasm ok, result %d\n", re);
@@ -207,25 +207,25 @@ WasmEngineEdgeImpl::run(
     vbytes const& escrow_tx_json_data,
     vbytes const& escrow_lo_json_data)
 {
-    WasmEdge_VMContext* VMCxt = WasmEdge_VMCreate(NULL, NULL);
+    WasmEdge_VMContext* VMCxt = WasmEdge2_VMCreate(NULL, NULL);
 
     WasmEdge_Result loadRes =
-        WasmEdge_VMLoadWasmFromBuffer(VMCxt, wasmCode.data(), wasmCode.size());
-    if (!WasmEdge_ResultOK(loadRes))
+        WasmEdge2_VMLoadWasmFromBuffer(VMCxt, wasmCode.data(), wasmCode.size());
+    if (!WasmEdge2_ResultOK(loadRes))
     {
         printf("load error\n");
         return Unexpected<TER>(tecFAILED_PROCESSING);
     }
 
-    WasmEdge_Result validateRes = WasmEdge_VMValidate(VMCxt);
-    if (!WasmEdge_ResultOK(validateRes))
+    WasmEdge_Result validateRes = WasmEdge2_VMValidate(VMCxt);
+    if (!WasmEdge2_ResultOK(validateRes))
     {
         printf("validate error\n");
         return Unexpected<TER>(tecFAILED_PROCESSING);
     }
 
-    WasmEdge_Result instantiateRes = WasmEdge_VMInstantiate(VMCxt);
-    if (!WasmEdge_ResultOK(instantiateRes))
+    WasmEdge_Result instantiateRes = WasmEdge2_VMInstantiate(VMCxt);
+    if (!WasmEdge2_ResultOK(instantiateRes))
     {
         printf("instantiate error\n");
         return Unexpected<TER>(tecFAILED_PROCESSING);
@@ -233,25 +233,25 @@ WasmEngineEdgeImpl::run(
 
     auto wasmAlloc = [VMCxt](vbytes const& data) -> int32_t {
         auto dataLen = (int32_t)data.size();
-        WasmEdge_Value allocParams[1] = {WasmEdge_ValueGenI32(dataLen)};
+        WasmEdge_Value allocParams[1] = {WasmEdge2_ValueGenI32(dataLen)};
         WasmEdge_Value allocReturns[1];
-        WasmEdge_String allocFunc = WasmEdge_StringCreateByCString("allocate");
+        WasmEdge_String allocFunc = WasmEdge2_StringCreateByCString("allocate");
 
-        WasmEdge_Result allocRes = WasmEdge_VMExecute(
+        WasmEdge_Result allocRes = WasmEdge2_VMExecute(
             VMCxt, allocFunc, allocParams, 1, allocReturns, 1);
 
-        if (WasmEdge_ResultOK(allocRes))
+        if (WasmEdge2_ResultOK(allocRes))
         {
-            auto pointer = WasmEdge_ValueGetI32(allocReturns[0]);
+            auto pointer = WasmEdge2_ValueGetI32(allocReturns[0]);
             //            printf("alloc ptr %d, len %d\n", pointer, dataLen);
             const WasmEdge_ModuleInstanceContext* m =
-                WasmEdge_VMGetActiveModule(VMCxt);
-            WasmEdge_String mName = WasmEdge_StringCreateByCString("memory");
+                WasmEdge2_VMGetActiveModule(VMCxt);
+            WasmEdge_String mName = WasmEdge2_StringCreateByCString("memory");
             WasmEdge_MemoryInstanceContext* mi =
-                WasmEdge_ModuleInstanceFindMemory(m, mName);
-            WasmEdge_Result setRes = WasmEdge_MemoryInstanceSetData(
+                WasmEdge2_ModuleInstanceFindMemory(m, mName);
+            WasmEdge_Result setRes = WasmEdge2_MemoryInstanceSetData(
                 mi, data.data(), pointer, dataLen);
-            if (WasmEdge_ResultOK(setRes))
+            if (WasmEdge2_ResultOK(setRes))
             {
                 return pointer;
             }
@@ -272,23 +272,23 @@ WasmEngineEdgeImpl::run(
     auto loLen = (int32_t)escrow_lo_json_data.size();
 
     WasmEdge_Value params[4] = {
-        WasmEdge_ValueGenI32(tx_ptr),
-        WasmEdge_ValueGenI32(txLen),
-        WasmEdge_ValueGenI32(lo_ptr),
-        WasmEdge_ValueGenI32(loLen)};
+        WasmEdge2_ValueGenI32(tx_ptr),
+        WasmEdge2_ValueGenI32(txLen),
+        WasmEdge2_ValueGenI32(lo_ptr),
+        WasmEdge2_ValueGenI32(loLen)};
     WasmEdge_Value returns[1];
-    WasmEdge_String func = WasmEdge_StringCreateByCString(funcName.data());
+    WasmEdge_String func = WasmEdge2_StringCreateByCString(funcName.data());
     WasmEdge_Result funcRes =
-        WasmEdge_VMExecute(VMCxt, func, params, 4, returns, 1);
+        WasmEdge2_VMExecute(VMCxt, func, params, 4, returns, 1);
 
-    if (WasmEdge_ResultOK(funcRes))
+    if (WasmEdge2_ResultOK(funcRes))
     {
         // printf("func ok\n");
-        return WasmEdge_ValueGetI32(returns[0]) == 1;
+        return WasmEdge2_ValueGetI32(returns[0]) == 1;
     }
     else
     {
-        printf("Func message: %s\n", WasmEdge_ResultGetMessage(funcRes));
+        printf("Func message: %s\n", WasmEdge2_ResultGetMessage(funcRes));
         return Unexpected<TER>(tecFAILED_PROCESSING);
     }
 }
@@ -300,25 +300,25 @@ WasmEngineEdgeImpl::runP4(
     vbytes const& escrow_tx_json_data,
     vbytes const& escrow_lo_json_data)
 {
-    WasmEdge_VMContext* VMCxt = WasmEdge_VMCreate(NULL, NULL);
+    WasmEdge_VMContext* VMCxt = WasmEdge2_VMCreate(NULL, NULL);
 
     WasmEdge_Result loadRes =
-        WasmEdge_VMLoadWasmFromBuffer(VMCxt, wasmCode.data(), wasmCode.size());
-    if (!WasmEdge_ResultOK(loadRes))
+        WasmEdge2_VMLoadWasmFromBuffer(VMCxt, wasmCode.data(), wasmCode.size());
+    if (!WasmEdge2_ResultOK(loadRes))
     {
         printf("load error\n");
         return Unexpected<TER>(tecFAILED_PROCESSING);
     }
 
-    WasmEdge_Result validateRes = WasmEdge_VMValidate(VMCxt);
-    if (!WasmEdge_ResultOK(validateRes))
+    WasmEdge_Result validateRes = WasmEdge2_VMValidate(VMCxt);
+    if (!WasmEdge2_ResultOK(validateRes))
     {
         printf("validate error\n");
         return Unexpected<TER>(tecFAILED_PROCESSING);
     }
 
-    WasmEdge_Result instantiateRes = WasmEdge_VMInstantiate(VMCxt);
-    if (!WasmEdge_ResultOK(instantiateRes))
+    WasmEdge_Result instantiateRes = WasmEdge2_VMInstantiate(VMCxt);
+    if (!WasmEdge2_ResultOK(instantiateRes))
     {
         printf("instantiate error\n");
         return Unexpected<TER>(tecFAILED_PROCESSING);
@@ -326,25 +326,25 @@ WasmEngineEdgeImpl::runP4(
 
     auto wasmAlloc = [VMCxt](vbytes const& data) -> int32_t {
         auto dataLen = (int32_t)data.size();
-        WasmEdge_Value allocParams[1] = {WasmEdge_ValueGenI32(dataLen)};
+        WasmEdge_Value allocParams[1] = {WasmEdge2_ValueGenI32(dataLen)};
         WasmEdge_Value allocReturns[1];
-        WasmEdge_String allocFunc = WasmEdge_StringCreateByCString("allocate");
+        WasmEdge_String allocFunc = WasmEdge2_StringCreateByCString("allocate");
 
-        WasmEdge_Result allocRes = WasmEdge_VMExecute(
+        WasmEdge_Result allocRes = WasmEdge2_VMExecute(
             VMCxt, allocFunc, allocParams, 1, allocReturns, 1);
 
-        if (WasmEdge_ResultOK(allocRes))
+        if (WasmEdge2_ResultOK(allocRes))
         {
-            auto pointer = WasmEdge_ValueGetI32(allocReturns[0]);
+            auto pointer = WasmEdge2_ValueGetI32(allocReturns[0]);
             //            printf("alloc ptr %d, len %d\n", pointer, dataLen);
             const WasmEdge_ModuleInstanceContext* m =
-                WasmEdge_VMGetActiveModule(VMCxt);
-            WasmEdge_String mName = WasmEdge_StringCreateByCString("memory");
+                WasmEdge2_VMGetActiveModule(VMCxt);
+            WasmEdge_String mName = WasmEdge2_StringCreateByCString("memory");
             WasmEdge_MemoryInstanceContext* mi =
-                WasmEdge_ModuleInstanceFindMemory(m, mName);
-            WasmEdge_Result setRes = WasmEdge_MemoryInstanceSetData(
+                WasmEdge2_ModuleInstanceFindMemory(m, mName);
+            WasmEdge_Result setRes = WasmEdge2_MemoryInstanceSetData(
                 mi, data.data(), pointer, dataLen);
-            if (WasmEdge_ResultOK(setRes))
+            if (WasmEdge2_ResultOK(setRes))
             {
                 return pointer;
             }
@@ -365,30 +365,30 @@ WasmEngineEdgeImpl::runP4(
     auto loLen = (int32_t)escrow_lo_json_data.size();
 
     WasmEdge_Value params[4] = {
-        WasmEdge_ValueGenI32(tx_ptr),
-        WasmEdge_ValueGenI32(txLen),
-        WasmEdge_ValueGenI32(lo_ptr),
-        WasmEdge_ValueGenI32(loLen)};
+        WasmEdge2_ValueGenI32(tx_ptr),
+        WasmEdge2_ValueGenI32(txLen),
+        WasmEdge2_ValueGenI32(lo_ptr),
+        WasmEdge2_ValueGenI32(loLen)};
     WasmEdge_Value returns[1];
-    WasmEdge_String func = WasmEdge_StringCreateByCString(funcName.data());
+    WasmEdge_String func = WasmEdge2_StringCreateByCString(funcName.data());
     WasmEdge_Result funcRes =
-        WasmEdge_VMExecute(VMCxt, func, params, 4, returns, 1);
+        WasmEdge2_VMExecute(VMCxt, func, params, 4, returns, 1);
 
-    if (WasmEdge_ResultOK(funcRes))
+    if (WasmEdge2_ResultOK(funcRes))
     {
-        auto pointer = WasmEdge_ValueGetI32(returns[0]);
+        auto pointer = WasmEdge2_ValueGetI32(returns[0]);
         const WasmEdge_ModuleInstanceContext* m =
-            WasmEdge_VMGetActiveModule(VMCxt);
-        WasmEdge_String mName = WasmEdge_StringCreateByCString("memory");
+            WasmEdge2_VMGetActiveModule(VMCxt);
+        WasmEdge_String mName = WasmEdge2_StringCreateByCString("memory");
         WasmEdge_MemoryInstanceContext* mi =
-            WasmEdge_ModuleInstanceFindMemory(m, mName);
+            WasmEdge2_ModuleInstanceFindMemory(m, mName);
         uint8_t buff[9];
         WasmEdge_Result getRes =
-            WasmEdge_MemoryInstanceGetData(mi, buff, pointer, 9);
-        if (!WasmEdge_ResultOK(getRes))
+            WasmEdge2_MemoryInstanceGetData(mi, buff, pointer, 9);
+        if (!WasmEdge2_ResultOK(getRes))
         {
             printf(
-                "re mem get message: %s\n", WasmEdge_ResultGetMessage(getRes));
+                "re mem get message: %s\n", WasmEdge2_ResultGetMessage(getRes));
             return Unexpected<TER>(tecFAILED_PROCESSING);
         }
         auto flag = buff[0];
@@ -409,34 +409,35 @@ WasmEngineEdgeImpl::runP4(
         //        ret_len);
 
         vbytes buff2(ret_len);
-        getRes = WasmEdge_MemoryInstanceGetData(
+        getRes = WasmEdge2_MemoryInstanceGetData(
             mi, buff2.data(), ret_pointer, ret_len);
-        if (!WasmEdge_ResultOK(getRes))
+        if (!WasmEdge2_ResultOK(getRes))
         {
             printf(
                 "re 2 mem get message: %s\n",
-                WasmEdge_ResultGetMessage(getRes));
+                WasmEdge2_ResultGetMessage(getRes));
             return Unexpected<TER>(tecFAILED_PROCESSING);
         }
 
         std::string newData(buff2.begin(), buff2.end());
 
         // free
-        WasmEdge_String freeFunc = WasmEdge_StringCreateByCString("deallocate");
+        WasmEdge_String freeFunc =
+            WasmEdge2_StringCreateByCString("deallocate");
         WasmEdge_Value freeParams[2] = {
-            WasmEdge_ValueGenI32(ret_pointer), WasmEdge_ValueGenI32(ret_len)};
+            WasmEdge2_ValueGenI32(ret_pointer), WasmEdge2_ValueGenI32(ret_len)};
         WasmEdge_Value freeReturns[0];
-        WasmEdge_VMExecute(VMCxt, freeFunc, freeParams, 2, freeReturns, 0);
+        WasmEdge2_VMExecute(VMCxt, freeFunc, freeParams, 2, freeReturns, 0);
         // free pointer too, with len = 9 too
-        freeParams[0] = WasmEdge_ValueGenI32(pointer);
-        freeParams[1] = WasmEdge_ValueGenI32(9);
-        WasmEdge_VMExecute(VMCxt, freeFunc, freeParams, 2, freeReturns, 0);
+        freeParams[0] = WasmEdge2_ValueGenI32(pointer);
+        freeParams[1] = WasmEdge2_ValueGenI32(9);
+        WasmEdge2_VMExecute(VMCxt, freeFunc, freeParams, 2, freeReturns, 0);
 
         return std::pair<bool, std::string>(flag == 1, newData);
     }
     else
     {
-        printf("Func message: %s\n", WasmEdge_ResultGetMessage(funcRes));
+        printf("Func message: %s\n", WasmEdge2_ResultGetMessage(funcRes));
         return Unexpected<TER>(tecFAILED_PROCESSING);
     }
 }
@@ -447,49 +448,49 @@ WasmEngineEdgeImpl::run(
     std::string_view funcName,
     LedgerDataProvider* ledgerDataProvider)
 {
-    WasmEdge_VMContext* VMCxt = WasmEdge_VMCreate(NULL, NULL);
+    WasmEdge_VMContext* VMCxt = WasmEdge2_VMCreate(NULL, NULL);
     {  // register host function
-        WasmEdge_ValType ReturnList[1] = {WasmEdge_ValTypeGenI32()};
+        WasmEdge_ValType ReturnList[1] = {WasmEdge2_ValTypeGenI32()};
         WasmEdge_FunctionTypeContext* HostFType =
-            WasmEdge_FunctionTypeCreate(NULL, 0, ReturnList, 1);
+            WasmEdge2_FunctionTypeCreate(NULL, 0, ReturnList, 1);
         WasmEdge_FunctionInstanceContext* HostFunc =
-            WasmEdge_FunctionInstanceCreate(
+            WasmEdge2_FunctionInstanceCreate(
                 HostFType, get_ledger_sqn, ledgerDataProvider, 0);
-        WasmEdge_FunctionTypeDelete(HostFType);
+        WasmEdge2_FunctionTypeDelete(HostFType);
 
-        WasmEdge_String HostName = WasmEdge_StringCreateByCString("host_lib");
+        WasmEdge_String HostName = WasmEdge2_StringCreateByCString("host_lib");
         WasmEdge_ModuleInstanceContext* HostMod =
-            WasmEdge_ModuleInstanceCreate(HostName);
-        WasmEdge_StringDelete(HostName);
+            WasmEdge2_ModuleInstanceCreate(HostName);
+        WasmEdge2_StringDelete(HostName);
 
         WasmEdge_String HostFuncName =
-            WasmEdge_StringCreateByCString("get_ledger_sqn");
-        WasmEdge_ModuleInstanceAddFunction(HostMod, HostFuncName, HostFunc);
-        WasmEdge_StringDelete(HostFuncName);
+            WasmEdge2_StringCreateByCString("get_ledger_sqn");
+        WasmEdge2_ModuleInstanceAddFunction(HostMod, HostFuncName, HostFunc);
+        WasmEdge2_StringDelete(HostFuncName);
 
         WasmEdge_Result regRe =
-            WasmEdge_VMRegisterModuleFromImport(VMCxt, HostMod);
-        if (!WasmEdge_ResultOK(regRe))
+            WasmEdge2_VMRegisterModuleFromImport(VMCxt, HostMod);
+        if (!WasmEdge2_ResultOK(regRe))
         {
             printf("host func reg error\n");
             return Unexpected<TER>(tecFAILED_PROCESSING);
         }
     }
     WasmEdge_Result loadRes =
-        WasmEdge_VMLoadWasmFromBuffer(VMCxt, wasmCode.data(), wasmCode.size());
-    if (!WasmEdge_ResultOK(loadRes))
+        WasmEdge2_VMLoadWasmFromBuffer(VMCxt, wasmCode.data(), wasmCode.size());
+    if (!WasmEdge2_ResultOK(loadRes))
     {
         printf("load error\n");
         return Unexpected<TER>(tecFAILED_PROCESSING);
     }
-    WasmEdge_Result validateRes = WasmEdge_VMValidate(VMCxt);
-    if (!WasmEdge_ResultOK(validateRes))
+    WasmEdge_Result validateRes = WasmEdge2_VMValidate(VMCxt);
+    if (!WasmEdge2_ResultOK(validateRes))
     {
         printf("validate error\n");
         return Unexpected<TER>(tecFAILED_PROCESSING);
     }
-    WasmEdge_Result instantiateRes = WasmEdge_VMInstantiate(VMCxt);
-    if (!WasmEdge_ResultOK(instantiateRes))
+    WasmEdge_Result instantiateRes = WasmEdge2_VMInstantiate(VMCxt);
+    if (!WasmEdge2_ResultOK(instantiateRes))
     {
         printf("instantiate error\n");
         return Unexpected<TER>(tecFAILED_PROCESSING);
@@ -497,26 +498,26 @@ WasmEngineEdgeImpl::run(
 
     WasmEdge_Value funcReturns[1];
     memset(funcReturns, 0, sizeof(funcReturns));
-    WasmEdge_String func = WasmEdge_StringCreateByCString(funcName.data());
+    WasmEdge_String func = WasmEdge2_StringCreateByCString(funcName.data());
 
     WasmEdge_Result funcRes =
-        WasmEdge_VMExecute(VMCxt, func, NULL, 0, funcReturns, 1);
+        WasmEdge2_VMExecute(VMCxt, func, NULL, 0, funcReturns, 1);
 
-    bool ok = WasmEdge_ResultOK(funcRes);
+    bool ok = WasmEdge2_ResultOK(funcRes);
     bool re = false;
     if (ok)
     {
-        auto result = WasmEdge_ValueGetI32(funcReturns[0]);
+        auto result = WasmEdge2_ValueGetI32(funcReturns[0]);
         if (result != 0)
             re = true;
     }
     else
     {
-        printf("Error message: %s\n", WasmEdge_ResultGetMessage(funcRes));
+        printf("Error message: %s\n", WasmEdge2_ResultGetMessage(funcRes));
     }
 
-    WasmEdge_VMDelete(VMCxt);
-    WasmEdge_StringDelete(func);
+    WasmEdge2_VMDelete(VMCxt);
+    WasmEdge2_StringDelete(func);
     if (ok)
         return re;
     else

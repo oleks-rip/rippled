@@ -39,12 +39,6 @@ get_ledger_sqn_WTime(void* env, const wasm_val_vec_t*, wasm_val_vec_t* results)
     return nullptr;
 }
 
-struct vmem
-{
-    std::uint8_t* p = nullptr;
-    std::size_t s = 0;
-};
-
 using uvec = std::unique_ptr<wasm_val_vec_t, decltype(&wasmi_val_vec_delete)>;
 
 class WasmEngineIImpl

@@ -39,12 +39,6 @@ get_ledger_sqn_WTime(void* env, const wasm_val_vec_t*, wasm_val_vec_t* results)
     return nullptr;
 }
 
-struct vmem
-{
-    std::uint8_t* p = nullptr;
-    std::size_t s = 0;
-};
-
 using uvec = std::unique_ptr<wasm_val_vec_t, decltype(&wasmer_val_vec_delete)>;
 
 class WasmEngineErImpl
@@ -54,8 +48,10 @@ class WasmEngineErImpl
     std::unique_ptr<wasm_module_t, decltype(&wasmer_module_delete)> module;
     std::unique_ptr<wasm_instance_t, decltype(&wasmer_instance_delete)>
         mod_inst;
+
     // wasmtime_context_t* context = nullptr;
     // wasmtime_error_t* error = nullptr;
+
     wasm_trap_t* trap = nullptr;
 
     wasm_exporttype_vec_t export_types = {0, nullptr};
@@ -93,7 +89,7 @@ public:
 
 protected:
     static void
-    print_wasmi_error(const char* message, wasm_trap_t* trap);
+    print_wasm_error(const char* message, wasm_trap_t* trap);
 
     bool
     makeModule(
@@ -158,7 +154,7 @@ protected:
 };
 
 void
-WasmEngineErImpl::print_wasmi_error(const char* message, wasm_trap_t* trap)
+WasmEngineErImpl::print_wasm_error(const char* message, wasm_trap_t* trap)
 {
     fprintf(stderr, "error: %s\n", message);
     wasm_byte_vec_t error_message;
@@ -317,7 +313,7 @@ WasmEngineErImpl::call(wasm_func_t* func, std::vector<wasm_val_t>& in)
     wasm_val_vec_t const inv{in.size(), in.data()};
     trap = wasmer_func_call(func, &inv, &ret);
     if (trap)
-        print_wasmi_error("failed to call func", trap);
+        print_wasm_error("failed to call func", trap);
 
     // assert(results[0].kind == WASM_I32);
     // if (NR) printf("Result P5: %d\n", ret[0].of.i32);
