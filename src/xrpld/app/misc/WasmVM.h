@@ -33,7 +33,6 @@ struct vmem
     std::size_t s = 0;
 };
 
-
 static const std::string_view V_MEM = "memory";
 static const std::string_view V_STORE = "store";
 static const std::string_view V_LOAD = "load";
@@ -42,8 +41,22 @@ static const std::string_view V_SIZE = "size";
 static const std::string_view V_ALLOC = "allocate";
 static const std::string_view V_DEALLOC = "deallocate";
 
-enum class wasmEngines : int { Edge, Time, Er, I, Wamr, END };
+enum wasmEngines { Edge, Time, Er, I, Wamr, END };
 void setWasmEngine(wasmEngines);
+
+std::string_view constexpr wasmNames[] =
+    {"WasmEdge", "WasmTime", "Wasmer", "Wasmi", "WAMR"};
+
+static_assert(
+    (sizeof(wasmNames) / sizeof(wasmNames[0])) ==
+        wasmEngines::END,
+    "wasmEngines / wasmNames unsync");
+
+inline std::string_view
+engineName(wasmEngines idx)
+{
+    return idx < wasmEngines::END ? wasmNames[idx] : "";
+}
 
 Expected<bool, TER>
 runEscrowWasm(vbytes const& wasmCode, std::string_view funcName, int32_t input);
@@ -139,6 +152,26 @@ public:
 
     static std::unique_ptr<WasmEngine>
     instance();
+
+
+
+    virtual int
+    addModule(vbytes const& wasmCode)
+    {
+        return -1;
+    }
+
+    virtual int
+    addInstance(int m)
+    {
+        return -1;
+    }
+
+    // virtual bool runFunc(std::string_view const  funcName, int p, int m = 0, int i = 0)
+    // {
+    //     return false;
+    // }
+
 };
 
 }  // namespace ripple

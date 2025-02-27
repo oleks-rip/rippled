@@ -25,11 +25,10 @@
 
 namespace ripple {
 
-using uvec =
-    std::unique_ptr<wasm_val_vec_t, decltype(&wasmtime2_val_vec_delete)>;
+namespace {
 
 static wasm_trap_t*
-get_ledger_sqn_WTime(void* env, const wasm_val_vec_t*, wasm_val_vec_t* results)
+get_ledger_sqn(void* env, const wasm_val_vec_t*, wasm_val_vec_t* results)
 {
     auto sqn = reinterpret_cast<LedgerDataProvider*>(env)->get_ledger_sqn();
     if (results->size)
@@ -40,25 +39,282 @@ get_ledger_sqn_WTime(void* env, const wasm_val_vec_t*, wasm_val_vec_t* results)
     return nullptr;
 }
 
+static void
+print_wasm_error(const char* message, wasm_trap_t* trap)
+{
+    fprintf(stderr, "error: %s\n", message);
+    wasm_byte_vec_t error_message;
+
+    if (trap)
+    {
+        wasmtime2_trap_message(trap, &error_message);
+        wasmtime2_trap_delete(trap);
+    }
+    fprintf(stderr, "%.*s\n", (int)error_message.size, error_message.data);
+    wasmtime2_byte_vec_delete(&error_message);
+}
+
+using uvec =
+    std::unique_ptr<wasm_val_vec_t, decltype(&wasmtime2_val_vec_delete)>;
+using module_t =
+    std::unique_ptr<wasm_module_t, decltype(&wasmtime2_module_delete)>;
+using mod_inst_t =
+    std::unique_ptr<wasm_instance_t, decltype(&wasmtime2_instance_delete)>;
+
+struct my_mod_inst_t
+{
+    wasm_extern_vec_t exports;
+    mod_inst_t mod_inst;
+
+private:
+    static mod_inst_t
+    init(
+        wasm_store_t* s,
+        wasm_module_t* m,
+        wasm_extern_vec_t* expt,
+        wasm_extern_vec_t const& imports = WASM_EMPTY_VEC)
+    {
+        wasm_trap_t* trap = nullptr;
+        mod_inst_t mi = mod_inst_t(
+            wasmtime2_instance_new(s, m, &imports, &trap),
+            &wasmtime2_instance_delete);
+        if (!mi || trap)
+        {
+            print_wasm_error("can't create instance", trap);
+            throw std::runtime_error(
+                std::string(engineName(wasmEngines::Time)) +
+                ": can't create instance");
+        }
+        wasmtime2_instance_exports(mi.get(), expt);
+        return mi;
+    }
+
+public:
+    my_mod_inst_t()
+        : exports{0, nullptr}, mod_inst(nullptr, &wasmtime2_instance_delete)
+    {
+    }
+
+    my_mod_inst_t(my_mod_inst_t&& o)
+        : exports{0, nullptr}, mod_inst(nullptr, &wasmtime2_instance_delete)
+    {
+        std::swap(exports, o.exports);
+        std::swap(mod_inst, o.mod_inst);
+    }
+
+    my_mod_inst_t&
+    operator=(my_mod_inst_t&& o)
+    {
+        if (this == &o)
+            return *this;
+        std::swap(exports, o.exports);
+        std::swap(mod_inst, o.mod_inst);
+        return *this;
+    }
+
+    my_mod_inst_t(
+        wasm_store_t* s,
+        wasm_module_t* m,
+        wasm_extern_vec_t const& imports = WASM_EMPTY_VEC)
+        : exports{0, nullptr}, mod_inst(init(s, m, &exports, imports))
+    {
+    }
+
+    ~my_mod_inst_t()
+    {
+        wasmtime2_extern_vec_delete(&exports);
+    }
+
+    operator bool() const
+    {
+        return static_cast<bool>(mod_inst);
+    }
+
+    wasm_func_t*
+    getFunc(
+        std::string_view funcName,
+        wasm_exporttype_vec_t const& export_types) const
+    {
+        wasm_func_t* f = nullptr;
+
+        if (!export_types.size)
+            throw std::runtime_error(
+                std::string(engineName(wasmEngines::Time)) + ": no export");
+        if (export_types.size != exports.size)
+            throw std::runtime_error(
+                std::string(engineName(wasmEngines::Time)) +
+                ": invalid export");
+
+        for (unsigned i = 0; i < export_types.size; ++i)
+        {
+            auto const* exp_type(export_types.data[i]);
+
+            const wasm_externtype_t* exn_type =
+                wasmtime2_exporttype_type(exp_type);
+            if (wasmtime2_externtype_kind(exn_type) == WASM_EXTERN_FUNC)
+            {
+                wasm_name_t const* name = wasmtime2_exporttype_name(exp_type);
+                if (funcName == std::string_view(name->data, name->size))
+                {
+                    auto* exn(exports.data[i]);
+                    if (wasmtime2_extern_kind(exn) != WASM_EXTERN_FUNC)
+                        throw std::runtime_error(
+                            std::string(engineName(wasmEngines::Time)) +
+                            ": invalid export");
+
+                    f = wasmtime2_extern_as_func(exn);
+                    break;
+                }
+            }
+        }
+
+        if (!f)
+            throw std::runtime_error(
+                std::string(engineName(wasmEngines::Time)) +
+                ": can't find function");
+
+        return f;
+    }
+
+    vmem
+    getMem() const
+    {
+        wasm_memory_t* mem = nullptr;
+        for (unsigned i = 0; i < exports.size; ++i)
+        {
+            auto* e(exports.data[i]);
+            if (wasmtime2_extern_kind(e) == WASM_EXTERN_MEMORY)
+            {
+                mem = wasmtime2_extern_as_memory(e);
+                break;
+            }
+        }
+
+        if (!mem)
+            throw std::runtime_error(
+                std::string(engineName(wasmEngines::Time)) +
+                ": no memory exported");
+
+        return {
+            reinterpret_cast<std::uint8_t*>(wasmtime2_memory_data(mem)),
+            wasmtime2_memory_data_size(mem)};
+    }
+};
+
+struct my_module_t
+{
+    module_t module;
+    std::vector<my_mod_inst_t> mod_inst;
+    wasm_exporttype_vec_t export_types;
+
+private:
+    static module_t
+    init(wasm_store_t* s, vbytes const& wasmBin)
+    {
+        wasm_byte_vec_t const code{wasmBin.size(), (char*)(wasmBin.data())};
+        module_t m =
+            module_t(wasmtime2_module_new(s, &code), &wasmtime2_module_delete);
+        return m;
+    }
+
+public:
+    my_module_t()
+        : module(nullptr, &wasmtime2_module_delete), export_types{0, nullptr}
+    {
+    }
+
+    my_module_t(my_module_t&& o)
+        : module(nullptr, &wasmtime2_module_delete), export_types{0, nullptr}
+    {
+        std::swap(module, o.module);
+        std::swap(mod_inst, o.mod_inst);
+        std::swap(export_types, o.export_types);
+    }
+
+    my_module_t&
+    operator=(my_module_t&& o)
+    {
+        if (this == &o)
+            return *this;
+        std::swap(module, o.module);
+        std::swap(mod_inst, o.mod_inst);
+        std::swap(export_types, o.export_types);
+        return *this;
+    }
+
+    my_module_t(
+        wasm_store_t* s,
+        vbytes const& wasmBin,
+        wasm_extern_vec_t const& imports = WASM_EMPTY_VEC)
+        : module(init(s, wasmBin)), export_types{0, nullptr}
+    {
+        if (!module)
+            throw std::runtime_error(
+                std::string(engineName(wasmEngines::Time)) +
+                " + can't create module");
+
+        wasmtime2_module_exports(module.get(), &export_types);
+        mod_inst.emplace_back(s, module.get(), imports);
+    }
+
+    ~my_module_t()
+    {
+        wasmtime2_exporttype_vec_delete(&export_types);
+    }
+
+    wasm_func_t*
+    getFunc(std::string_view funcName, int i) const
+    {
+        return mod_inst[i].getFunc(funcName, export_types);
+    }
+
+    vmem
+    getMem(int i) const
+    {
+        return mod_inst[i].getMem();
+    }
+
+    int
+    addInstance(
+        wasm_store_t* s,
+        wasm_extern_vec_t const& imports = WASM_EMPTY_VEC)
+    {
+        for (int i = 0, e = mod_inst.size(); i < e; ++i)
+        {
+            auto& ins(mod_inst[i]);
+            if (!ins)
+            {
+                ins = {s, module.get(), imports};
+                return i;
+            }
+        }
+        mod_inst.emplace_back(s, module.get(), imports);
+        return static_cast<int>(mod_inst.size());
+    }
+
+    int
+    delInstance(int i)
+    {
+        if (i >= mod_inst.size())
+            return -1;
+        if (!mod_inst[i])
+            mod_inst[i] = my_mod_inst_t();
+        return i;
+    }
+};
+
+}  // namespace
+
 class WasmEngineTimeImpl
 {
     std::unique_ptr<wasm_engine_t, decltype(&wasmtime2_engine_delete)> engine;
     std::unique_ptr<wasm_store_t, decltype(&wasmtime2_store_delete)> store;
-    std::unique_ptr<wasm_module_t, decltype(&wasmtime2_module_delete)> module;
-    std::unique_ptr<wasm_instance_t, decltype(&wasmtime2_instance_delete)>
-        mod_inst;
-
-    // wasm_context_t* context = nullptr;
-    // wasm_error_t* error = nullptr;
-
+    std::vector<my_module_t> modules;
     wasm_trap_t* trap = nullptr;
-
-    wasm_exporttype_vec_t export_types = {0, nullptr};
-    wasm_extern_vec_t exports = {0, nullptr};
 
 public:
     WasmEngineTimeImpl();
-    ~WasmEngineTimeImpl();
+    ~WasmEngineTimeImpl() = default;
 
     Expected<bool, TER>
     run(vbytes const& wasmCode, std::string_view funcName, int32_t input);
@@ -86,20 +342,22 @@ public:
         std::string_view funcName,
         LedgerDataProvider* ledgerDataProvider);
 
-protected:
-    static void
-    print_wasm_error(const char* message, wasm_trap_t* trap);
+    int
+    addModule(vbytes const& wasmCode);
+    int
+    addInstance(int m);
 
+protected:
     bool
     makeModule(
         vbytes const& wasmCode,
         wasm_extern_vec_t const& imports = WASM_EMPTY_VEC);
 
     wasm_func_t*
-    getFunc(std::string_view funcName);
+    getFunc(std::string_view funcName, int m = 0, int i = 0);
 
     vmem
-    getMem();
+    getMem(int m = 0, int i = 0);
 
     void
     add_param(std::vector<wasm_val_t>& in, int32_t p);
@@ -152,33 +410,10 @@ protected:
         Types... args);
 };
 
-void
-WasmEngineTimeImpl::print_wasm_error(const char* message, wasm_trap_t* trap)
-{
-    fprintf(stderr, "error: %s\n", message);
-    wasm_byte_vec_t error_message;
-
-    if (trap)
-    {
-        wasmtime2_trap_message(trap, &error_message);
-        wasmtime2_trap_delete(trap);
-    }
-    fprintf(stderr, "%.*s\n", (int)error_message.size, error_message.data);
-    wasmtime2_byte_vec_delete(&error_message);
-}
-
 WasmEngineTimeImpl::WasmEngineTimeImpl()
     : engine(wasmtime2_engine_new(), &wasmtime2_engine_delete)
     , store(wasmtime2_store_new(engine.get()), &wasmtime2_store_delete)
-    , module(nullptr, &wasmtime2_module_delete)
-    , mod_inst(nullptr, &wasmtime2_instance_delete)
 {
-}
-
-WasmEngineTimeImpl::~WasmEngineTimeImpl()
-{
-    wasmtime2_exporttype_vec_delete(&export_types);
-    wasmtime2_extern_vec_delete(&exports);
 }
 
 bool
@@ -186,82 +421,33 @@ WasmEngineTimeImpl::makeModule(
     vbytes const& wasmCode,
     wasm_extern_vec_t const& imports)
 {
-    wasm_byte_vec_t const code{wasmCode.size(), (char*)(wasmCode.data())};
-
-    module = decltype(module)(
-        wasmtime2_module_new(store.get(), &code), &wasmtime2_module_delete);
-    if (!module)
-        throw std::runtime_error("WasmEngineTimeImpl: can't create module");
-
-    mod_inst = decltype(mod_inst)(
-        wasmtime2_instance_new(store.get(), module.get(), &imports, &trap),
-        &wasmtime2_instance_delete);
-    if (!mod_inst || trap)
-        throw std::runtime_error("WasmEngineTimeImpl: can't create instance");
-
-    wasmtime2_module_exports(module.get(), &export_types);
-    wasmtime2_instance_exports(mod_inst.get(), &exports);
-
+    modules.emplace_back(store.get(), wasmCode, imports);
     return false;  // to be compatible with other VMs
 }
 
-wasm_func_t*
-WasmEngineTimeImpl::getFunc(std::string_view funcName)
+int
+WasmEngineTimeImpl::addModule(vbytes const& wasmCode)
 {
-    wasm_func_t* f = nullptr;
+    modules.emplace_back(store.get(), wasmCode);
+    return static_cast<int>(modules.size());
+}
 
-    if (!export_types.size)
-        throw std::runtime_error("WasmEngineTimeImpl: no export");
-    if (export_types.size != exports.size)
-        throw std::runtime_error("WasmEngineTimeImpl: invalid export");
+int
+WasmEngineTimeImpl::addInstance(int m)
+{
+    return modules[m].addInstance(store.get());
+}
 
-    for (unsigned i = 0; i < export_types.size; ++i)
-    {
-        auto* exp_type(export_types.data[i]);
-
-        const wasm_externtype_t* exn_type = wasmtime2_exporttype_type(exp_type);
-        if (wasmtime2_externtype_kind(exn_type) == WASM_EXTERN_FUNC)
-        {
-            wasm_name_t const* name = wasmtime2_exporttype_name(exp_type);
-            if (funcName == std::string_view(name->data, name->size))
-            {
-                auto* exn(exports.data[i]);
-                if (wasmtime2_extern_kind(exn) != WASM_EXTERN_FUNC)
-                    throw std::runtime_error(
-                        "WasmEngineTimeImpl: invalid export");
-
-                f = wasmtime2_extern_as_func(exn);
-                break;
-            }
-        }
-    }
-
-    if (!f)
-        throw std::runtime_error("WasmEngineTimeImpl: can't find function");
-
-    return f;
+wasm_func_t*
+WasmEngineTimeImpl::getFunc(std::string_view funcName, int m, int i)
+{
+    return modules[m].getFunc(funcName, i);
 }
 
 vmem
-WasmEngineTimeImpl::getMem()
+WasmEngineTimeImpl::getMem(int m, int i)
 {
-    wasm_memory_t* mem = nullptr;
-    for (unsigned i = 0; i < exports.size; ++i)
-    {
-        auto* e(exports.data[i]);
-        if (wasmtime2_extern_kind(e) == WASM_EXTERN_MEMORY)
-        {
-            mem = wasmtime2_extern_as_memory(e);
-            break;
-        }
-    }
-
-    if (!mem)
-        throw std::runtime_error("WasmEngineTimeImpl: no memory exported");
-
-    return {
-        reinterpret_cast<std::uint8_t*>(wasmtime2_memory_data(mem)),
-        wasmtime2_memory_data_size(mem)};
+    return modules[m].getMem(i);
 }
 
 void
@@ -269,7 +455,8 @@ WasmEngineTimeImpl::add_param(std::vector<wasm_val_t>& in, int32_t p)
 {
     in.emplace_back();
     auto& el(in.back());
-    el = WASM_I32_VAL(p);
+    memset(&el, 0, sizeof(el));
+    el = WASM_I32_VAL(p);  // WASM_I32;
 }
 
 void
@@ -499,15 +686,11 @@ WasmEngineTimeImpl::run(
 
     // std::unique_ptr<wasm_func_t, decltype(&wasmtime2_func_delete)> func(
     //     wasmtime2_func_new_with_env(store.get(),ftype.get(),
-    //     &get_ledger_sqn_WTime, ledgerDataProvider, nullptr),
+    //     &get_ledger_sqn, ledgerDataProvider, nullptr),
     //     &wasmtime2_func_delete);
 
     wasm_func_t* func = wasmtime2_func_new_with_env(
-        store.get(),
-        ftype.get(),
-        &get_ledger_sqn_WTime,
-        ledgerDataProvider,
-        nullptr);
+        store.get(), ftype.get(), &get_ledger_sqn, ledgerDataProvider, nullptr);
 
     wasm_extern_t* arr[] = {wasmtime2_func_as_extern(func)};
     wasm_extern_vec_t imports = WASM_ARRAY_VEC(arr);
@@ -613,4 +796,35 @@ WasmEngineTime::run(
     }
     return Unexpected<TER>(tecFAILED_PROCESSING);
 }
+
+int
+WasmEngineTime::addModule(vbytes const& wasmCode)
+{
+    try
+    {
+        return impl->addModule(wasmCode);
+    }
+    catch (std::exception const& e)
+    {
+        std::cerr << engineName(wasmEngines::Time) << ": " << e.what()
+                  << std::endl;
+    }
+    return -1;
+}
+
+int
+WasmEngineTime::addInstance(int m)
+{
+    try
+    {
+        return impl->addInstance(m);
+    }
+    catch (std::exception const& e)
+    {
+        std::cerr << engineName(wasmEngines::Time) << ": " << e.what()
+                  << std::endl;
+    }
+    return -1;
+}
+
 }  // namespace ripple

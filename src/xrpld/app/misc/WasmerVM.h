@@ -59,6 +59,11 @@ public:
     run(vbytes const& wasmCode,
         std::string_view funcName,
         LedgerDataProvider* ledgerDataProvider) override;
+
+    virtual int
+    addModule(vbytes const& wasmCode) override;
+    virtual int
+    addInstance(int m) override;
 };
 
 }  // namespace ripple
