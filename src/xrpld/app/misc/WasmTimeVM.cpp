@@ -251,7 +251,7 @@ public:
         if (!module)
             throw std::runtime_error(
                 std::string(engineName(wasmEngines::Time)) +
-                " + can't create module");
+                " can't create module");
 
         wasmtime2_module_exports(module.get(), &export_types);
         mod_inst.emplace_back(s, module.get(), imports);
@@ -337,6 +337,13 @@ public:
         vbytes const& escrow_tx_json_data,
         vbytes const& escrow_lo_json_data);
 
+    Expected<std::pair<bool, std::string>, TER>
+    justRunP4(
+        vbytes const& wasmCode,
+        std::string_view funcName,
+        vbytes const& escrow_tx_json_data,
+        vbytes const& escrow_lo_json_data);
+
     Expected<bool, TER>
     run(vbytes const& wasmCode,
         std::string_view funcName,
@@ -346,6 +353,9 @@ public:
     addModule(vbytes const& wasmCode);
     int
     addInstance(int m);
+
+    int64_t
+    runFunc(std::string_view const funcName, int32_t p, int m, int i);
 
 protected:
     bool
@@ -474,7 +484,9 @@ WasmEngineTimeImpl::call(std::string_view func, Types... args)
     // Lookup our export function
     auto* f = getFunc(func);
     if (!f)
-        throw std::runtime_error(std::string("Can't find ") + func.data());
+        throw std::runtime_error(
+            std::string(engineName(wasmEngines::Time)) +
+            std::string(" Can't find ") + func.data());
 
     return call<NR>(f, std::forward<Types>(args)...);
 }
@@ -636,6 +648,17 @@ WasmEngineTimeImpl::runP4(
     if (makeModule(wasmCode))
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
+    return justRunP4(
+        wasmCode, funcName, escrow_tx_json_data, escrow_lo_json_data);
+}
+
+Expected<std::pair<bool, std::string>, TER>
+WasmEngineTimeImpl::justRunP4(
+    vbytes const& wasmCode,
+    std::string_view funcName,
+    vbytes const& escrow_tx_json_data,
+    vbytes const& escrow_lo_json_data)
+{
     auto res = call<1>(funcName, escrow_tx_json_data, escrow_lo_json_data);
     uvec del_res(&res, &wasmtime2_val_vec_delete);
     if (!res.size || trap)
@@ -703,6 +726,29 @@ WasmEngineTimeImpl::run(
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
     return res.data[0].kind == WASM_I32 && res.data[0].of.i32;
+}
+
+int64_t
+WasmEngineTimeImpl::runFunc(
+    std::string_view const funcName,
+    int32_t p,
+    int m,
+    int i)
+{
+    auto* f = getFunc(funcName, m, i);
+    if (!f)
+        throw std::runtime_error(
+            std::string(engineName(wasmEngines::Time)) +
+            std::string(" Can't find ") + funcName.data());
+
+    auto res = call<1>(f, p);
+    uvec del_res(&res, &wasmtime2_val_vec_delete);
+    if (!res.size || trap)
+        return -1;
+
+    return res.data[0].kind == WASM_I64
+        ? res.data[0].of.i64
+        : static_cast<std::int64_t>(res.data[0].of.i32);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -781,6 +827,24 @@ WasmEngineTime::runP4(
     return Unexpected<TER>(tecFAILED_PROCESSING);
 }
 
+Expected<std::pair<bool, std::string>, TER>
+WasmEngineTime::justRunP4(
+    vbytes const& wasmCode,
+    std::string_view funcName,
+    vbytes const& escrow_tx_json_data,
+    vbytes const& escrow_lo_json_data)
+{
+    try
+    {
+        return impl->justRunP4(
+            wasmCode, funcName, escrow_tx_json_data, escrow_lo_json_data);
+    }
+    catch (std::exception const&)
+    {
+    }
+    return Unexpected<TER>(tecFAILED_PROCESSING);
+}
+
 Expected<bool, TER>
 WasmEngineTime::run(
     vbytes const& wasmCode,
@@ -825,6 +889,16 @@ WasmEngineTime::addInstance(int m)
                   << std::endl;
     }
     return -1;
+}
+
+int64_t
+WasmEngineTime::runFunc(
+    std::string_view const funcName,
+    int32_t p,
+    int m,
+    int i)
+{
+    return impl->runFunc(funcName, p, m, i);
 }
 
 }  // namespace ripple

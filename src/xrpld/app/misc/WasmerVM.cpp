@@ -336,6 +336,13 @@ public:
         vbytes const& escrow_tx_json_data,
         vbytes const& escrow_lo_json_data);
 
+    Expected<std::pair<bool, std::string>, TER>
+    justRunP4(
+        vbytes const& wasmCode,
+        std::string_view funcName,
+        vbytes const& escrow_tx_json_data,
+        vbytes const& escrow_lo_json_data);
+
     Expected<bool, TER>
     run(vbytes const& wasmCode,
         std::string_view funcName,
@@ -345,6 +352,9 @@ public:
     addModule(vbytes const& wasmCode);
     int
     addInstance(int m);
+
+    int64_t
+    runFunc(std::string_view const funcName, int32_t p, int m, int i);
 
 protected:
     bool
@@ -635,6 +645,17 @@ WasmEngineErImpl::runP4(
     if (makeModule(wasmCode))
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
+    return justRunP4(
+        wasmCode, funcName, escrow_tx_json_data, escrow_lo_json_data);
+}
+
+Expected<std::pair<bool, std::string>, TER>
+WasmEngineErImpl::justRunP4(
+    vbytes const& wasmCode,
+    std::string_view funcName,
+    vbytes const& escrow_tx_json_data,
+    vbytes const& escrow_lo_json_data)
+{
     auto res = call<1>(funcName, escrow_tx_json_data, escrow_lo_json_data);
     uvec del_res(&res, &wasmer_val_vec_delete);
     if (!res.size || trap)
@@ -700,6 +721,29 @@ WasmEngineErImpl::run(
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
     return res.data[0].kind == WASM_I32 && res.data[0].of.i32;
+}
+
+int64_t
+WasmEngineErImpl::runFunc(
+    std::string_view const funcName,
+    int32_t p,
+    int m,
+    int i)
+{
+    auto* f = getFunc(funcName, m, i);
+    if (!f)
+        throw std::runtime_error(
+            std::string(engineName(wasmEngines::Er)) +
+            std::string(" Can't find ") + funcName.data());
+
+    auto res = call<1>(f, p);
+    uvec del_res(&res, &wasmer_val_vec_delete);
+    if (!res.size || trap)
+        return -1;
+
+    return res.data[0].kind == WASM_I64
+        ? res.data[0].of.i64
+        : static_cast<std::int64_t>(res.data[0].of.i32);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -778,6 +822,24 @@ WasmEngineEr::runP4(
     return Unexpected<TER>(tecFAILED_PROCESSING);
 }
 
+Expected<std::pair<bool, std::string>, TER>
+WasmEngineEr::justRunP4(
+    vbytes const& wasmCode,
+    std::string_view funcName,
+    vbytes const& escrow_tx_json_data,
+    vbytes const& escrow_lo_json_data)
+{
+    try
+    {
+        return impl->justRunP4(
+            wasmCode, funcName, escrow_tx_json_data, escrow_lo_json_data);
+    }
+    catch (std::exception const&)
+    {
+    }
+    return Unexpected<TER>(tecFAILED_PROCESSING);
+}
+
 Expected<bool, TER>
 WasmEngineEr::run(
     vbytes const& wasmCode,
@@ -822,6 +884,12 @@ WasmEngineEr::addInstance(int m)
                   << std::endl;
     }
     return -1;
+}
+
+int64_t
+WasmEngineEr::runFunc(std::string_view const funcName, int32_t p, int m, int i)
+{
+    return impl->runFunc(funcName, p, m, i);
 }
 
 }  // namespace ripple

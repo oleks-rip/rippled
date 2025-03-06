@@ -25,6 +25,12 @@ WasmEdge2_ValueGetI64(const WasmEdge_Value Val)
     return WasmEdge_ValueGetI64(Val);
 }
 
+bool
+WasmEdge2_ValTypeIsI64(const WasmEdge_ValType ValType)
+{
+    return WasmEdge_ValTypeIsI64(ValType);
+}
+
 WasmEdge_Value
 WasmEdge2_ValueGenI64(const int64_t Val)
 {

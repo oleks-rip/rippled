@@ -20,6 +20,8 @@ WasmEdge_ValType
 WasmEdge2_ValTypeGenI64(void);
 int64_t
 WasmEdge2_ValueGetI64(const WasmEdge_Value Val);
+bool
+WasmEdge2_ValTypeIsI64(const WasmEdge_ValType ValType);
 
 WasmEdge_String
 WasmEdge2_StringCreateByCString(const char* Str);

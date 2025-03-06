@@ -55,6 +55,13 @@ public:
         vbytes const& escrow_tx_json_data,
         vbytes const& escrow_lo_json_data) override;
 
+    virtual Expected<std::pair<bool, std::string>, TER>
+    justRunP4(
+        vbytes const& wasmCode,
+        std::string_view funcName,
+        vbytes const& escrow_tx_json_data,
+        vbytes const& escrow_lo_json_data) override;
+
     virtual Expected<bool, TER>
     run(vbytes const& wasmCode,
         std::string_view funcName,
@@ -64,6 +71,9 @@ public:
     addModule(vbytes const& wasmCode) override;
     virtual int
     addInstance(int m) override;
+
+    virtual int64_t
+    runFunc(std::string_view const funcName, int32_t p, int m, int i) override;
 };
 
 }  // namespace ripple

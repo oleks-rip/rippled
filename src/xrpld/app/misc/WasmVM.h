@@ -48,8 +48,7 @@ std::string_view constexpr wasmNames[] =
     {"WasmEdge", "WasmTime", "Wasmer", "Wasmi", "WAMR"};
 
 static_assert(
-    (sizeof(wasmNames) / sizeof(wasmNames[0])) ==
-        wasmEngines::END,
+    (sizeof(wasmNames) / sizeof(wasmNames[0])) == wasmEngines::END,
     "wasmEngines / wasmNames unsync");
 
 inline std::string_view
@@ -142,6 +141,16 @@ public:
         return Unexpected<TER>(tecFAILED_PROCESSING);
     }
 
+    virtual Expected<std::pair<bool, std::string>, TER>
+    justRunP4(
+        vbytes const& wasmCode,
+        std::string_view funcName,
+        vbytes const& escrow_tx_json_data,
+        vbytes const& escrow_lo_json_data)
+    {
+        return Unexpected<TER>(tecFAILED_PROCESSING);
+    }
+
     virtual Expected<bool, TER>
     run(vbytes const& wasmCode,
         std::string_view funcName,
@@ -152,8 +161,6 @@ public:
 
     static std::unique_ptr<WasmEngine>
     instance();
-
-
 
     virtual int
     addModule(vbytes const& wasmCode)
@@ -167,11 +174,11 @@ public:
         return -1;
     }
 
-    // virtual bool runFunc(std::string_view const  funcName, int p, int m = 0, int i = 0)
-    // {
-    //     return false;
-    // }
-
+    virtual int64_t
+    runFunc(std::string_view const funcName, int32_t p, int m = 0, int i = 0)
+    {
+        return -1;
+    }
 };
 
 }  // namespace ripple

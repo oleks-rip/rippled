@@ -239,11 +239,7 @@ public:
     }
 
     int
-    addInstance(
-        WasmEdge_StoreContext* s,
-        WasmEdge_ExecutorContext* x
-        //,wasm_extern_vec_t const& imports = WASM_EMPTY_VEC
-    )
+    addInstance(WasmEdge_StoreContext* s, WasmEdge_ExecutorContext* x)
     {
         for (int i = 0, e = mod_inst.size(); i < e; ++i)
         {
@@ -320,6 +316,13 @@ public:
         vbytes const& escrow_tx_json_data,
         vbytes const& escrow_lo_json_data);
 
+    Expected<std::pair<bool, std::string>, TER>
+    justRunP4(
+        vbytes const& wasmCode,
+        std::string_view funcName,
+        vbytes const& escrow_tx_json_data,
+        vbytes const& escrow_lo_json_data);
+
     Expected<bool, TER>
     run(vbytes const& wasmCode,
         std::string_view funcName,
@@ -329,6 +332,9 @@ public:
     addModule(vbytes const& wasmCode);
     int
     addInstance(int m);
+
+    int64_t
+    runFunc(std::string_view const funcName, int32_t p, int m, int i);
 
 protected:
     bool
@@ -480,6 +486,17 @@ WasmEngineEdgeImpl::runP4(
     if (makeModule(wasmCode))
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
+    return justRunP4(
+        wasmCode, funcName, escrow_tx_json_data, escrow_lo_json_data);
+}
+
+Expected<std::pair<bool, std::string>, TER>
+WasmEngineEdgeImpl::justRunP4(
+    vbytes const& wasmCode,
+    std::string_view funcName,
+    vbytes const& escrow_tx_json_data,
+    vbytes const& escrow_lo_json_data)
+{
     auto const Returns =
         call<1>(funcName, escrow_tx_json_data, escrow_lo_json_data);
     if (!WasmEdge2_ResultOK(funcRes))
@@ -565,12 +582,7 @@ WasmEngineEdgeImpl::addModule(vbytes const& wasmCode)
 {
     // std::string mn = "module_" + std::to_string(ctr++);
     modules.emplace_back(
-        // mn,
-        store.get(),
-        loader.get(),
-        validator.get(),
-        executor.get(),
-        wasmCode);
+        store.get(), loader.get(), validator.get(), executor.get(), wasmCode);
     return static_cast<int>(modules.size());
 }
 
@@ -739,6 +751,27 @@ WasmEngineEdgeImpl::call(
     return call<NR>(func, in, p.data(), p.size(), std::forward<Types>(args)...);
 }
 
+int64_t
+WasmEngineEdgeImpl::runFunc(
+    std::string_view const funcName,
+    int32_t p,
+    int m,
+    int i)
+{
+    auto* f = getFunc(funcName, m, i);
+    if (!f)
+        throw std::runtime_error(
+            std::string(engineName(wasmEngines::Edge)) +
+            std::string(" Can't find ") + funcName.data());
+
+    auto res = call<1>(f, p);
+    if (!res.size() || !WasmEdge2_ResultOK(funcRes))
+        return -1;
+
+    auto const result = WasmEdge2_ValueGetI64(res[0]);
+    return result;
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////
 
 WasmEngineEdge::WasmEngineEdge() : impl(std::make_unique<WasmEngineEdgeImpl>())
@@ -816,6 +849,24 @@ WasmEngineEdge::runP4(
     return Unexpected<TER>(tecFAILED_PROCESSING);
 }
 
+Expected<std::pair<bool, std::string>, TER>
+WasmEngineEdge::justRunP4(
+    vbytes const& wasmCode,
+    std::string_view funcName,
+    vbytes const& escrow_tx_json_data,
+    vbytes const& escrow_lo_json_data)
+{
+    try
+    {
+        return impl->justRunP4(
+            wasmCode, funcName, escrow_tx_json_data, escrow_lo_json_data);
+    }
+    catch (std::exception const&)
+    {
+    }
+    return Unexpected<TER>(tecFAILED_PROCESSING);
+}
+
 Expected<bool, TER>
 WasmEngineEdge::run(
     vbytes const& wasmCode,
@@ -860,6 +911,16 @@ WasmEngineEdge::addInstance(int m)
                   << std::endl;
     }
     return -1;
+}
+
+int64_t
+WasmEngineEdge::runFunc(
+    std::string_view const funcName,
+    int32_t p,
+    int m,
+    int i)
+{
+    return impl->runFunc(funcName, p, m, i);
 }
 
 }  // namespace ripple

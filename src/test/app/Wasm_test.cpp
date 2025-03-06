@@ -36,7 +36,7 @@ struct Wasm_test : public beast::unit_test::suite
     {
         testcase("escrow wasm P0 test");
 
-        auto const wasmStr = boost::algorithm::unhex(std::string(p0Hex));
+        auto const wasmStr = boost::algorithm::unhex(p0Hex);
         std::vector<uint8_t> const wasm(wasmStr.begin(), wasmStr.end());
         std::string const funcName("mock_escrow");
 
@@ -53,8 +53,8 @@ struct Wasm_test : public beast::unit_test::suite
     testBadWasm()
     {
         testcase("bad wasm test");
-        auto wasmHex = "00000000";
-        auto wasmStr = boost::algorithm::unhex(std::string(wasmHex));
+        std::string const wasmHex = "00000000";
+        auto wasmStr = boost::algorithm::unhex(wasmHex);
         std::vector<uint8_t> wasm(wasmStr.begin(), wasmStr.end());
         std::string funcName("mock_escrow");
         auto re = runEscrowWasm(wasm, funcName, 15);
@@ -66,7 +66,7 @@ struct Wasm_test : public beast::unit_test::suite
     {
         testcase("escrow wasm P1 test");
 
-        auto const wasmStr = boost::algorithm::unhex(std::string(p1Hex));
+        auto const wasmStr = boost::algorithm::unhex(p1Hex);
         std::vector<uint8_t> const wasm(wasmStr.begin(), wasmStr.end());
         std::string const funcName("check_accountID");
         {
@@ -90,7 +90,7 @@ struct Wasm_test : public beast::unit_test::suite
     {
         testcase("escrow wasm P2 & P3 test");
 
-        auto wasmStr = boost::algorithm::unhex(std::string(p2Hex));
+        auto wasmStr = boost::algorithm::unhex(p2Hex);
         std::vector<uint8_t> wasm(wasmStr.begin(), wasmStr.end());
         std::string funcName("compare_accountID");
 
@@ -165,7 +165,7 @@ struct Wasm_test : public beast::unit_test::suite
     {
         testcase("escrow wasm P4 test");
 
-        auto wasmStr = boost::algorithm::unhex(std::string(p4Hex));
+        auto wasmStr = boost::algorithm::unhex(p4Hex);
         std::vector<uint8_t> wasm(wasmStr.begin(), wasmStr.end());
         std::string funcName("compare_accountID");
 
@@ -258,7 +258,7 @@ struct Wasm_test : public beast::unit_test::suite
     {
         testcase("escrow wasm P5 test");
 
-        auto wasmStr = boost::algorithm::unhex(std::string(p5Hex));
+        auto wasmStr = boost::algorithm::unhex(p5Hex);
         std::vector<uint8_t> wasm(wasmStr.begin(), wasmStr.end());
 
         using namespace test::jtx;
@@ -328,9 +328,10 @@ usecs()
 
 class WasmPerf_test : public beast::unit_test::suite
 {
-    static const int TESTS_N = 5;
+    static const int TESTS_N = 20;
     static const int ENGINES_N = wasmEngines::END;
     static const int ADD_MOD_N = 1000;
+    static const int FIB_N = 5;
 
     // std::vector<std::unique_ptr<WasmEngine>> engines;
 
@@ -364,13 +365,14 @@ class WasmPerf_test : public beast::unit_test::suite
     void
     ptest_0_AddModule(wasmEngines ei, WasmEngine& e)
     {
+        auto const wasmStr = boost::algorithm::unhex(p4Hex);
+        vbytes const wasm(wasmStr.begin(), wasmStr.end());
+
         std::cout << std::endl;
         testcase(
-            "PerfTest 0, " +
-            std::string(engineName(static_cast<wasmEngines>(ei))));
-
-        auto wasmStr = boost::algorithm::unhex(std::string(p2Hex));
-        vbytes const wasm(wasmStr.begin(), wasmStr.end());
+            std::string(engineName(static_cast<wasmEngines>(ei))) +
+            " PerfTest 0, module load, size(" + std::to_string(wasm.size()) +
+            ")");
 
         auto& times(testTimes[0][ei]);
         // times.resize(ADD_MOD_N + 1);
@@ -386,9 +388,207 @@ class WasmPerf_test : public beast::unit_test::suite
     }
 
     void
+    ptest_1_AddInstance(wasmEngines ei, WasmEngine& e)
+    {
+        auto const wasmStr = boost::algorithm::unhex(p4Hex);
+        vbytes const wasm(wasmStr.begin(), wasmStr.end());
+
+        std::cout << std::endl;
+        testcase(
+            std::string(engineName(static_cast<wasmEngines>(ei))) +
+            " PerfTest 1, Add instance, size(" + std::to_string(wasm.size()) +
+            ")");
+
+        auto& times(testTimes[1][ei]);
+        // times.resize(ADD_MOD_N + 1);
+
+        int k = 0;
+        e.addModule(wasm);
+        times[0] = usecs();
+        for (int i = 0; i < ADD_MOD_N; ++i)
+        {
+            k = e.addInstance(0);
+            times[i + 1] = usecs();
+        }
+
+        BEAST_EXPECT(times[ADD_MOD_N] > 0);
+        BEAST_EXPECT(k == ADD_MOD_N + 1);
+    }
+
+    void
+    ptest_2_RunP4(wasmEngines ei, WasmEngine& e)
+    {
+        auto const wasmStr = boost::algorithm::unhex(p4Hex);
+        vbytes const wasm(wasmStr.begin(), wasmStr.end());
+
+        std::string funcName("compare_accountID");
+        std::string escrow_tx_json_str = R"({
+           "Account" : "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+           "Fee" : "10",
+           "Flags" : 2147483648,
+           "OfferSequence" : 2,
+           "Owner" : "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+           "Sequence" : 3,
+           "SigningPubKey" : "0330E7FC9D56BB25D6893BA3F317AE5BCF33B3291BD63DB32654A313222F7FD020",
+           "TransactionType" : "EscrowFinish",
+           "TxnSignature" : "30450221008AD5EE48F7F1047813E79C174FE401D023A4B4A7B99AF826E081DB1DFF7B9C510220133F05B7FD3D7D7F163E8C77EE0A49D02619AB6C77CC3487D0095C9B34033C1C",
+           "hash" : "74465121372813CBA4C77E31F12E137163F5B2509B16AC1703ECF0DA194B2DD4"
+        })";
+        std::string escrow_lo_json_str = R"({
+               "Account" : "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+               "Amount" : "100000",
+               "CancelAfter" : 790297421,
+               "Destination" : "rBYn44yhs8cf8G2t79XMUHYQpp2ayhqwcw",
+               "DestinationNode" : "0",
+               "FinishAfter" : 790297403,
+               "FinishFunction" : "0061736D0100000001180460027F7F0060017F017F60027F7F017F60047F7F7F7F00030C0B01010200000000000003000405017001030305030100110619037F01418080C0000B7F0041DD85C0000B7F0041E085C0000B074205066D656D6F7279020008616C6C6F6361746500000F636865636B5F6163636F756E74494400020A5F5F646174615F656E6403010B5F5F686561705F6261736503020908010041010B02060A0AF5360B610002",
+               "Flags" : 0,
+               "LedgerEntryType" : "Escrow",
+               "OwnerNode" : "0",
+               "PreviousTxnID" : "CF25D1C6B8E637C7DAC61B586F820A16896A3090D9F6FBF9FA00D8B13A265647",
+               "PreviousTxnLgrSeq" : 4,
+               "index" : "9BC6631F3EC761CF9BD846D006560E2D57B0A5C91D4570AEB209645B189A702F",
+               "Data" : "02"
+            })";
+
+        std::vector<uint8_t> escrow_tx_json_data(
+            escrow_tx_json_str.begin(), escrow_tx_json_str.end());
+        std::vector<uint8_t> const escrow_lo_json_data(
+            escrow_lo_json_str.begin(), escrow_lo_json_str.end());
+
+        std::cout << std::endl;
+        testcase(
+            std::string(engineName(static_cast<wasmEngines>(ei))) +
+            " PerfTest 2, runP4, size(" + std::to_string(wasm.size()) + ")");
+
+        auto& times(testTimes[2][ei]);
+        // times.resize(ADD_MOD_N + 1);
+
+        times[0] = usecs();
+        for (int i = 0; i < ADD_MOD_N; ++i)
+        {
+            auto const r = e.runP4(
+                wasm, funcName, escrow_tx_json_data, escrow_lo_json_data);
+            times[i + 1] = usecs();
+
+            BEAST_EXPECT(r.value().second == "1");
+        }
+
+        BEAST_EXPECT(times[ADD_MOD_N] > 0);
+    }
+
+    void
+    ptest_3_JustRunP4(wasmEngines ei, WasmEngine& e)
+    {
+        auto const wasmStr = boost::algorithm::unhex(p4Hex);
+        vbytes const wasm(wasmStr.begin(), wasmStr.end());
+
+        std::string funcName("compare_accountID");
+        std::string escrow_tx_json_str = R"({
+           "Account" : "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+           "Fee" : "10",
+           "Flags" : 2147483648,
+           "OfferSequence" : 2,
+           "Owner" : "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+           "Sequence" : 3,
+           "SigningPubKey" : "0330E7FC9D56BB25D6893BA3F317AE5BCF33B3291BD63DB32654A313222F7FD020",
+           "TransactionType" : "EscrowFinish",
+           "TxnSignature" : "30450221008AD5EE48F7F1047813E79C174FE401D023A4B4A7B99AF826E081DB1DFF7B9C510220133F05B7FD3D7D7F163E8C77EE0A49D02619AB6C77CC3487D0095C9B34033C1C",
+           "hash" : "74465121372813CBA4C77E31F12E137163F5B2509B16AC1703ECF0DA194B2DD4"
+        })";
+        std::string escrow_lo_json_str = R"({
+               "Account" : "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+               "Amount" : "100000",
+               "CancelAfter" : 790297421,
+               "Destination" : "rBYn44yhs8cf8G2t79XMUHYQpp2ayhqwcw",
+               "DestinationNode" : "0",
+               "FinishAfter" : 790297403,
+               "FinishFunction" : "0061736D0100000001180460027F7F0060017F017F60027F7F017F60047F7F7F7F00030C0B01010200000000000003000405017001030305030100110619037F01418080C0000B7F0041DD85C0000B7F0041E085C0000B074205066D656D6F7279020008616C6C6F6361746500000F636865636B5F6163636F756E74494400020A5F5F646174615F656E6403010B5F5F686561705F6261736503020908010041010B02060A0AF5360B610002",
+               "Flags" : 0,
+               "LedgerEntryType" : "Escrow",
+               "OwnerNode" : "0",
+               "PreviousTxnID" : "CF25D1C6B8E637C7DAC61B586F820A16896A3090D9F6FBF9FA00D8B13A265647",
+               "PreviousTxnLgrSeq" : 4,
+               "index" : "9BC6631F3EC761CF9BD846D006560E2D57B0A5C91D4570AEB209645B189A702F",
+               "Data" : "02"
+            })";
+
+        std::vector<uint8_t> escrow_tx_json_data(
+            escrow_tx_json_str.begin(), escrow_tx_json_str.end());
+        std::vector<uint8_t> const escrow_lo_json_data(
+            escrow_lo_json_str.begin(), escrow_lo_json_str.end());
+
+        std::cout << std::endl;
+        testcase(
+            std::string(engineName(static_cast<wasmEngines>(ei))) +
+            " PerfTest 3, just runP4, size(" + std::to_string(wasm.size()) +
+            ")");
+
+        auto& times(testTimes[3][ei]);
+        // times.resize(ADD_MOD_N + 1);
+        e.addModule(wasm);
+
+        times[0] = usecs();
+        for (int i = 0; i < ADD_MOD_N; ++i)
+        {
+            auto const r = e.justRunP4(
+                wasm, funcName, escrow_tx_json_data, escrow_lo_json_data);
+            times[i + 1] = usecs();
+
+            BEAST_EXPECT(r.value().second == "1");
+        }
+
+        BEAST_EXPECT(times[ADD_MOD_N] > 0);
+    }
+
+    void
+    ptest_4_runFunc(wasmEngines ei, WasmEngine& e)
+    {
+        std::string const fibHex64 =
+            "0061736d0100000001120460000060017f017e60017f0060017f017f0213"
+            "0103656e760b73657454656d70526574300002030403000103071b02115f"
+            "5f7761736d5f63616c6c5f63746f727300010366696200030a580302000b"
+            "3f01017e200045044042000f0b2000410348044042010f0b200041026a21"
+            "000340200041036b100220017c2101200041026b220041044a0d000b2001"
+            "42017c0b1301017e200010022201422088a710002001a70b";
+
+        std::string const fibHex =
+            "0061736d0100000001090260000060017f017f0303020001071b02115f5f"
+            "7761736d5f63616c6c5f63746f727300000366696200010a440202000b3f"
+            "01017f200045044041000f0b2000410348044041010f0b200041026a2100"
+            "0340200041036b100120016a2101200041026b220041044a0d000b200141"
+            "016a0b";
+
+        auto const wasmStr = boost::algorithm::unhex(fibHex);
+        vbytes const wasm(wasmStr.begin(), wasmStr.end());
+        std::string const funcName("fib");
+
+        std::cout << std::endl;
+        testcase(
+            std::string(engineName(static_cast<wasmEngines>(ei))) +
+            " PerfTest 4, run func, size(" + std::to_string(wasm.size()) + ")");
+
+        auto& times(testTimes[4][ei]);
+        e.addModule(wasm);
+
+        times[0] = usecs();
+        for (int i = 0; i < FIB_N; ++i)
+        {
+            auto const r = e.runFunc(funcName, 40);
+            times[i + 1] = usecs();
+
+            BEAST_EXPECT(r >= 0);
+        }
+
+        BEAST_EXPECT(times[FIB_N] > 0);
+    }
+
+    void
     ptest_Results()
     {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         std::cout << std::endl;
+
         for (int i = 0; i < TESTS_N; ++i)
         {
             for (int j = 0; j < ENGINES_N; ++j)
@@ -399,7 +599,8 @@ class WasmPerf_test : public beast::unit_test::suite
                 avg = 0;
                 imin = imax = 1;
 
-                for (int k = 1; k < ADD_MOD_N + 1; ++k)
+                int k = 1;
+                for (; (k < ADD_MOD_N + 1) && vi[k]; ++k)
                 {
                     auto const x = vi[k];
                     auto const dn = x - vi[k - 1];
@@ -411,18 +612,24 @@ class WasmPerf_test : public beast::unit_test::suite
                         imax = k;
                     avg += dn;
                 }
-                avg /= ADD_MOD_N;
+
+                if (--k <= 0)
+                    continue;
+
+                avg /= k;
 
                 if (avg)
-                    std::cout << "TEST: " << i << ", ENGINE: "
-                              << engineName(static_cast<wasmEngines>(j))
-                              << ", AVG: " << avg
-                              << ", MIN: " << vi[imin] - vi[imin - 1] << "("
-                              << imin << ")"
-                              << ", MAX: " << vi[imax] - vi[imax - 1] << "("
-                              << imax << ")"
-                              << ", all: " << vi[ADD_MOD_N] - vi[0]
-                              << std::endl;
+                    std::cout
+                        << "TEST: " << i << ", " << std::setw(5) << k
+                        << " reps, ENGINE: " << std::setw(10)
+                        << engineName(static_cast<wasmEngines>(j))
+                        << ", AVG: " << std::setw(9) << avg
+                        << ", MIN: " << std::setw(9) << vi[imin] - vi[imin - 1]
+                        << "(" << std::setw(4) << imin << ")"
+                        << ", MAX: " << std::setw(9) << vi[imax] - vi[imax - 1]
+                        << "(" << std::setw(4) << imax << ")"
+                        << ", all: " << std::setw(9) << vi[k] - vi[0]
+                        << std::endl;
             }
         }
     }
@@ -452,15 +659,22 @@ public:
         for (int e = wasmEngines::Edge; e < wasmEngines::END; ++e)
         {
             // debug
-            if ((e != wasmEngines::Wamr) && (e != wasmEngines::Er) &&
-                (e != wasmEngines::I) && (e != wasmEngines::Time)
-                // && (e != wasmEngines::Edge)
+            if ((e == wasmEngines::Edge)  //|| (e == wasmEngines::Time)
+                                          // if ((e != wasmEngines::Wamr) && (e
+                                          // != wasmEngines::Er) &&
+                                          //     (e != wasmEngines::I) && (e !=
+                                          //     wasmEngines::Time)
+                                          //     // && (e != wasmEngines::Edge)
             )
                 continue;
 
             setWasmEngine(static_cast<wasmEngines>(e));
             auto engine = WasmEngine::instance();
-            ptest_0_AddModule(static_cast<wasmEngines>(e), *engine);
+            // ptest_0_AddModule(static_cast<wasmEngines>(e), *engine);
+            // ptest_1_AddInstance(static_cast<wasmEngines>(e), *engine);
+            // ptest_2_RunP4(static_cast<wasmEngines>(e), *engine);
+            // ptest_3_JustRunP4(static_cast<wasmEngines>(e), *engine);
+            ptest_4_runFunc(static_cast<wasmEngines>(e), *engine);
         }
 
         ptest_Results();
