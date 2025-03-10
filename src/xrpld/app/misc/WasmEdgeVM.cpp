@@ -175,6 +175,7 @@ public:
         WasmEdge_ValidatorContext* validator,
         WasmEdge_ExecutorContext* x,
         vbytes const& wasmBin,
+        bool instantiate,
         imports_t const& imports = {})
         : module(init(loader, wasmBin))
 
@@ -210,7 +211,8 @@ public:
                     " + can't register import instance");
         }
 
-        mod_inst.emplace_back(s, x, module.get());
+        if (instantiate)
+            mod_inst.emplace_back(s, x, module.get());
     }
 
     my_module_t&
@@ -329,7 +331,7 @@ public:
         LedgerDataProvider* ledgerDataProvider);
 
     int
-    addModule(vbytes const& wasmCode);
+    addModule(vbytes const& wasmCode, bool instantiate);
     int
     addInstance(int m);
 
@@ -573,16 +575,22 @@ WasmEngineEdgeImpl::makeModule(
         validator.get(),
         executor.get(),
         wasmCode,
+        true,
         imports);
     return false;  // to be compatible with other VMs
 }
 
 int
-WasmEngineEdgeImpl::addModule(vbytes const& wasmCode)
+WasmEngineEdgeImpl::addModule(vbytes const& wasmCode, bool instantiate)
 {
     // std::string mn = "module_" + std::to_string(ctr++);
     modules.emplace_back(
-        store.get(), loader.get(), validator.get(), executor.get(), wasmCode);
+        store.get(),
+        loader.get(),
+        validator.get(),
+        executor.get(),
+        wasmCode,
+        instantiate);
     return static_cast<int>(modules.size());
 }
 
@@ -884,11 +892,11 @@ WasmEngineEdge::run(
 }
 
 int
-WasmEngineEdge::addModule(vbytes const& wasmCode)
+WasmEngineEdge::addModule(vbytes const& wasmCode, bool instantiate)
 {
     try
     {
-        return impl->addModule(wasmCode);
+        return impl->addModule(wasmCode, instantiate);
     }
     catch (std::exception const& e)
     {

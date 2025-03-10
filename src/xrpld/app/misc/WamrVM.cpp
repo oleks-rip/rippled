@@ -251,6 +251,7 @@ public:
     my_module_t(
         wasm_store_t* s,
         vbytes const& wasmBin,
+        bool instantiate,
         wasm_extern_vec_t const& imports = WASM_EMPTY_VEC)
         : module(init(s, wasmBin)), export_types{0, nullptr, 0, 0, nullptr}
     {
@@ -260,7 +261,8 @@ public:
                 " + can't create module");
 
         wamr_module_exports(module.get(), &export_types);
-        mod_inst.emplace_back(s, module.get(), imports);
+        if (instantiate)
+            mod_inst.emplace_back(s, module.get(), imports);
     }
 
     ~my_module_t()
@@ -361,7 +363,7 @@ public:
         LedgerDataProvider* ledgerDataProvider);
 
     int
-    addModule(vbytes const& wasmCode);
+    addModule(vbytes const& wasmCode, bool instantiate);
     int
     addInstance(int m);
 
@@ -442,14 +444,14 @@ WamrEngineImpl::makeModule(
     vbytes const& wasmCode,
     wasm_extern_vec_t const& imports)
 {
-    modules.emplace_back(store.get(), wasmCode, imports);
+    modules.emplace_back(store.get(), wasmCode, true, imports);
     return false;  // to be compatible with other VMs
 }
 
 int
-WamrEngineImpl::addModule(vbytes const& wasmCode)
+WamrEngineImpl::addModule(vbytes const& wasmCode, bool instantiate)
 {
-    modules.emplace_back(store.get(), wasmCode);
+    modules.emplace_back(store.get(), wasmCode, instantiate);
     return static_cast<int>(modules.size());
 }
 
@@ -874,11 +876,11 @@ WamrEngine::run(
 }
 
 int
-WamrEngine::addModule(vbytes const& wasmCode)
+WamrEngine::addModule(vbytes const& wasmCode, bool instantiate)
 {
     try
     {
-        return impl->addModule(wasmCode);
+        return impl->addModule(wasmCode, instantiate);
     }
     catch (std::exception const& e)
     {

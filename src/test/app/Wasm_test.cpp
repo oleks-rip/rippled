@@ -28,6 +28,7 @@ extern std::string const p1Hex;
 extern std::string const p2Hex;
 extern std::string const p4Hex;
 extern std::string const p5Hex;
+extern std::string const bigHex;
 
 struct Wasm_test : public beast::unit_test::suite
 {
@@ -332,6 +333,7 @@ class WasmPerf_test : public beast::unit_test::suite
     static const int ENGINES_N = wasmEngines::END;
     static const int ADD_MOD_N = 1000;
     static const int FIB_N = 5;
+    static const int BIG_MOD_N = 100;
 
     // std::vector<std::unique_ptr<WasmEngine>> engines;
 
@@ -349,18 +351,6 @@ class WasmPerf_test : public beast::unit_test::suite
     // }
 
     // return module idx, also create instance 0 (and return 0)
-    int
-    addModule(WasmEngine& e, vbytes const& binWasm)
-    {
-        return e.addModule(binWasm);
-    }
-
-    // return instance idx
-    int
-    addInstance(WasmEngine& e, int m)
-    {
-        return e.addInstance(m);
-    }
 
     void
     ptest_0_AddModule(wasmEngines ei, WasmEngine& e)
@@ -584,6 +574,30 @@ class WasmPerf_test : public beast::unit_test::suite
     }
 
     void
+    ptest_5_BigModule(wasmEngines ei, WasmEngine& e)
+    {
+        auto const wasmStr = boost::algorithm::unhex(bigHex);
+        vbytes const wasm(wasmStr.begin(), wasmStr.end());
+
+        std::cout << std::endl;
+        testcase(
+            std::string(engineName(static_cast<wasmEngines>(ei))) +
+            " PerfTest 5, big module load, size(" +
+            std::to_string(wasm.size()) + ")");
+
+        auto& times(testTimes[0][ei]);
+
+        times[0] = usecs();
+        for (int i = 0; i < BIG_MOD_N; ++i)
+        {
+            e.addModule(wasm, false);
+            times[i + 1] = usecs();
+        }
+
+        BEAST_EXPECT(times[BIG_MOD_N] > 0);
+    }
+
+    void
     ptest_Results()
     {
         std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -656,17 +670,17 @@ public:
                 vi.resize(ADD_MOD_N + 1);
         }
 
-        for (int e = wasmEngines::Edge; e < wasmEngines::END; ++e)
+        for (int e = 0; e < wasmEngines::END; ++e)
         {
             // debug
-            if ((e == wasmEngines::Edge)  //|| (e == wasmEngines::Time)
-                                          // if ((e != wasmEngines::Wamr) && (e
-                                          // != wasmEngines::Er) &&
-                                          //     (e != wasmEngines::I) && (e !=
-                                          //     wasmEngines::Time)
-                                          //     // && (e != wasmEngines::Edge)
-            )
-                continue;
+            // if ((e == wasmEngines::Edge)  //|| (e == wasmEngines::Time)
+            // if ((e != wasmEngines::Wamr) && (e
+            // != wasmEngines::Er) &&
+            //     (e != wasmEngines::I) && (e !=
+            //     wasmEngines::Time)
+            //     // && (e != wasmEngines::Edge)
+            //)
+            //    continue;
 
             setWasmEngine(static_cast<wasmEngines>(e));
             auto engine = WasmEngine::instance();
@@ -674,7 +688,8 @@ public:
             // ptest_1_AddInstance(static_cast<wasmEngines>(e), *engine);
             // ptest_2_RunP4(static_cast<wasmEngines>(e), *engine);
             // ptest_3_JustRunP4(static_cast<wasmEngines>(e), *engine);
-            ptest_4_runFunc(static_cast<wasmEngines>(e), *engine);
+            // ptest_4_runFunc(static_cast<wasmEngines>(e), *engine);
+            ptest_5_BigModule(static_cast<wasmEngines>(e), *engine);
         }
 
         ptest_Results();

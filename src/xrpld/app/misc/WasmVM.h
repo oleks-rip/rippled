@@ -41,11 +41,11 @@ static const std::string_view V_SIZE = "size";
 static const std::string_view V_ALLOC = "allocate";
 static const std::string_view V_DEALLOC = "deallocate";
 
-enum wasmEngines { Edge, Time, Er, I, Wamr, END };
+enum wasmEngines { Wamr, Edge, Time, Er, I, END };
 void setWasmEngine(wasmEngines);
 
 std::string_view constexpr wasmNames[] =
-    {"WasmEdge", "WasmTime", "Wasmer", "Wasmi", "WAMR"};
+    {"WAMR", "WasmEdge", "WasmTime", "Wasmer", "Wasmi"};
 
 static_assert(
     (sizeof(wasmNames) / sizeof(wasmNames[0])) == wasmEngines::END,
@@ -163,7 +163,7 @@ public:
     instance();
 
     virtual int
-    addModule(vbytes const& wasmCode)
+    addModule(vbytes const& wasmCode, bool instantiate = true)
     {
         return -1;
     }

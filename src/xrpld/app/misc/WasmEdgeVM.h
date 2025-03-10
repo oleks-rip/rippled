@@ -69,7 +69,7 @@ public:
         LedgerDataProvider* ledgerDataProvider) override;
 
     virtual int
-    addModule(vbytes const& wasmCode) override;
+    addModule(vbytes const& wasmCode, bool instantiate) override;
     virtual int
     addInstance(int m) override;
 
