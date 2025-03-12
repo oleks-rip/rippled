@@ -354,7 +354,10 @@ public:
     addInstance(int m);
 
     int64_t
-    runFunc(std::string_view const funcName, int32_t p, int m, int i);
+    runFunc(std::string_view const funcName, int64_t p, int m, int i);
+
+    std::vector<uint64_t>
+    runSha(std::string_view const data);
 
 protected:
     bool
@@ -726,7 +729,7 @@ WasmEngineIImpl::run(
 int64_t
 WasmEngineIImpl::runFunc(
     std::string_view const funcName,
-    int32_t p,
+    int64_t p,
     int m,
     int i)
 {
@@ -744,6 +747,31 @@ WasmEngineIImpl::runFunc(
     return res.data[0].kind == WASM_I64
         ? res.data[0].of.i64
         : static_cast<std::int64_t>(res.data[0].of.i32);
+}
+
+std::vector<uint64_t>
+WasmEngineIImpl::runSha(std::string_view const data)
+{
+    std::string_view funcName = "sha512_process";
+    auto* f = getFunc(funcName, 0, 0);
+    if (!f)
+        throw std::runtime_error(
+            std::string(engineName(wasmEngines::I)) +
+            std::string(" Can't find ") + funcName.data());
+
+    auto res =
+        call<1>(f, reinterpret_cast<uint8_t const*>(data.data()), data.size());
+    uvec del_res(&res, &wasmi_val_vec_delete);
+    if (!res.size || trap)
+        return {};
+
+    auto const ptr = res.data[0].of.i32;
+    std::uint64_t buf[8];
+    memset(buf, 0, sizeof(buf));
+
+    auto const mem = getMem();
+    memcpy(buf, mem.p + ptr, 8 * sizeof(std::uint64_t));
+    return {&buf[0], &buf[8]};
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -887,9 +915,15 @@ WasmEngineI::addInstance(int m)
 }
 
 int64_t
-WasmEngineI::runFunc(std::string_view const funcName, int32_t p, int m, int i)
+WasmEngineI::runFunc(std::string_view const funcName, int64_t p, int m, int i)
 {
     return impl->runFunc(funcName, p, m, i);
+}
+
+std::vector<uint64_t>
+WasmEngineI::runSha(std::string_view const data)
+{
+    return impl->runSha(data);
 }
 
 }  // namespace ripple

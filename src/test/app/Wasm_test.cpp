@@ -29,6 +29,7 @@ extern std::string const p2Hex;
 extern std::string const p4Hex;
 extern std::string const p5Hex;
 extern std::string const bigHex;
+extern std::string const sha512Hex;
 
 struct Wasm_test : public beast::unit_test::suite
 {
@@ -334,6 +335,7 @@ class WasmPerf_test : public beast::unit_test::suite
     static const int ADD_MOD_N = 1000;
     static const int FIB_N = 5;
     static const int BIG_MOD_N = 100;
+    static const int SHA_N = 1000;
 
     // std::vector<std::unique_ptr<WasmEngine>> engines;
 
@@ -535,12 +537,13 @@ class WasmPerf_test : public beast::unit_test::suite
     ptest_4_runFunc(wasmEngines ei, WasmEngine& e)
     {
         std::string const fibHex64 =
-            "0061736d0100000001120460000060017f017e60017f0060017f017f0213"
-            "0103656e760b73657454656d70526574300002030403000103071b02115f"
-            "5f7761736d5f63616c6c5f63746f727300010366696200030a580302000b"
-            "3f01017e200045044042000f0b2000410348044042010f0b200041026a21"
-            "000340200041036b100220017c2101200041026b220041044a0d000b2001"
-            "42017c0b1301017e200010022201422088a710002001a70b";
+            "0061736d0100000001090260000060017e017e0303020001071b02115f5f"
+            "7761736d5f63616c6c5f63746f727300000366696200010a440202000b3f"
+            "01017e200050044042000f0b2000420353044042010f0b200042027c2100"
+            "0340200042037d100120017c2101200042027d22004204550d000b200142"
+            "017c0b00490f7461726765745f6665617475726573042b0f6d757461626c"
+            "652d676c6f62616c732b087369676e2d6578742b0f7265666572656e6365"
+            "2d74797065732b0a6d756c746976616c7565";
 
         std::string const fibHex =
             "0061736d0100000001090260000060017f017f0303020001071b02115f5f"
@@ -549,7 +552,7 @@ class WasmPerf_test : public beast::unit_test::suite
             "0340200041036b100120016a2101200041026b220041044a0d000b200141"
             "016a0b";
 
-        auto const wasmStr = boost::algorithm::unhex(fibHex);
+        auto const wasmStr = boost::algorithm::unhex(fibHex64);
         vbytes const wasm(wasmStr.begin(), wasmStr.end());
         std::string const funcName("fib");
 
@@ -564,7 +567,7 @@ class WasmPerf_test : public beast::unit_test::suite
         times[0] = usecs();
         for (int i = 0; i < FIB_N; ++i)
         {
-            auto const r = e.runFunc(funcName, 40);
+            auto const r = e.runFunc(funcName, 48);
             times[i + 1] = usecs();
 
             BEAST_EXPECT(r >= 0);
@@ -585,7 +588,7 @@ class WasmPerf_test : public beast::unit_test::suite
             " PerfTest 5, big module load, size(" +
             std::to_string(wasm.size()) + ")");
 
-        auto& times(testTimes[0][ei]);
+        auto& times(testTimes[5][ei]);
 
         times[0] = usecs();
         for (int i = 0; i < BIG_MOD_N; ++i)
@@ -595,6 +598,36 @@ class WasmPerf_test : public beast::unit_test::suite
         }
 
         BEAST_EXPECT(times[BIG_MOD_N] > 0);
+    }
+
+    void
+    ptest_6_RunSha(wasmEngines ei, WasmEngine& e)
+    {
+        auto const wasmStr = boost::algorithm::unhex(sha512Hex);
+        vbytes const wasm(wasmStr.begin(), wasmStr.end());
+
+        std::cout << std::endl;
+        testcase(
+            std::string(engineName(static_cast<wasmEngines>(ei))) +
+            " PerfTest 6, runSha, size(" + std::to_string(wasm.size()) + ")");
+
+        auto& times(testTimes[6][ei]);
+        if (e.addModule(wasm) < 0)
+        {
+            std::cerr << "Failed to load module" << std::endl;
+            return;
+        }
+
+        times[0] = usecs();
+        for (int i = 0; i < SHA_N; ++i)
+        {
+            auto const r = e.runSha(bigHex);
+            times[i + 1] = usecs();
+
+            BEAST_EXPECT(r[0] > 0);
+        }
+
+        BEAST_EXPECT(times[ADD_MOD_N] > 0);
     }
 
     void
@@ -673,14 +706,14 @@ public:
         for (int e = 0; e < wasmEngines::END; ++e)
         {
             // debug
-            // if ((e == wasmEngines::Edge)  //|| (e == wasmEngines::Time)
-            // if ((e != wasmEngines::Wamr) && (e
-            // != wasmEngines::Er) &&
-            //     (e != wasmEngines::I) && (e !=
-            //     wasmEngines::Time)
-            //     // && (e != wasmEngines::Edge)
-            //)
-            //    continue;
+            if ((e == wasmEngines::Edge)  //|| (e == wasmEngines::Time)
+                                          // if ((e != wasmEngines::Wamr) && (e
+                                          // != wasmEngines::Er) &&
+                                          //     (e != wasmEngines::I) && (e !=
+                                          //     wasmEngines::Time)
+                                          //     // && (e != wasmEngines::Edge)
+            )
+                continue;
 
             setWasmEngine(static_cast<wasmEngines>(e));
             auto engine = WasmEngine::instance();
@@ -688,8 +721,9 @@ public:
             // ptest_1_AddInstance(static_cast<wasmEngines>(e), *engine);
             // ptest_2_RunP4(static_cast<wasmEngines>(e), *engine);
             // ptest_3_JustRunP4(static_cast<wasmEngines>(e), *engine);
-            // ptest_4_runFunc(static_cast<wasmEngines>(e), *engine);
-            ptest_5_BigModule(static_cast<wasmEngines>(e), *engine);
+            ptest_4_runFunc(static_cast<wasmEngines>(e), *engine);
+            // ptest_5_BigModule(static_cast<wasmEngines>(e), *engine);
+            // ptest_6_RunSha(static_cast<wasmEngines>(e), *engine);
         }
 
         ptest_Results();

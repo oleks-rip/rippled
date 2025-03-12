@@ -175,9 +175,15 @@ public:
     }
 
     virtual int64_t
-    runFunc(std::string_view const funcName, int32_t p, int m = 0, int i = 0)
+    runFunc(std::string_view const funcName, int64_t p, int m = 0, int i = 0)
     {
         return -1;
+    }
+
+    virtual std::vector<uint64_t>
+    runSha(std::string_view const data)
+    {
+        return {};
     }
 };
 

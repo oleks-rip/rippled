@@ -336,7 +336,10 @@ public:
     addInstance(int m);
 
     int64_t
-    runFunc(std::string_view const funcName, int32_t p, int m, int i);
+    runFunc(std::string_view const funcName, int64_t p, int m, int i);
+
+    std::vector<uint64_t>
+    runSha(std::string_view const data);
 
 protected:
     bool
@@ -762,7 +765,7 @@ WasmEngineEdgeImpl::call(
 int64_t
 WasmEngineEdgeImpl::runFunc(
     std::string_view const funcName,
-    int32_t p,
+    int64_t p,
     int m,
     int i)
 {
@@ -778,6 +781,29 @@ WasmEngineEdgeImpl::runFunc(
 
     auto const result = WasmEdge2_ValueGetI64(res[0]);
     return result;
+}
+
+std::vector<uint64_t>
+WasmEngineEdgeImpl::runSha(std::string_view const data)
+{
+    std::string_view funcName = "sha512_process";
+    auto const Returns = call<1>(
+        funcName, reinterpret_cast<uint8_t const*>(data.data()), data.size());
+    if (!WasmEdge2_ResultOK(funcRes))
+        return {};
+
+    auto const ptr = WasmEdge2_ValueGetI32(Returns[0]);
+    std::uint64_t buf[8];
+    memset(buf, 0, sizeof(buf));
+
+    auto const* mem = getMem();
+    WasmEdge2_MemoryInstanceGetData(
+        mem,
+        reinterpret_cast<std::uint8_t*>(&buf[0]),
+        ptr,
+        8 * sizeof(std::uint64_t));
+
+    return {&buf[0], &buf[8]};
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -924,11 +950,17 @@ WasmEngineEdge::addInstance(int m)
 int64_t
 WasmEngineEdge::runFunc(
     std::string_view const funcName,
-    int32_t p,
+    int64_t p,
     int m,
     int i)
 {
     return impl->runFunc(funcName, p, m, i);
+}
+
+std::vector<uint64_t>
+WasmEngineEdge::runSha(std::string_view const data)
+{
+    return impl->runSha(data);
 }
 
 }  // namespace ripple

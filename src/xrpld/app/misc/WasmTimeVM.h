@@ -73,7 +73,10 @@ public:
     addInstance(int m) override;
 
     virtual int64_t
-    runFunc(std::string_view const funcName, int32_t p, int m, int i) override;
+    runFunc(std::string_view const funcName, int64_t p, int m, int i) override;
+
+    virtual std::vector<uint64_t>
+    runSha( std::string_view const data)override;
 
 };
 
