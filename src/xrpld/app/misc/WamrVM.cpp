@@ -795,7 +795,9 @@ WamrEngineImpl::runSha(std::string_view const data)
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-WamrEngine::WamrEngine() : impl(std::make_unique<WamrEngineImpl>())
+WamrEngine::WamrEngine()
+    : WasmEngine({0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+    , impl(std::make_unique<WamrEngineImpl>())
 {
 }
 

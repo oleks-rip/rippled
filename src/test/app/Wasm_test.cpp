@@ -336,6 +336,8 @@ class WasmPerf_test : public beast::unit_test::suite
     static const int FIB_N = 5;
     static const int BIG_MOD_N = 100;
     static const int SHA_N = 1000;
+    static const int BIG_SHA_N = 100;
+    static const int GAS_N = 500;
 
     // std::vector<std::unique_ptr<WasmEngine>> engines;
 
@@ -534,7 +536,41 @@ class WasmPerf_test : public beast::unit_test::suite
     }
 
     void
-    ptest_4_runFunc(wasmEngines ei, WasmEngine& e)
+    ptest_4_FibSmall(wasmEngines ei, WasmEngine& e)
+    {
+        std::string const fibHex =
+            "0061736d0100000001090260000060017f017f0303020001071b02115f5f"
+            "7761736d5f63616c6c5f63746f727300000366696200010a440202000b3f"
+            "01017f200045044041000f0b2000410348044041010f0b200041026a2100"
+            "0340200041036b100120016a2101200041026b220041044a0d000b200141"
+            "016a0b";
+
+        auto const wasmStr = boost::algorithm::unhex(fibHex);
+        vbytes const wasm(wasmStr.begin(), wasmStr.end());
+        std::string const funcName("fib");
+
+        std::cout << std::endl;
+        testcase(
+            std::string(engineName(static_cast<wasmEngines>(ei))) +
+            " PerfTest 4, Fib(35), size(" + std::to_string(wasm.size()) + ")");
+
+        auto& times(testTimes[4][ei]);
+        e.addModule(wasm);
+
+        times[0] = usecs();
+        for (int i = 0; i < FIB_N; ++i)
+        {
+            auto const r = e.runFunc(funcName, 35);
+            times[i + 1] = usecs();
+
+            BEAST_EXPECT(r >= 0);
+        }
+
+        BEAST_EXPECT(times[FIB_N] > 0);
+    }
+
+    void
+    ptest_5_FibLarge(wasmEngines ei, WasmEngine& e)
     {
         std::string const fibHex64 =
             "0061736d0100000001090260000060017e017e0303020001071b02115f5f"
@@ -545,13 +581,6 @@ class WasmPerf_test : public beast::unit_test::suite
             "652d676c6f62616c732b087369676e2d6578742b0f7265666572656e6365"
             "2d74797065732b0a6d756c746976616c7565";
 
-        std::string const fibHex =
-            "0061736d0100000001090260000060017f017f0303020001071b02115f5f"
-            "7761736d5f63616c6c5f63746f727300000366696200010a440202000b3f"
-            "01017f200045044041000f0b2000410348044041010f0b200041026a2100"
-            "0340200041036b100120016a2101200041026b220041044a0d000b200141"
-            "016a0b";
-
         auto const wasmStr = boost::algorithm::unhex(fibHex64);
         vbytes const wasm(wasmStr.begin(), wasmStr.end());
         std::string const funcName("fib");
@@ -559,9 +588,10 @@ class WasmPerf_test : public beast::unit_test::suite
         std::cout << std::endl;
         testcase(
             std::string(engineName(static_cast<wasmEngines>(ei))) +
-            " PerfTest 4, run func, size(" + std::to_string(wasm.size()) + ")");
+            " PerfTest 5, Fibx64(48), size(" + std::to_string(wasm.size()) +
+            ")");
 
-        auto& times(testTimes[4][ei]);
+        auto& times(testTimes[5][ei]);
         e.addModule(wasm);
 
         times[0] = usecs();
@@ -577,7 +607,7 @@ class WasmPerf_test : public beast::unit_test::suite
     }
 
     void
-    ptest_5_BigModule(wasmEngines ei, WasmEngine& e)
+    ptest_6_BigModule(wasmEngines ei, WasmEngine& e)
     {
         auto const wasmStr = boost::algorithm::unhex(bigHex);
         vbytes const wasm(wasmStr.begin(), wasmStr.end());
@@ -585,10 +615,10 @@ class WasmPerf_test : public beast::unit_test::suite
         std::cout << std::endl;
         testcase(
             std::string(engineName(static_cast<wasmEngines>(ei))) +
-            " PerfTest 5, big module load, size(" +
+            " PerfTest 6, big module load, size(" +
             std::to_string(wasm.size()) + ")");
 
-        auto& times(testTimes[5][ei]);
+        auto& times(testTimes[6][ei]);
 
         times[0] = usecs();
         for (int i = 0; i < BIG_MOD_N; ++i)
@@ -601,7 +631,7 @@ class WasmPerf_test : public beast::unit_test::suite
     }
 
     void
-    ptest_6_RunSha(wasmEngines ei, WasmEngine& e)
+    ptest_7_RunSha(wasmEngines ei, WasmEngine& e)
     {
         auto const wasmStr = boost::algorithm::unhex(sha512Hex);
         vbytes const wasm(wasmStr.begin(), wasmStr.end());
@@ -609,9 +639,9 @@ class WasmPerf_test : public beast::unit_test::suite
         std::cout << std::endl;
         testcase(
             std::string(engineName(static_cast<wasmEngines>(ei))) +
-            " PerfTest 6, runSha, size(" + std::to_string(wasm.size()) + ")");
+            " PerfTest 7, runSha, size(" + std::to_string(wasm.size()) + ")");
 
-        auto& times(testTimes[6][ei]);
+        auto& times(testTimes[7][ei]);
         if (e.addModule(wasm) < 0)
         {
             std::cerr << "Failed to load module" << std::endl;
@@ -620,6 +650,37 @@ class WasmPerf_test : public beast::unit_test::suite
 
         times[0] = usecs();
         for (int i = 0; i < SHA_N; ++i)
+        {
+            auto const r = e.runSha(p1Hex);
+            times[i + 1] = usecs();
+
+            BEAST_EXPECT(r[0] > 0);
+        }
+
+        BEAST_EXPECT(times[ADD_MOD_N] > 0);
+    }
+
+    void
+    ptest_8_RunShaLarge(wasmEngines ei, WasmEngine& e)
+    {
+        auto const wasmStr = boost::algorithm::unhex(sha512Hex);
+        vbytes const wasm(wasmStr.begin(), wasmStr.end());
+
+        std::cout << std::endl;
+        testcase(
+            std::string(engineName(static_cast<wasmEngines>(ei))) +
+            " PerfTest 8, runSha LRG, size(" + std::to_string(wasm.size()) +
+            ")");
+
+        auto& times(testTimes[8][ei]);
+        if (e.addModule(wasm) < 0)
+        {
+            std::cerr << "Failed to load module" << std::endl;
+            return;
+        }
+
+        times[0] = usecs();
+        for (int i = 0; i < BIG_SHA_N; ++i)
         {
             auto const r = e.runSha(bigHex);
             times[i + 1] = usecs();
@@ -631,8 +692,77 @@ class WasmPerf_test : public beast::unit_test::suite
     }
 
     void
+    ptest_9_P4Meter(wasmEngines ei, WasmEngine& e)
+    {
+        auto const wasmStr = boost::algorithm::unhex(p4Hex);
+        vbytes const wasm(wasmStr.begin(), wasmStr.end());
+
+        std::string funcName("compare_accountID");
+        std::string escrow_tx_json_str = R"({
+           "Account" : "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+           "Fee" : "10",
+           "Flags" : 2147483648,
+           "OfferSequence" : 2,
+           "Owner" : "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+           "Sequence" : 3,
+           "SigningPubKey" : "0330E7FC9D56BB25D6893BA3F317AE5BCF33B3291BD63DB32654A313222F7FD020",
+           "TransactionType" : "EscrowFinish",
+           "TxnSignature" : "30450221008AD5EE48F7F1047813E79C174FE401D023A4B4A7B99AF826E081DB1DFF7B9C510220133F05B7FD3D7D7F163E8C77EE0A49D02619AB6C77CC3487D0095C9B34033C1C",
+           "hash" : "74465121372813CBA4C77E31F12E137163F5B2509B16AC1703ECF0DA194B2DD4"
+        })";
+        std::string escrow_lo_json_str = R"({
+               "Account" : "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+               "Amount" : "100000",
+               "CancelAfter" : 790297421,
+               "Destination" : "rBYn44yhs8cf8G2t79XMUHYQpp2ayhqwcw",
+               "DestinationNode" : "0",
+               "FinishAfter" : 790297403,
+               "FinishFunction" : "0061736D0100000001180460027F7F0060017F017F60027F7F017F60047F7F7F7F00030C0B01010200000000000003000405017001030305030100110619037F01418080C0000B7F0041DD85C0000B7F0041E085C0000B074205066D656D6F7279020008616C6C6F6361746500000F636865636B5F6163636F756E74494400020A5F5F646174615F656E6403010B5F5F686561705F6261736503020908010041010B02060A0AF5360B610002",
+               "Flags" : 0,
+               "LedgerEntryType" : "Escrow",
+               "OwnerNode" : "0",
+               "PreviousTxnID" : "CF25D1C6B8E637C7DAC61B586F820A16896A3090D9F6FBF9FA00D8B13A265647",
+               "PreviousTxnLgrSeq" : 4,
+               "index" : "9BC6631F3EC761CF9BD846D006560E2D57B0A5C91D4570AEB209645B189A702F",
+               "Data" : "02"
+            })";
+
+        std::vector<uint8_t> escrow_tx_json_data(
+            escrow_tx_json_str.begin(), escrow_tx_json_str.end());
+        std::vector<uint8_t> const escrow_lo_json_data(
+            escrow_lo_json_str.begin(), escrow_lo_json_str.end());
+
+        std::cout << std::endl;
+        testcase(
+            std::string(engineName(static_cast<wasmEngines>(ei))) +
+            " PerfTest 9, just runP4 meter, size(" +
+            std::to_string(wasm.size()) + ")");
+
+        auto& times(testTimes[9][ei]);
+        // times.resize(ADD_MOD_N + 1);
+
+        e.setMeter();
+        e.addModule(wasm);
+
+        times[0] = usecs();
+        for (int i = 0; i < GAS_N; ++i)
+        {
+            auto const r = e.justRunP4(
+                wasm, funcName, escrow_tx_json_data, escrow_lo_json_data);
+            times[i + 1] = usecs();
+
+            auto const gas = e.getRemainingGas();
+            BEAST_EXPECT(gas > 100);
+            BEAST_EXPECT(r.value().second == "1");
+        }
+
+        BEAST_EXPECT(times[GAS_N] > 0);
+    }
+
+    void
     ptest_Results()
     {
+        std::cout << std::endl;
         std::this_thread::sleep_for(std::chrono::seconds(1));
         std::cout << std::endl;
 
@@ -665,18 +795,20 @@ class WasmPerf_test : public beast::unit_test::suite
 
                 avg /= k;
 
+                std::cout << "TEST: " << i << ", " << std::setw(5) << k
+                          << " reps, ENGINE: " << std::setw(10)
+                          << engineName(static_cast<wasmEngines>(j));
                 if (avg)
                     std::cout
-                        << "TEST: " << i << ", " << std::setw(5) << k
-                        << " reps, ENGINE: " << std::setw(10)
-                        << engineName(static_cast<wasmEngines>(j))
                         << ", AVG: " << std::setw(9) << avg
                         << ", MIN: " << std::setw(9) << vi[imin] - vi[imin - 1]
                         << "(" << std::setw(4) << imin << ")"
                         << ", MAX: " << std::setw(9) << vi[imax] - vi[imax - 1]
                         << "(" << std::setw(4) << imax << ")"
-                        << ", all: " << std::setw(9) << vi[k] - vi[0]
-                        << std::endl;
+                        << ", all: " << std::setw(9) << vi[k] - vi[0];
+                else
+                    std::cout << " SKIPPED";
+                std::cout << std::endl;
             }
         }
     }
@@ -705,25 +837,26 @@ public:
 
         for (int e = 0; e < wasmEngines::END; ++e)
         {
-            // debug
-            if ((e == wasmEngines::Edge)  //|| (e == wasmEngines::Time)
-                                          // if ((e != wasmEngines::Wamr) && (e
-                                          // != wasmEngines::Er) &&
-                                          //     (e != wasmEngines::I) && (e !=
-                                          //     wasmEngines::Time)
-                                          //     // && (e != wasmEngines::Edge)
-            )
-                continue;
-
             setWasmEngine(static_cast<wasmEngines>(e));
             auto engine = WasmEngine::instance();
-            // ptest_0_AddModule(static_cast<wasmEngines>(e), *engine);
-            // ptest_1_AddInstance(static_cast<wasmEngines>(e), *engine);
-            // ptest_2_RunP4(static_cast<wasmEngines>(e), *engine);
-            // ptest_3_JustRunP4(static_cast<wasmEngines>(e), *engine);
-            ptest_4_runFunc(static_cast<wasmEngines>(e), *engine);
-            // ptest_5_BigModule(static_cast<wasmEngines>(e), *engine);
-            // ptest_6_RunSha(static_cast<wasmEngines>(e), *engine);
+
+            // clang-format off
+            // if (engine->isImplemented(0)) ptest_0_AddModule(static_cast<wasmEngines>(e), *engine);
+            // if (engine->isImplemented(1)) ptest_1_AddInstance(static_cast<wasmEngines>(e), *engine);
+            // if (engine->isImplemented(2)) ptest_2_RunP4(static_cast<wasmEngines>(e), *engine);
+            if (engine->isImplemented(3)) ptest_3_JustRunP4(static_cast<wasmEngines>(e), *engine);
+            // if (engine->isImplemented(4)) ptest_4_FibSmall(static_cast<wasmEngines>(e), *engine);
+            // if (engine->isImplemented(5)) ptest_5_FibLarge(static_cast<wasmEngines>(e), *engine);
+            // if (engine->isImplemented(6)) ptest_6_BigModule(static_cast<wasmEngines>(e), *engine);
+
+            // need add wasi support to engines.
+            //if (engine->isImplemented(7)) ptest_7_RunSha(static_cast<wasmEngines>(e), *engine);
+            //if (engine->isImplemented(8)) ptest_8_RunShaLarge(static_cast<wasmEngines>(e), *engine);
+
+            if (engine->isImplemented(9)) ptest_9_P4Meter(static_cast<wasmEngines>(e), *engine);
+
+            // clang-format ON
+
         }
 
         ptest_Results();

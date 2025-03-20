@@ -23,6 +23,7 @@
 #include <xrpl/protocol/TER.h>
 
 #include <string_view>
+#include <array>
 
 namespace ripple {
 
@@ -105,8 +106,13 @@ runEscrowWasm(
 
 class WasmEngine
 {
+protected:
+    std::array<bool, 20> const implemented;
 public:
+    WasmEngine(std::array<bool, 20> const &a):implemented(a){}
     virtual ~WasmEngine() = default;
+
+    bool isImplemented(int tidx) const {return implemented[tidx];}
 
     virtual Expected<bool, TER>
     run(vbytes const& wasmCode, std::string_view funcName, int32_t input)
@@ -184,6 +190,25 @@ public:
     runSha(std::string_view const data)
     {
         return {};
+    }
+
+
+    virtual
+    std::int64_t setMeter(std::int64_t def = 1'000'000'000LL)
+    {
+        return -1;
+    }
+
+    virtual
+    std::int64_t setGas(std::int64_t gas = 1'000'000'000LL, int m = 0, int i = 0)
+    {
+        return -1;
+    }
+
+    virtual
+    std::int64_t getRemainingGas(int m = 0, int i = 0)
+    {
+        return -1;
     }
 };
 

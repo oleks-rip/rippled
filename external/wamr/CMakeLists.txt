@@ -15,7 +15,7 @@ add_library(wamr_so SHARED
 
 add_library(wamr_so::wamr_so ALIAS wamr_so)
 
-target_link_libraries(wamr_so PRIVATE -Wl,--whole-archive -nostdlib wasm-micro-runtime::wasm-micro-runtime)
+target_link_libraries(wamr_so PRIVATE -Wl,--whole-archive -nostdlib -Wl,-Bsymbolic-functions wasm-micro-runtime::wasm-micro-runtime)
 
 target_include_directories(wamr_so PUBLIC
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>

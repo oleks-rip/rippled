@@ -783,7 +783,9 @@ WasmEngineTimeImpl::runSha(std::string_view const data)
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-WasmEngineTime::WasmEngineTime() : impl(std::make_unique<WasmEngineTimeImpl>())
+WasmEngineTime::WasmEngineTime()
+    : WasmEngine({1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+    , impl(std::make_unique<WasmEngineTimeImpl>())
 {
 }
 

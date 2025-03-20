@@ -77,6 +77,15 @@ public:
 
     virtual std::vector<uint64_t>
     runSha( std::string_view const data)override;
+
+    virtual
+        std::int64_t setMeter(std::int64_t def) override;
+
+    virtual
+        std::int64_t setGas(std::int64_t gas , int m, int i) override;
+
+    virtual
+        std::int64_t getRemainingGas(int m, int i) override;
 };
 
 }  // namespace ripple

@@ -776,7 +776,10 @@ WasmEngineIImpl::runSha(std::string_view const data)
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-WasmEngineI::WasmEngineI() : impl(std::make_unique<WasmEngineIImpl>())
+WasmEngineI::WasmEngineI()
+    : WasmEngine({1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+    , impl(std::make_unique<WasmEngineIImpl>())
+
 {
 }
 

@@ -18,7 +18,7 @@ add_library(wasmi_so SHARED
   wasmi_so.c
 )
 add_library(wasmi_so::wasmi_so ALIAS wasmi_so)
-target_link_libraries(wasmi_so PRIVATE -Wl,--whole-archive -nostdlib wasmi)
+target_link_libraries(wasmi_so PRIVATE -Wl,--whole-archive -nostdlib -Wl,-Bsymbolic-functions wasmi)
 
 target_include_directories(wasmi_so PUBLIC
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
