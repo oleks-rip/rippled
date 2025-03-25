@@ -1,0 +1,9 @@
+patches:
+  20.1.1:
+  - patch_description: disable default verification of fixed endpoints
+    patch_file: patches/no_verify_fix_endpoints.patch
+    patch_type: conan
+sources:
+  20.1.1:
+    sha256: edde69aa3e48a3892a8f01332ff79cfb6179151b42503c4ba77d2cd408b013bf
+    url: https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-20.1.1.tar.gz

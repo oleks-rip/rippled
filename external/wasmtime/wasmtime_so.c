@@ -25,7 +25,7 @@ wasmtime2_store_delete(wasm_store_t* o)
 }
 
 wasm_module_t*
-wasmtime2_module_new(wasm_store_t*s, wasm_byte_vec_t const*c)
+wasmtime2_module_new(wasm_store_t* s, wasm_byte_vec_t const* c)
 {
     return wasm_module_new(s, c);
 }
@@ -184,7 +184,10 @@ wasmtime2_val_vec_new_uninitialized(wasm_val_vec_t* out, size_t n)
     return wasm_val_vec_new_uninitialized(out, n);
 }
 void
-wasmtime2_val_vec_new(wasm_val_vec_t* out, size_t n, wasm_val_t const* ptr_or_none)
+wasmtime2_val_vec_new(
+    wasm_val_vec_t* out,
+    size_t n,
+    wasm_val_t const* ptr_or_none)
 {
     return wasm_val_vec_new(out, n, ptr_or_none);
 }
@@ -221,6 +224,13 @@ wasmtime2_functype_new_0_1(wasm_valtype_t* r)
 {
     return wasm_functype_new_0_1(r);
 }
+
+wasm_functype_t*
+wasmtime2_functype_new_1_0(wasm_valtype_t* r)
+{
+    return wasm_functype_new_1_0(r);
+}
+
 void
 wasmtime2_functype_delete(wasm_functype_t* r)
 {

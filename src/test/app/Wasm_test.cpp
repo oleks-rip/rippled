@@ -333,11 +333,26 @@ class WasmPerf_test : public beast::unit_test::suite
     static const int TESTS_N = 20;
     static const int ENGINES_N = wasmEngines::END;
     static const int ADD_MOD_N = 1000;
+
     static const int FIB_N = 5;
-    static const int BIG_MOD_N = 100;
+
+#ifdef _DEBUG
+    static const int ADD_MOD_SMALL_N = 10;
+    static const int FIB_VAL_32 = 20;
+    static const int FIB_VAL_64 = 30;
+    static const int BIG_MOD_N = 10;
+    static const int SHA_N = 100;
+    static const int BIG_SHA_N = 10;
+    static const int GAS_N = 50;
+#else
+    static const int ADD_MOD_SMALL_N = ADD_MOD_N;
+    static const int FIB_VAL_32 = 35;
+    static const int FIB_VAL_64 = 48;
+    static const int BIG_MOD_N = 30;
     static const int SHA_N = 1000;
     static const int BIG_SHA_N = 100;
     static const int GAS_N = 500;
+#endif
 
     // std::vector<std::unique_ptr<WasmEngine>> engines;
 
@@ -369,16 +384,21 @@ class WasmPerf_test : public beast::unit_test::suite
             ")");
 
         auto& times(testTimes[0][ei]);
-        // times.resize(ADD_MOD_N + 1);
 
         times[0] = usecs();
-        for (int i = 0; i < ADD_MOD_N; ++i)
+        for (int i = 0; i < ADD_MOD_SMALL_N; ++i)
         {
-            e.addModule(wasm);
+            // if (!(i % 50))
+            //     e.clearModules();
+            auto const midx = e.addModule(wasm);
             times[i + 1] = usecs();
+            if (!BEAST_EXPECT(midx >= 0))
+            {
+                std::cout << "Error creating module " << i << std::endl;
+            }
         }
 
-        BEAST_EXPECT(times[ADD_MOD_N] > 0);
+        BEAST_EXPECT(times[ADD_MOD_SMALL_N] > 0);
     }
 
     void
@@ -396,17 +416,21 @@ class WasmPerf_test : public beast::unit_test::suite
         auto& times(testTimes[1][ei]);
         // times.resize(ADD_MOD_N + 1);
 
-        int k = 0;
-        e.addModule(wasm);
+        int iidx = 0;
+        int const midx = e.addModule(wasm);
         times[0] = usecs();
         for (int i = 0; i < ADD_MOD_N; ++i)
         {
-            k = e.addInstance(0);
+            iidx = e.addInstance(midx);
+            if (!BEAST_EXPECT(iidx >= 0))
+            {
+                std::cout << "Error creating module " << i << std::endl;
+            }
             times[i + 1] = usecs();
         }
 
         BEAST_EXPECT(times[ADD_MOD_N] > 0);
-        BEAST_EXPECT(k == ADD_MOD_N + 1);
+        BEAST_EXPECT(iidx == ADD_MOD_N);
     }
 
     void
@@ -458,8 +482,10 @@ class WasmPerf_test : public beast::unit_test::suite
         auto& times(testTimes[2][ei]);
         // times.resize(ADD_MOD_N + 1);
 
+        // int midx = e.addModule(wasm);
+
         times[0] = usecs();
-        for (int i = 0; i < ADD_MOD_N; ++i)
+        for (int i = 0; i < ADD_MOD_SMALL_N; ++i)
         {
             auto const r = e.runP4(
                 wasm, funcName, escrow_tx_json_data, escrow_lo_json_data);
@@ -468,7 +494,7 @@ class WasmPerf_test : public beast::unit_test::suite
             BEAST_EXPECT(r.value().second == "1");
         }
 
-        BEAST_EXPECT(times[ADD_MOD_N] > 0);
+        BEAST_EXPECT(times[ADD_MOD_SMALL_N] > 0);
     }
 
     void
@@ -520,13 +546,13 @@ class WasmPerf_test : public beast::unit_test::suite
 
         auto& times(testTimes[3][ei]);
         // times.resize(ADD_MOD_N + 1);
-        e.addModule(wasm);
+        int midx = e.addModule(wasm);
 
         times[0] = usecs();
         for (int i = 0; i < ADD_MOD_N; ++i)
         {
             auto const r = e.justRunP4(
-                wasm, funcName, escrow_tx_json_data, escrow_lo_json_data);
+                funcName, escrow_tx_json_data, escrow_lo_json_data, midx);
             times[i + 1] = usecs();
 
             BEAST_EXPECT(r.value().second == "1");
@@ -552,15 +578,16 @@ class WasmPerf_test : public beast::unit_test::suite
         std::cout << std::endl;
         testcase(
             std::string(engineName(static_cast<wasmEngines>(ei))) +
-            " PerfTest 4, Fib(35), size(" + std::to_string(wasm.size()) + ")");
+            " PerfTest 4, Fib(" + std::to_string(FIB_VAL_32) + "), size(" +
+            std::to_string(wasm.size()) + ")");
 
         auto& times(testTimes[4][ei]);
-        e.addModule(wasm);
 
         times[0] = usecs();
         for (int i = 0; i < FIB_N; ++i)
         {
-            auto const r = e.runFunc(funcName, 35);
+            int midx = e.addModule(wasm);
+            auto const r = e.runFunc(funcName, FIB_VAL_32, midx);
             times[i + 1] = usecs();
 
             BEAST_EXPECT(r >= 0);
@@ -588,16 +615,16 @@ class WasmPerf_test : public beast::unit_test::suite
         std::cout << std::endl;
         testcase(
             std::string(engineName(static_cast<wasmEngines>(ei))) +
-            " PerfTest 5, Fibx64(48), size(" + std::to_string(wasm.size()) +
-            ")");
+            " PerfTest 5, Fibx64(" + std::to_string(FIB_VAL_64) + "), size(" +
+            std::to_string(wasm.size()) + ")");
 
         auto& times(testTimes[5][ei]);
-        e.addModule(wasm);
+        int const midx = e.addModule(wasm);
 
         times[0] = usecs();
         for (int i = 0; i < FIB_N; ++i)
         {
-            auto const r = e.runFunc(funcName, 48);
+            auto const r = e.runFunc64(funcName, FIB_VAL_64, midx);
             times[i + 1] = usecs();
 
             BEAST_EXPECT(r >= 0);
@@ -642,7 +669,8 @@ class WasmPerf_test : public beast::unit_test::suite
             " PerfTest 7, runSha, size(" + std::to_string(wasm.size()) + ")");
 
         auto& times(testTimes[7][ei]);
-        if (e.addModule(wasm) < 0)
+        int const midx = e.addModule(wasm);
+        if (midx < 0)
         {
             std::cerr << "Failed to load module" << std::endl;
             return;
@@ -651,13 +679,13 @@ class WasmPerf_test : public beast::unit_test::suite
         times[0] = usecs();
         for (int i = 0; i < SHA_N; ++i)
         {
-            auto const r = e.runSha(p1Hex);
+            auto const r = e.runSha(p1Hex, midx);
             times[i + 1] = usecs();
 
             BEAST_EXPECT(r[0] > 0);
         }
 
-        BEAST_EXPECT(times[ADD_MOD_N] > 0);
+        BEAST_EXPECT(times[SHA_N] > 0);
     }
 
     void
@@ -673,7 +701,8 @@ class WasmPerf_test : public beast::unit_test::suite
             ")");
 
         auto& times(testTimes[8][ei]);
-        if (e.addModule(wasm) < 0)
+        int const midx = e.addModule(wasm);
+        if (midx < 0)
         {
             std::cerr << "Failed to load module" << std::endl;
             return;
@@ -682,7 +711,7 @@ class WasmPerf_test : public beast::unit_test::suite
         times[0] = usecs();
         for (int i = 0; i < BIG_SHA_N; ++i)
         {
-            auto const r = e.runSha(bigHex);
+            auto const r = e.runSha(bigHex, midx);
             times[i + 1] = usecs();
 
             BEAST_EXPECT(r[0] > 0);
@@ -742,16 +771,16 @@ class WasmPerf_test : public beast::unit_test::suite
         // times.resize(ADD_MOD_N + 1);
 
         e.setMeter();
-        e.addModule(wasm);
+        int const midx = e.addModule(wasm);
 
         times[0] = usecs();
         for (int i = 0; i < GAS_N; ++i)
         {
             auto const r = e.justRunP4(
-                wasm, funcName, escrow_tx_json_data, escrow_lo_json_data);
+                funcName, escrow_tx_json_data, escrow_lo_json_data, midx);
             times[i + 1] = usecs();
 
-            auto const gas = e.getRemainingGas();
+            auto const gas = e.getRemainingGas(midx);
             BEAST_EXPECT(gas > 100);
             BEAST_EXPECT(r.value().second == "1");
         }
@@ -837,23 +866,34 @@ public:
 
         for (int e = 0; e < wasmEngines::END; ++e)
         {
+            // clang-format off
+            // debug
+            if (
+            //    (e != wasmEngines::Edge)
+                (e != wasmEngines::Time)
+            //    (e != wasmEngines::Wamr)
+            //    || (e== wasmEngines::Er)
+            //    (e != wasmEngines::I)
+            ) continue;
+            // clang-format on
+
             setWasmEngine(static_cast<wasmEngines>(e));
             auto engine = WasmEngine::instance();
 
             // clang-format off
-            // if (engine->isImplemented(0)) ptest_0_AddModule(static_cast<wasmEngines>(e), *engine);
-            // if (engine->isImplemented(1)) ptest_1_AddInstance(static_cast<wasmEngines>(e), *engine);
-            // if (engine->isImplemented(2)) ptest_2_RunP4(static_cast<wasmEngines>(e), *engine);
-            if (engine->isImplemented(3)) ptest_3_JustRunP4(static_cast<wasmEngines>(e), *engine);
-            // if (engine->isImplemented(4)) ptest_4_FibSmall(static_cast<wasmEngines>(e), *engine);
-            // if (engine->isImplemented(5)) ptest_5_FibLarge(static_cast<wasmEngines>(e), *engine);
-            // if (engine->isImplemented(6)) ptest_6_BigModule(static_cast<wasmEngines>(e), *engine);
+            // if (engine->isImplemented(0)) ptest_0_AddModule(static_cast<wasmEngines>(e), *engine); engine->clearModules();
+            // if (engine->isImplemented(1)) ptest_1_AddInstance(static_cast<wasmEngines>(e), *engine); engine->clearModules();
+            // if (engine->isImplemented(2)) ptest_2_RunP4(static_cast<wasmEngines>(e), *engine); engine->clearModules();
+            // if (engine->isImplemented(3)) ptest_3_JustRunP4(static_cast<wasmEngines>(e), *engine); engine->clearModules();
+            // if (engine->isImplemented(4)) ptest_4_FibSmall(static_cast<wasmEngines>(e), *engine); engine->clearModules();
+            // if (engine->isImplemented(5)) ptest_5_FibLarge(static_cast<wasmEngines>(e), *engine); engine->clearModules();
+            // if (engine->isImplemented(6)) ptest_6_BigModule(static_cast<wasmEngines>(e), *engine); engine->clearModules();
 
             // need add wasi support to engines.
-            //if (engine->isImplemented(7)) ptest_7_RunSha(static_cast<wasmEngines>(e), *engine);
-            //if (engine->isImplemented(8)) ptest_8_RunShaLarge(static_cast<wasmEngines>(e), *engine);
+            if (engine->isImplemented(7)) ptest_7_RunSha(static_cast<wasmEngines>(e), *engine); engine->clearModules();
+            // if (engine->isImplemented(8)) ptest_8_RunShaLarge(static_cast<wasmEngines>(e), *engine); engine->clearModules();
 
-            if (engine->isImplemented(9)) ptest_9_P4Meter(static_cast<wasmEngines>(e), *engine);
+            // if (engine->isImplemented(9)) ptest_9_P4Meter(static_cast<wasmEngines>(e), *engine); engine->clearModules();
 
             // clang-format ON
 

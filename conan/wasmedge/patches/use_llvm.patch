@@ -1,0 +1,32 @@
+diff --git a/cmake/Helper.cmake b/cmake/Helper.cmake
+index c7b58ea..e46d099 100644
+--- a/cmake/Helper.cmake
++++ b/cmake/Helper.cmake
+@@ -279,6 +279,9 @@ if((WASMEDGE_LINK_LLVM_STATIC OR WASMEDGE_BUILD_STATIC_LIB) AND WASMEDGE_USE_LLV
+       if(NOT WASMEDGE_DISABLE_LIBTINFO)
+         list(APPEND WASMEDGE_LLVM_LINK_STATIC_COMPONENTS ${ZLIB_PATH}/libtinfo.a)
+       endif()
++
++      set(WASMEDGE_LLVM_LINK_STATIC_COMPONENTS )
++      set(WASMEDGE_LLVM_LINK_SHARED_COMPONENTS )
+     else()
+       # If not build static lib, dynamic link libz and libtinfo.
+       list(APPEND WASMEDGE_LLVM_LINK_SHARED_COMPONENTS
+@@ -289,6 +292,7 @@ if((WASMEDGE_LINK_LLVM_STATIC OR WASMEDGE_BUILD_STATIC_LIB) AND WASMEDGE_USE_LLV
+       endif()
+     endif()
+   endif()
++  message("LLVM_LIBRARY_DIR: ${LLVM_LIBRARY_DIR} LLVM_VERSION: ${LLVM_VERSION}")
+ endif()
+ 
+ function(wasmedge_setup_simdjson)
+@@ -352,7 +356,8 @@ function(wasmedge_setup_spdlog)
+       PATCH_COMMAND "${GIT_CMD}" checkout 11.0.2 .
+       COMMAND       "${GIT_CMD}" "apply" "--whitespace=fix" "${CMAKE_SOURCE_DIR}/cmake/0001-support-arithmetic-operations-in-uint128_fallback.patch"
+     )
+-    set(FMT_INSTALL OFF CACHE BOOL "Generate the install target." FORCE)
++    #set(FMT_INSTALL OFF CACHE BOOL "Generate the install target." FORCE)
++    set(FMT_DEBUG_POSTFIX "")
+     FetchContent_MakeAvailable(fmt)
+     wasmedge_setup_target(fmt)
+     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")

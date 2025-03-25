@@ -49,17 +49,32 @@ print_wasm_error(const char* message, wasm_trap_t* trap)
 
     if (trap)
     {
-        wasmi_trap_message(trap, &error_message);
-        wasmi_trap_delete(trap);
+        wasmi2_trap_message(trap, &error_message);
+        wasmi2_trap_delete(trap);
     }
     fprintf(stderr, "%.*s\n", (int)error_message.size, error_message.data);
-    wasmi_byte_vec_delete(&error_message);
+    wasmi2_byte_vec_delete(&error_message);
 }
 
-using uvec = std::unique_ptr<wasm_val_vec_t, decltype(&wasmi_val_vec_delete)>;
-using module_t = std::unique_ptr<wasm_module_t, decltype(&wasmi_module_delete)>;
+// clang-format off
+struct wsm_res
+{
+    wasm_val_vec_t r;
+    wsm_res(unsigned N = 0):r{0, nullptr} {if (N) wasmi2_val_vec_new_uninitialized(&r, N);}
+    ~wsm_res() { if (r.size) wasmi2_val_vec_delete(&r); }
+    wsm_res(wsm_res const &) = delete;
+    wsm_res& operator=(wsm_res const &) = delete;
+
+    wsm_res(wsm_res &&o) {*this = std::move(o);}
+    wsm_res& operator=(wsm_res  &&o){r = o.r; o.r = {0, nullptr}; return *this;}
+    //operator wasm_val_vec_t &() {return r;}
+};
+// clang-format on
+
+using module_t =
+    std::unique_ptr<wasm_module_t, decltype(&wasmi2_module_delete)>;
 using mod_inst_t =
-    std::unique_ptr<wasm_instance_t, decltype(&wasmi_instance_delete)>;
+    std::unique_ptr<wasm_instance_t, decltype(&wasmi2_instance_delete)>;
 
 struct my_mod_inst_t
 {
@@ -76,7 +91,8 @@ private:
     {
         wasm_trap_t* trap = nullptr;
         mod_inst_t mi = mod_inst_t(
-            wasmi_instance_new(s, m, &imports, &trap), &wasmi_instance_delete);
+            wasmi2_instance_new(s, m, &imports, &trap),
+            &wasmi2_instance_delete);
         if (!mi || trap)
         {
             print_wasm_error("can't create instance", trap);
@@ -84,21 +100,20 @@ private:
                 std::string(engineName(wasmEngines::I)) +
                 ": can't create instance");
         }
-        wasmi_instance_exports(mi.get(), expt);
+        wasmi2_instance_exports(mi.get(), expt);
         return mi;
     }
 
 public:
     my_mod_inst_t()
-        : exports{0, nullptr}, mod_inst(nullptr, &wasmi_instance_delete)
+        : exports{0, nullptr}, mod_inst(nullptr, &wasmi2_instance_delete)
     {
     }
 
     my_mod_inst_t(my_mod_inst_t&& o)
-        : exports{0, nullptr}, mod_inst(nullptr, &wasmi_instance_delete)
+        : exports{0, nullptr}, mod_inst(nullptr, &wasmi2_instance_delete)
     {
-        std::swap(exports, o.exports);
-        std::swap(mod_inst, o.mod_inst);
+        *this = std::move(o);
     }
 
     my_mod_inst_t&
@@ -106,8 +121,14 @@ public:
     {
         if (this == &o)
             return *this;
-        std::swap(exports, o.exports);
-        std::swap(mod_inst, o.mod_inst);
+
+        if (exports.size)
+            wasmi2_extern_vec_delete(&exports);
+        exports = o.exports;
+        o.exports = {0, nullptr};
+
+        mod_inst = std::move(o.mod_inst);
+
         return *this;
     }
 
@@ -121,7 +142,8 @@ public:
 
     ~my_mod_inst_t()
     {
-        wasmi_extern_vec_delete(&exports);
+        if (exports.size)
+            wasmi2_extern_vec_delete(&exports);
     }
 
     operator bool() const
@@ -147,19 +169,20 @@ public:
         {
             auto const* exp_type(export_types.data[i]);
 
-            const wasm_externtype_t* exn_type = wasmi_exporttype_type(exp_type);
-            if (wasmi_externtype_kind(exn_type) == WASM_EXTERN_FUNC)
+            const wasm_externtype_t* exn_type =
+                wasmi2_exporttype_type(exp_type);
+            if (wasmi2_externtype_kind(exn_type) == WASM_EXTERN_FUNC)
             {
-                wasm_name_t const* name = wasmi_exporttype_name(exp_type);
+                wasm_name_t const* name = wasmi2_exporttype_name(exp_type);
                 if (funcName == std::string_view(name->data, name->size))
                 {
                     auto* exn(exports.data[i]);
-                    if (wasmi_extern_kind(exn) != WASM_EXTERN_FUNC)
+                    if (wasmi2_extern_kind(exn) != WASM_EXTERN_FUNC)
                         throw std::runtime_error(
                             std::string(engineName(wasmEngines::I)) +
                             ": invalid export");
 
-                    f = wasmi_extern_as_func(exn);
+                    f = wasmi2_extern_as_func(exn);
                     break;
                 }
             }
@@ -168,7 +191,7 @@ public:
         if (!f)
             throw std::runtime_error(
                 std::string(engineName(wasmEngines::I)) +
-                ": can't find function");
+                ": can't find function " + std::string(funcName));
 
         return f;
     }
@@ -180,9 +203,9 @@ public:
         for (unsigned i = 0; i < exports.size; ++i)
         {
             auto* e(exports.data[i]);
-            if (wasmi_extern_kind(e) == WASM_EXTERN_MEMORY)
+            if (wasmi2_extern_kind(e) == WASM_EXTERN_MEMORY)
             {
-                mem = wasmi_extern_as_memory(e);
+                mem = wasmi2_extern_as_memory(e);
                 break;
             }
         }
@@ -193,8 +216,8 @@ public:
                 ": no memory exported");
 
         return {
-            reinterpret_cast<std::uint8_t*>(wasmi_memory_data(mem)),
-            wasmi_memory_data_size(mem)};
+            reinterpret_cast<std::uint8_t*>(wasmi2_memory_data(mem)),
+            wasmi2_memory_data_size(mem)};
     }
 };
 
@@ -209,22 +232,21 @@ private:
     init(wasm_store_t* s, vbytes const& wasmBin)
     {
         wasm_byte_vec_t const code{wasmBin.size(), (char*)(wasmBin.data())};
-        module_t m = module_t(wasmi_module_new(s, &code), &wasmi_module_delete);
+        module_t m =
+            module_t(wasmi2_module_new(s, &code), &wasmi2_module_delete);
         return m;
     }
 
 public:
     my_module_t()
-        : module(nullptr, &wasmi_module_delete), export_types{0, nullptr}
+        : module(nullptr, &wasmi2_module_delete), export_types{0, nullptr}
     {
     }
 
     my_module_t(my_module_t&& o)
-        : module(nullptr, &wasmi_module_delete), export_types{0, nullptr}
+        : module(nullptr, &wasmi2_module_delete), export_types{0, nullptr}
     {
-        std::swap(module, o.module);
-        std::swap(mod_inst, o.mod_inst);
-        std::swap(export_types, o.export_types);
+        *this = std::move(o);
     }
 
     my_module_t&
@@ -232,9 +254,15 @@ public:
     {
         if (this == &o)
             return *this;
-        std::swap(module, o.module);
-        std::swap(mod_inst, o.mod_inst);
-        std::swap(export_types, o.export_types);
+
+        module = std::move(o.module);
+        mod_inst = std::move(o.mod_inst);
+
+        if (export_types.size)
+            wasmi2_exporttype_vec_delete(&export_types);
+        export_types = o.export_types;
+        o.export_types = {0, nullptr};
+
         return *this;
     }
 
@@ -250,7 +278,7 @@ public:
                 std::string(engineName(wasmEngines::I)) +
                 " + can't create module");
 
-        wasmi_module_exports(module.get(), &export_types);
+        wasmi2_module_exports(module.get(), &export_types);
 
         if (instantiate)
             mod_inst.emplace_back(s, module.get(), imports);
@@ -258,7 +286,8 @@ public:
 
     ~my_module_t()
     {
-        wasmi_exporttype_vec_delete(&export_types);
+        if (export_types.size)
+            wasmi2_exporttype_vec_delete(&export_types);
     }
 
     wasm_func_t*
@@ -288,7 +317,7 @@ public:
             }
         }
         mod_inst.emplace_back(s, module.get(), imports);
-        return static_cast<int>(mod_inst.size());
+        return static_cast<int>(mod_inst.size()) - 1;
     }
 
     int
@@ -306,8 +335,8 @@ public:
 
 class WasmEngineIImpl
 {
-    std::unique_ptr<wasm_engine_t, decltype(&wasmi_engine_delete)> engine;
-    std::unique_ptr<wasm_store_t, decltype(&wasmi_store_delete2)> store;
+    std::unique_ptr<wasm_engine_t, decltype(&wasmi2_engine_delete)> engine;
+    std::unique_ptr<wasm_store_t, decltype(&wasmi2_store_delete)> store;
     std::vector<my_module_t> modules;
     wasm_trap_t* trap = nullptr;
 
@@ -338,10 +367,11 @@ public:
 
     Expected<std::pair<bool, std::string>, TER>
     justRunP4(
-        vbytes const& wasmCode,
         std::string_view funcName,
         vbytes const& escrow_tx_json_data,
-        vbytes const& escrow_lo_json_data);
+        vbytes const& escrow_lo_json_data,
+        int m,
+        int i);
 
     Expected<bool, TER>
     run(vbytes const& wasmCode,
@@ -350,98 +380,116 @@ public:
 
     int
     addModule(vbytes const& wasmCode, bool instantiate);
+    void
+    clearModules()
+    {
+        modules.clear();
+        store.reset();
+        store = {wasmi2_store_new(engine.get()), &wasmi2_store_delete};
+    }
     int
     addInstance(int m);
 
+    int32_t
+    runFunc(std::string_view const funcName, int32_t p, int m, int i);
+
     int64_t
-    runFunc(std::string_view const funcName, int64_t p, int m, int i);
+    runFunc64(std::string_view const funcName, int64_t p, int m, int i);
 
     std::vector<uint64_t>
-    runSha(std::string_view const data);
+    runSha(std::string_view const data, int m, int i);
 
 protected:
-    bool
+    int
     makeModule(
         vbytes const& wasmCode,
         wasm_extern_vec_t const& imports = WASM_EMPTY_VEC);
 
     wasm_func_t*
-    getFunc(std::string_view funcName, int m = 0, int i = 0);
+    getFunc(std::string_view funcName, int m, int i = 0);
 
     vmem
-    getMem(int m = 0, int i = 0);
+    getMem(int m, int i = 0);
 
-    void
+    inline void
     add_param(std::vector<wasm_val_t>& in, int32_t p);
-    void
+    inline void
     add_param(std::vector<wasm_val_t>& in, int64_t p);
 
     template <int NR, class... Types>
-    inline wasm_val_vec_t
-    call(std::string_view func, Types... args);
+    inline wsm_res
+    call(std::string_view func, int m, int i, Types... args);
 
     template <int NR, class... Types>
-    inline wasm_val_vec_t
-    call(wasm_func_t* func, Types... args);
+    inline wsm_res
+    call(wasm_func_t* func, int m, int i, Types... args);
 
     template <int NR, class... Types>
-    wasm_val_vec_t
-    call(wasm_func_t* f, std::vector<wasm_val_t>& in);
+    inline wsm_res
+    call(wasm_func_t* f, int m, int i, std::vector<wasm_val_t>& in);
 
     template <int NR, class... Types>
-    inline wasm_val_vec_t
+    inline wsm_res
     call(
         wasm_func_t* func,
+        int m,
+        int i,
         std::vector<wasm_val_t>& in,
         std::int32_t p,
         Types... args);
 
     template <int NR, class... Types>
-    inline wasm_val_vec_t
+    inline wsm_res
     call(
         wasm_func_t* func,
+        int m,
+        int i,
         std::vector<wasm_val_t>& in,
         std::int64_t p,
         Types... args);
 
     template <int NR, class... Types>
-    inline wasm_val_vec_t
+    inline wsm_res
     call(
         wasm_func_t* func,
+        int m,
+        int i,
         std::vector<wasm_val_t>& in,
-        uint8_t const* m,
+        uint8_t const* d,
         std::size_t sz,
         Types... args);
 
     template <int NR, class... Types>
-    inline wasm_val_vec_t
+    inline wsm_res
     call(
         wasm_func_t* func,
+        int m,
+        int i,
         std::vector<wasm_val_t>& in,
         vbytes const& p,
         Types... args);
 };
 
 WasmEngineIImpl::WasmEngineIImpl()
-    : engine(wasmi_engine_new(), &wasmi_engine_delete)
-    , store(wasmi_store_new2(engine.get()), &wasmi_store_delete2)
+    : engine(wasmi2_engine_new(), &wasmi2_engine_delete)
+    , store(wasmi2_store_new(engine.get()), &wasmi2_store_delete)
 {
 }
 
-bool
+int
 WasmEngineIImpl::makeModule(
     vbytes const& wasmCode,
     wasm_extern_vec_t const& imports)
 {
     modules.emplace_back(store.get(), wasmCode, true, imports);
-    return false;  // to be compatible with other VMs
+    return static_cast<int>(modules.size()) - 1;
 }
 
 int
 WasmEngineIImpl::addModule(vbytes const& wasmCode, bool instantiate)
 {
     modules.emplace_back(store.get(), wasmCode, instantiate);
-    return static_cast<int>(modules.size());
+    return static_cast<int>(modules.size()) - 1;
 }
 
 int
@@ -465,50 +513,40 @@ WasmEngineIImpl::getMem(int m, int i)
 void
 WasmEngineIImpl::add_param(std::vector<wasm_val_t>& in, int32_t p)
 {
-    in.emplace_back();
-    auto& el(in.back());
-    memset(&el, 0, sizeof(el));
-    el = WASM_I32_VAL(p);  // WASM_I32;
+    in.emplace_back(wasm_val_t WASM_I32_VAL(p));
 }
 
 void
 WasmEngineIImpl::add_param(std::vector<wasm_val_t>& in, int64_t p)
 {
-    in.emplace_back();
-    auto& el(in.back());
-    el = WASM_I64_VAL(p);
+    in.emplace_back(wasm_val_t WASM_I64_VAL(p));
 }
 
 template <int NR, class... Types>
-inline wasm_val_vec_t
-WasmEngineIImpl::call(std::string_view func, Types... args)
+wsm_res
+WasmEngineIImpl::call(std::string_view func, int m, int i, Types... args)
 {
     // Lookup our export function
-    auto* f = getFunc(func);
-    if (!f)
-        throw std::runtime_error(std::string("Can't find ") + func.data());
-
-    return call<NR>(f, std::forward<Types>(args)...);
+    auto* f = getFunc(func, m, i);
+    return call<NR>(f, m, i, std::forward<Types>(args)...);
 }
 
 template <int NR, class... Types>
-wasm_val_vec_t
-WasmEngineIImpl::call(wasm_func_t* func, Types... args)
+wsm_res
+WasmEngineIImpl::call(wasm_func_t* func, int m, int i, Types... args)
 {
     std::vector<wasm_val_t> in;
-    return call<NR>(func, in, std::forward<Types>(args)...);
+    return call<NR>(func, m, i, in, std::forward<Types>(args)...);
 }
 
 template <int NR, class... Types>
-wasm_val_vec_t
-WasmEngineIImpl::call(wasm_func_t* func, std::vector<wasm_val_t>& in)
+wsm_res
+WasmEngineIImpl::call(wasm_func_t* func, int, int, std::vector<wasm_val_t>& in)
 {
-    wasm_val_vec_t ret{0, nullptr};
-    if (NR)
-        wasmi_val_vec_new_uninitialized(&ret, NR);
+    wsm_res ret(NR);
 
     wasm_val_vec_t const inv{in.size(), in.data()};
-    trap = wasmi_func_call(func, &inv, &ret);
+    trap = wasmi2_func_call(func, &inv, &ret.r);
     if (trap)
         print_wasm_error("failed to call func", trap);
 
@@ -519,60 +557,69 @@ WasmEngineIImpl::call(wasm_func_t* func, std::vector<wasm_val_t>& in)
 }
 
 template <int NR, class... Types>
-wasm_val_vec_t
+wsm_res
 WasmEngineIImpl::call(
     wasm_func_t* func,
+    int m,
+    int i,
     std::vector<wasm_val_t>& in,
     std::int32_t p,
     Types... args)
 {
     add_param(in, p);
-    return call<NR>(func, in, std::forward<Types>(args)...);
+    return call<NR>(func, m, i, in, std::forward<Types>(args)...);
 }
 
 template <int NR, class... Types>
-wasm_val_vec_t
+wsm_res
 WasmEngineIImpl::call(
     wasm_func_t* func,
+    int m,
+    int i,
     std::vector<wasm_val_t>& in,
     std::int64_t p,
     Types... args)
 {
     add_param(in, p);
-    return call<NR>(func, in, std::forward<Types>(args)...);
+    return call<NR>(func, m, i, in, std::forward<Types>(args)...);
 }
 
 template <int NR, class... Types>
-wasm_val_vec_t
+wsm_res
 WasmEngineIImpl::call(
     wasm_func_t* func,
+    int m,
+    int i,
     std::vector<wasm_val_t>& in,
-    uint8_t const* m,
+    uint8_t const* d,
     std::size_t sz,
     Types... args)
 {
-    auto const res = call<1>(V_ALLOC, static_cast<int32_t>(sz));
-    if (trap || (res.data[0].kind != WASM_I32))
-        return {0, nullptr};
-    auto const ptr = res.data[0].of.i32;
+    auto const res = call<1>(V_ALLOC, m, i, static_cast<int32_t>(sz));
+    if (trap || (res.r.data[0].kind != WASM_I32))
+        return {};
+    auto const ptr = res.r.data[0].of.i32;
 
-    auto mem = getMem();
-    memcpy(mem.p + ptr, m, sz);
+    auto mem = getMem(m, i);
+    memcpy(mem.p + ptr, d, sz);
 
     add_param(in, ptr);
     add_param(in, static_cast<int32_t>(sz));
-    return call<NR>(func, in, std::forward<Types>(args)...);
+    return call<NR>(func, m, i, in, std::forward<Types>(args)...);
 }
 
 template <int NR, class... Types>
-wasm_val_vec_t
+wsm_res
 WasmEngineIImpl::call(
     wasm_func_t* func,
+    int m,
+    int i,
     std::vector<wasm_val_t>& in,
     vbytes const& p,
     Types... args)
 {
-    return call<NR>(func, in, p.data(), p.size(), std::forward<Types>(args)...);
+    return call<NR>(
+        func, m, i, in, p.data(), p.size(), std::forward<Types>(args)...);
 }
 
 Expected<bool, TER>
@@ -582,18 +629,20 @@ WasmEngineIImpl::run(
     int32_t input)
 {
     // Create and instantiate the module.
-    if (makeModule(wasmCode))
+    int const m = makeModule(wasmCode);
+    int const i = 0;
+    if (m < 0)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
     // Call it!
-    auto res = call<1>(funcName, input);
-    uvec del_res(&res, &wasmi_val_vec_delete);
-    if (!res.size || trap)
+    auto* f = getFunc(funcName, m, i);
+    auto res = call<1>(f, m, i, input);
+    if (!res.r.size || trap)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
-    assert(res.data[0].kind == WASM_I32);
+    assert(res.r.data[0].kind == WASM_I32);
     // printf("Result: %d\n", results[0].of.i32);
-    return res.data[0].of.i32 != 0;
+    return res.r.data[0].of.i32 != 0;
 }
 
 Expected<bool, TER>
@@ -603,17 +652,19 @@ WasmEngineIImpl::run(
     vbytes const& accountID)
 {
     // Create and instantiate the module.
-    if (makeModule(wasmCode))
+    int const m = makeModule(wasmCode);
+    int const i = 0;
+    if (m < 0)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
-    auto res = call<1>(funcName, accountID);
-    uvec del_res(&res, &wasmi_val_vec_delete);
-    if (!res.size || trap)
+    auto* f = getFunc(funcName, m, i);
+    auto res = call<1>(f, m, i, accountID);
+    if (!res.r.size || trap)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
-    assert(res.data[0].kind == WASM_I32);
+    assert(res.r.data[0].kind == WASM_I32);
     // printf("Result: %d\n", results[0].of.i32);
-    return res.data[0].of.i32 == 1;
+    return res.r.data[0].of.i32 == 1;
 }
 
 Expected<bool, TER>
@@ -624,17 +675,19 @@ WasmEngineIImpl::run(
     vbytes const& escrow_lo_json_data)
 {
     // Create and instantiate the module.
-    if (makeModule(wasmCode))
+    int const m = makeModule(wasmCode);
+    int const i = 0;
+    if (m < 0)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
-    auto res = call<1>(funcName, escrow_tx_json_data, escrow_lo_json_data);
-    uvec del_res(&res, &wasmi_val_vec_delete);
-    if (!res.size || trap)
+    auto* f = getFunc(funcName, m, i);
+    auto res = call<1>(f, m, i, escrow_tx_json_data, escrow_lo_json_data);
+    if (!res.r.size || trap)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
-    assert(res.data[0].kind == WASM_I32);
+    assert(res.r.data[0].kind == WASM_I32);
     // printf("Result: %d\n", results[0].of.i32);
-    return res.data[0].of.i32 == 1;
+    return res.r.data[0].of.i32 == 1;
 }
 
 Expected<std::pair<bool, std::string>, TER>
@@ -645,33 +698,35 @@ WasmEngineIImpl::runP4(
     vbytes const& escrow_lo_json_data)
 {
     // Create and instantiate the module.
-    if (makeModule(wasmCode))
+    int const m = makeModule(wasmCode);
+    int const i = 0;
+    if (m < 0)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
-    return justRunP4(
-        wasmCode, funcName, escrow_tx_json_data, escrow_lo_json_data);
+    return justRunP4(funcName, escrow_tx_json_data, escrow_lo_json_data, m, i);
 }
 
 Expected<std::pair<bool, std::string>, TER>
 WasmEngineIImpl::justRunP4(
-    vbytes const& wasmCode,
     std::string_view funcName,
     vbytes const& escrow_tx_json_data,
-    vbytes const& escrow_lo_json_data)
+    vbytes const& escrow_lo_json_data,
+    int m,
+    int i)
 {
-    auto res = call<1>(funcName, escrow_tx_json_data, escrow_lo_json_data);
-    uvec del_res(&res, &wasmi_val_vec_delete);
-    if (!res.size || trap)
+    auto* f = getFunc(funcName, m, i);
+    auto res = call<1>(f, m, i, escrow_tx_json_data, escrow_lo_json_data);
+    if (!res.r.size || trap)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
-    assert(res.data[0].kind == WASM_I32);
+    assert(res.r.data[0].kind == WASM_I32);
     // printf("Result: %d\n", results[0].of.i32);
-    // return res.data[0].of.i32 == 1;
-    auto const ptr = res.data[0].of.i32;
+    // return res.r.data[0].of.i32 == 1;
+    auto const ptr = res.r.data[0].of.i32;
     std::uint8_t buf[16];
     memset(buf, 0, sizeof(buf));
 
-    auto const mem = getMem();
+    auto const mem = getMem(m, i);
     memcpy(buf, mem.p + ptr, 9);
 
     auto const flag = buf[0];
@@ -684,10 +739,10 @@ WasmEngineIImpl::justRunP4(
 
     std::string newData(buf2.begin(), buf2.end());
 
-    call<0>(V_DEALLOC, ret_pointer, ret_len);
+    call<0>(V_DEALLOC, m, i, ret_pointer, ret_len);
     if (trap)
         return Unexpected<TER>(tecFAILED_PROCESSING);
-    call<0>(V_DEALLOC, ptr, 9);
+    call<0>(V_DEALLOC, m, i, ptr, 9);
     if (trap)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
@@ -700,76 +755,79 @@ WasmEngineIImpl::run(
     std::string_view funcName,
     LedgerDataProvider* ledgerDataProvider)
 {
-    std::unique_ptr<wasm_valtype_t, decltype(&wasmi_valtype_delete)> vtype(
-        wasmi_valtype_new_i32(), &wasmi_valtype_delete);
-    std::unique_ptr<wasm_functype_t, decltype(&wasmi_functype_delete)> ftype(
-        wasmi_functype_new_0_1(vtype.get()), &wasmi_functype_delete);
+    wasm_valtype_t* vtype(wasmi2_valtype_new_i32());
+    std::unique_ptr<wasm_functype_t, decltype(&wasmi2_functype_delete)> ftype(
+        wasmi2_functype_new_0_1(vtype), &wasmi2_functype_delete);
 
-    // std::unique_ptr<wasm_func_t, decltype(&wasmi_func_delete)> func(
-    //     wasmi_func_new_with_env(store.get(),ftype.get(),
+    // std::unique_ptr<wasm_func_t, decltype(&wasmi2_func_delete)> func(
+    //     wasmi2_func_new_with_env(store.get(),ftype.get(),
     //     &get_ledger_sqn, ledgerDataProvider, nullptr),
-    //     &wasmi_func_delete);
+    //     &wasmi2_func_delete);
 
-    wasm_func_t* func = wasmi_func_new_with_env(
+    wasm_func_t* func = wasmi2_func_new_with_env(
         store.get(), ftype.get(), &get_ledger_sqn, ledgerDataProvider, nullptr);
 
-    wasm_extern_t* arr[] = {wasmi_func_as_extern(func)};
+    wasm_extern_t* arr[] = {wasmi2_func_as_extern(func)};
     wasm_extern_vec_t imports = WASM_ARRAY_VEC(arr);
-    if (makeModule(wasmCode, {imports}))
+    int const m = makeModule(wasmCode, {imports});
+    int const i = 0;
+    if (m < 0)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
-    auto res = call<1>(funcName);
-    uvec del_res(&res, &wasmi_val_vec_delete);
-    if (!res.size || trap)
+    auto* f = getFunc(funcName, m, i);
+    auto res = call<1>(f, m, i);
+
+    if (!res.r.size || trap)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
-    return res.data[0].kind == WASM_I32 && res.data[0].of.i32;
+    return res.r.data[0].kind == WASM_I32 && res.r.data[0].of.i32;
+}
+
+int32_t
+WasmEngineIImpl::runFunc(
+    std::string_view const funcName,
+    int32_t p,
+    int m,
+    int i)
+{
+    auto* f = getFunc(funcName, m, i);
+    auto res = call<1>(f, m, i, p);
+    if (!res.r.size || trap)
+        return -1;
+
+    return res.r.data[0].kind == WASM_I32 ? res.r.data[0].of.i32 : -1;
 }
 
 int64_t
-WasmEngineIImpl::runFunc(
+WasmEngineIImpl::runFunc64(
     std::string_view const funcName,
     int64_t p,
     int m,
     int i)
 {
     auto* f = getFunc(funcName, m, i);
-    if (!f)
-        throw std::runtime_error(
-            std::string(engineName(wasmEngines::I)) +
-            std::string(" Can't find ") + funcName.data());
-
-    auto res = call<1>(f, p);
-    uvec del_res(&res, &wasmi_val_vec_delete);
-    if (!res.size || trap)
+    auto res = call<1>(f, m, i, p);
+    if (!res.r.size || trap)
         return -1;
 
-    return res.data[0].kind == WASM_I64
-        ? res.data[0].of.i64
-        : static_cast<std::int64_t>(res.data[0].of.i32);
+    return res.r.data[0].kind == WASM_I64 ? res.r.data[0].of.i64 : -1;
 }
 
 std::vector<uint64_t>
-WasmEngineIImpl::runSha(std::string_view const data)
+WasmEngineIImpl::runSha(std::string_view const data, int m, int i)
 {
     std::string_view funcName = "sha512_process";
-    auto* f = getFunc(funcName, 0, 0);
-    if (!f)
-        throw std::runtime_error(
-            std::string(engineName(wasmEngines::I)) +
-            std::string(" Can't find ") + funcName.data());
-
-    auto res =
-        call<1>(f, reinterpret_cast<uint8_t const*>(data.data()), data.size());
-    uvec del_res(&res, &wasmi_val_vec_delete);
-    if (!res.size || trap)
+    auto* f = getFunc(funcName, m, i);
+    auto res = call<1>(
+        f, m, i, reinterpret_cast<uint8_t const*>(data.data()), data.size());
+    if (!res.r.size || trap)
         return {};
 
-    auto const ptr = res.data[0].of.i32;
+    auto const ptr = res.r.data[0].of.i32;
     std::uint64_t buf[8];
     memset(buf, 0, sizeof(buf));
 
-    auto const mem = getMem();
+    auto const mem = getMem(m, i);
     memcpy(buf, mem.p + ptr, 8 * sizeof(std::uint64_t));
     return {&buf[0], &buf[8]};
 }
@@ -777,7 +835,7 @@ WasmEngineIImpl::runSha(std::string_view const data)
 //////////////////////////////////////////////////////////////////////////////////////////
 
 WasmEngineI::WasmEngineI()
-    : WasmEngine({1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+    : WasmEngine({1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
     , impl(std::make_unique<WasmEngineIImpl>())
 
 {
@@ -855,15 +913,16 @@ WasmEngineI::runP4(
 
 Expected<std::pair<bool, std::string>, TER>
 WasmEngineI::justRunP4(
-    vbytes const& wasmCode,
     std::string_view funcName,
     vbytes const& escrow_tx_json_data,
-    vbytes const& escrow_lo_json_data)
+    vbytes const& escrow_lo_json_data,
+    int m,
+    int i)
 {
     try
     {
         return impl->justRunP4(
-            wasmCode, funcName, escrow_tx_json_data, escrow_lo_json_data);
+            funcName, escrow_tx_json_data, escrow_lo_json_data, m, i);
     }
     catch (std::exception const&)
     {
@@ -902,6 +961,12 @@ WasmEngineI::addModule(vbytes const& wasmCode, bool instantiate)
     return -1;
 }
 
+void
+WasmEngineI::clearModules()
+{
+    return impl->clearModules();
+}
+
 int
 WasmEngineI::addInstance(int m)
 {
@@ -917,16 +982,22 @@ WasmEngineI::addInstance(int m)
     return -1;
 }
 
-int64_t
-WasmEngineI::runFunc(std::string_view const funcName, int64_t p, int m, int i)
+int32_t
+WasmEngineI::runFunc(std::string_view const funcName, int32_t p, int m, int i)
 {
     return impl->runFunc(funcName, p, m, i);
 }
 
-std::vector<uint64_t>
-WasmEngineI::runSha(std::string_view const data)
+int64_t
+WasmEngineI::runFunc64(std::string_view const funcName, int64_t p, int m, int i)
 {
-    return impl->runSha(data);
+    return impl->runFunc64(funcName, p, m, i);
+}
+
+std::vector<uint64_t>
+WasmEngineI::runSha(std::string_view const data, int m, int i)
+{
+    return impl->runSha(data, m, i);
 }
 
 }  // namespace ripple

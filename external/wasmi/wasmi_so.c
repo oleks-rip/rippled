@@ -1,54 +1,54 @@
 #include "wasmi_so.h"
 
 wasm_engine_t*
-wasmi_engine_new(void)
+wasmi2_engine_new(void)
 {
     return wasm_engine_new();
 }
 
 void
-wasmi_engine_delete(wasm_engine_t* o)
+wasmi2_engine_delete(wasm_engine_t* o)
 {
     return wasm_engine_delete(o);
 }
 
 wasm_store_t*
-wasmi_store_new2(wasm_engine_t* e)
+wasmi2_store_new(wasm_engine_t* e)
 {
     return wasm_store_new(e);
 }
 
 void
-wasmi_store_delete2(wasm_store_t* o)
+wasmi2_store_delete(wasm_store_t* o)
 {
     return wasm_store_delete(o);
 }
 
 wasm_module_t*
-wasmi_module_new(wasm_store_t* s, wasm_byte_vec_t const* c)
+wasmi2_module_new(wasm_store_t* s, wasm_byte_vec_t const* c)
 {
     return wasm_module_new(s, c);
 }
 
 void
-wasmi_module_delete(wasm_module_t* o)
+wasmi2_module_delete(wasm_module_t* o)
 {
     return wasm_module_delete(o);
 }
 
 void
-wasmi_module_imports(const wasm_module_t* m, wasm_importtype_vec_t* out)
+wasmi2_module_imports(const wasm_module_t* m, wasm_importtype_vec_t* out)
 {
     return wasm_module_imports(m, out);
 }
 void
-wasmi_module_exports(const wasm_module_t* m, wasm_exporttype_vec_t* out)
+wasmi2_module_exports(const wasm_module_t* m, wasm_exporttype_vec_t* out)
 {
     return wasm_module_exports(m, out);
 }
 
 wasm_instance_t*
-wasmi_instance_new(
+wasmi2_instance_new(
     wasm_store_t* s,
     wasm_module_t const* m,
     wasm_extern_vec_t const* imports,
@@ -57,178 +57,178 @@ wasmi_instance_new(
     return wasm_instance_new(s, m, imports, t);
 }
 void
-wasmi_instance_delete(wasm_instance_t* o)
+wasmi2_instance_delete(wasm_instance_t* o)
 {
     return wasm_instance_delete(o);
 }
 
 void
-wasmi_instance_exports(const wasm_instance_t* i, wasm_extern_vec_t* out)
+wasmi2_instance_exports(const wasm_instance_t* i, wasm_extern_vec_t* out)
 {
     return wasm_instance_exports(i, out);
 }
 
 byte_t*
-wasmi_memory_data(wasm_memory_t* m)
+wasmi2_memory_data(wasm_memory_t* m)
 {
     return wasm_memory_data(m);
 }
 
 size_t
-wasmi_memory_data_size(const wasm_memory_t* m)
+wasmi2_memory_data_size(const wasm_memory_t* m)
 {
     return wasm_memory_data_size(m);
 }
 
 void
-wasmi_exporttype_vec_delete(wasm_exporttype_vec_t* o)
+wasmi2_exporttype_vec_delete(wasm_exporttype_vec_t* o)
 {
     return wasm_exporttype_vec_delete(o);
 }
 void
-wasmi_extern_vec_delete(wasm_extern_vec_t* o)
+wasmi2_extern_vec_delete(wasm_extern_vec_t* o)
 {
     return wasm_extern_vec_delete(o);
 }
 
 const wasm_name_t*
-wasmi_importtype_name(const wasm_importtype_t* o)
+wasmi2_importtype_name(const wasm_importtype_t* o)
 {
     return wasm_importtype_name(o);
 }
 const wasm_externtype_t*
-wasmi_importtype_type(const wasm_importtype_t* o)
+wasmi2_importtype_type(const wasm_importtype_t* o)
 {
     return wasm_importtype_type(o);
 }
 
 const wasm_name_t*
-wasmi_exporttype_name(const wasm_exporttype_t* o)
+wasmi2_exporttype_name(const wasm_exporttype_t* o)
 {
     return wasm_exporttype_name(o);
 }
 const wasm_externtype_t*
-wasmi_exporttype_type(const wasm_exporttype_t* o)
+wasmi2_exporttype_type(const wasm_exporttype_t* o)
 {
     return wasm_exporttype_type(o);
 }
 
 wasm_externkind_t
-wasmi_externtype_kind(const wasm_externtype_t* t)
+wasmi2_externtype_kind(const wasm_externtype_t* t)
 {
     return wasm_externtype_kind(t);
 }
 
 wasm_externkind_t
-wasmi_extern_kind(const wasm_extern_t* t)
+wasmi2_extern_kind(const wasm_extern_t* t)
 {
     return wasm_extern_kind(t);
 }
 
 wasm_externtype_t*
-wasmi_extern_type(const wasm_extern_t* t)
+wasmi2_extern_type(const wasm_extern_t* t)
 {
     return wasm_extern_type(t);
 }
 
 wasm_func_t*
-wasmi_extern_as_func(wasm_extern_t* t)
+wasmi2_extern_as_func(wasm_extern_t* t)
 {
     return wasm_extern_as_func(t);
 }
 wasm_global_t*
-wasmi_extern_as_global(wasm_extern_t* t)
+wasmi2_extern_as_global(wasm_extern_t* t)
 {
     return wasm_extern_as_global(t);
 }
 wasm_table_t*
-wasmi_extern_as_table(wasm_extern_t* t)
+wasmi2_extern_as_table(wasm_extern_t* t)
 {
     return wasm_extern_as_table(t);
 }
 wasm_memory_t*
-wasmi_extern_as_memory(wasm_extern_t* t)
+wasmi2_extern_as_memory(wasm_extern_t* t)
 {
     return wasm_extern_as_memory(t);
 }
 
 wasm_extern_t*
-wasmi_func_as_extern(wasm_func_t* t)
+wasmi2_func_as_extern(wasm_func_t* t)
 {
     return wasm_func_as_extern(t);
 }
 wasm_extern_t*
-wasmi_global_as_extern(wasm_global_t* t)
+wasmi2_global_as_extern(wasm_global_t* t)
 {
     return wasm_global_as_extern(t);
 }
 wasm_extern_t*
-wasmi_table_as_extern(wasm_table_t* t)
+wasmi2_table_as_extern(wasm_table_t* t)
 {
     return wasm_table_as_extern(t);
 }
 wasm_extern_t*
-wasmi_memory_as_extern(wasm_memory_t* t)
+wasmi2_memory_as_extern(wasm_memory_t* t)
 {
     return wasm_memory_as_extern(t);
 }
 
 void
-wasmi_val_vec_new_empty(wasm_val_vec_t* out)
+wasmi2_val_vec_new_empty(wasm_val_vec_t* out)
 {
     return wasm_val_vec_new_empty(out);
 }
 void
-wasmi_val_vec_new_uninitialized(wasm_val_vec_t* out, size_t n)
+wasmi2_val_vec_new_uninitialized(wasm_val_vec_t* out, size_t n)
 {
     return wasm_val_vec_new_uninitialized(out, n);
 }
 void
-wasmi_val_vec_new(wasm_val_vec_t* out, size_t n, wasm_val_t const* ptr_or_none)
+wasmi2_val_vec_new(wasm_val_vec_t* out, size_t n, wasm_val_t const* ptr_or_none)
 {
     return wasm_val_vec_new(out, n, ptr_or_none);
 }
 void
-wasmi_val_vec_copy(wasm_val_vec_t* out, const wasm_val_vec_t* v)
+wasmi2_val_vec_copy(wasm_val_vec_t* out, const wasm_val_vec_t* v)
 {
     return wasm_val_vec_copy(out, v);
 }
 void
-wasmi_val_vec_delete(wasm_val_vec_t* v)
+wasmi2_val_vec_delete(wasm_val_vec_t* v)
 {
     return wasm_val_vec_delete(v);
 }
 
 void
-wasmi_byte_vec_delete(wasm_byte_vec_t* o)
+wasmi2_byte_vec_delete(wasm_byte_vec_t* o)
 {
     return wasm_byte_vec_delete(o);
 }
 
 wasm_valtype_t*
-wasmi_valtype_new(wasm_valkind_t vk)
+wasmi2_valtype_new(wasm_valkind_t vk)
 {
     return wasm_valtype_new(vk);
 }
 void
-wasmi_valtype_delete(wasm_valtype_t* t)
+wasmi2_valtype_delete(wasm_valtype_t* t)
 {
     return wasm_valtype_delete(t);
 }
 
 wasm_functype_t*
-wasmi_functype_new_0_1(wasm_valtype_t* r)
+wasmi2_functype_new_0_1(wasm_valtype_t* r)
 {
     return wasm_functype_new_0_1(r);
 }
 void
-wasmi_functype_delete(wasm_functype_t* r)
+wasmi2_functype_delete(wasm_functype_t* r)
 {
     return wasm_functype_delete(r);
 }
 
 wasm_trap_t*
-wasmi_func_call(
+wasmi2_func_call(
     const wasm_func_t* f,
     const wasm_val_vec_t* args,
     wasm_val_vec_t* results)
@@ -237,7 +237,7 @@ wasmi_func_call(
 }
 
 wasm_func_t*
-wasmi_func_new(
+wasmi2_func_new(
     wasm_store_t* s,
     const wasm_functype_t* ft,
     wasm_func_callback_t cb)
@@ -245,13 +245,13 @@ wasmi_func_new(
     return wasm_func_new(s, ft, cb);
 }
 void
-wasmi_func_delete(wasm_func_t* f)
+wasmi2_func_delete(wasm_func_t* f)
 {
     return wasm_func_delete(f);
 }
 
 wasm_func_t*
-wasmi_func_new_with_env(
+wasmi2_func_new_with_env(
     wasm_store_t* s,
     const wasm_functype_t* type,
     wasm_func_callback_with_env_t cb,
@@ -262,19 +262,19 @@ wasmi_func_new_with_env(
 }
 
 wasm_functype_t*
-wasmi_func_type(const wasm_func_t* f)
+wasmi2_func_type(const wasm_func_t* f)
 {
     return wasm_func_type(f);
 }
 
 void
-wasmi_trap_message(const wasm_trap_t* t, wasm_message_t* out)
+wasmi2_trap_message(const wasm_trap_t* t, wasm_message_t* out)
 {
     return wasm_trap_message(t, out);
 }
 
 void
-wasmi_trap_delete(wasm_trap_t* t)
+wasmi2_trap_delete(wasm_trap_t* t)
 {
     return wasm_trap_delete(t);
 }

@@ -1,0 +1,191 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+new file mode 100644
+index 0000000..57e99ab
+--- /dev/null
++++ b/CMakeLists.txt
+@@ -0,0 +1,27 @@
++cmake_minimum_required(VERSION 3.16)
++
++project(wasmer)
++
++include(ExternalProject)
++
++ExternalProject_Add(wasmer-crate
++    DOWNLOAD_COMMAND ""
++    CONFIGURE_COMMAND ""
++    INSTALL_COMMAND
++        ${CMAKE_COMMAND} -E env DESTDIR=${CMAKE_BINARY_DIR}
++        make install-capi-conan$<$<CONFIG:Debug>:-debug> -f ${CMAKE_CURRENT_SOURCE_DIR}/Makefile
++    BUILD_COMMAND
++        ${CMAKE_COMMAND} -E env ENABLE_LLVM=1 LLVM_ROOT=${LLVM_ROOT}
++        make build-capi-llvm$<$<CONFIG:Debug>:-debug> -f ${CMAKE_CURRENT_SOURCE_DIR}/Makefile
++    USES_TERMINAL_BUILD TRUE
++)
++    
++add_library(wasmer INTERFACE)
++add_dependencies(wasmer wasmer-crate)
++
++include(GNUInstallDirs)
++install(FILES ${CMAKE_BINARY_DIR}/include/wasmer.h ${CMAKE_BINARY_DIR}/include/wasm.h
++        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
++install(FILES ${CMAKE_BINARY_DIR}/lib/libwasmer.a
++        DESTINATION ${CMAKE_INSTALL_LIBDIR})
++
+diff --git a/Makefile b/Makefile
+index 09ac693..55fc5a2 100644
+--- a/Makefile
++++ b/Makefile
+@@ -50,6 +50,14 @@ IS_AARCH64 := 0
+ IS_RISCV64 := 0
+ IS_LOONGARCH64 := 0
+ 
++SRC_DIR ?= $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
++#ifneq ($(CURDIR),$(SRC_DIR))
++#	TARGET_DIR := $(CURDIR)
++#	CARGO_TARGET_DIR := $(CURDIR)
++#	export CARGO_TARGET_DIR
++#endif
++#$(info SRC_DIR=$(SRC_DIR)= MAKEFILE_LIST= $(MAKEFILE_LIST))
++
+ # Test Windows apart because it doesn't support `uname -s`.
+ ifeq ($(OS), Windows_NT)
+ 	# We can assume it will likely be in amd64.
+@@ -146,7 +154,19 @@ ifeq ($(ENABLE_LLVM), 0)
+ 	LLVM_VERSION :=
+ 	# … then maybe the user forced to enable the LLVM compiler.
+ else ifeq ($(ENABLE_LLVM), 1)
+-	LLVM_VERSION := $(shell llvm-config --version)
++	ifneq (, $(LLVM_ROOT))
++		llvm_config := "$(LLVM_ROOT)/bin/llvm-config"
++	else
++		llvm_config := "llvm-config"
++	endif
++
++	LLVM_VERSION := $(shell $(llvm_config) --version)
++	VER := $(subst ., ,$(LLVM_VERSION))
++	VER := $(word 1,$(VER))
++	VER := $(VER)0
++	STR_LLVM_PREF := LLVM_SYS_$(VER)_PREFIX
++	export $(STR_LLVM_PREF) = $(shell $(llvm_config) --prefix)
++	export LLVM_SYS_180_PREFIX = $(shell $(llvm_config) --prefix)
+ 	compilers += llvm
+ 	# … or try to autodetect LLVM from `llvm-config-<version>`.
+ else ifneq (, $(shell which llvm-config-18 2>/dev/null))
+@@ -165,6 +185,8 @@ else ifneq (, $(shell which llvm-config 2>/dev/null))
+ 	endif
+ endif
+ 
++#$(info LLVM $(STR_LLVM_PREF)= $($(STR_LLVM_PREF)))
++
+ # If findstring is not empty, then it have found the value
+ 
+ exclude_tests := --exclude wasmer-c-api --exclude wasmer-cli --exclude wasmer-compiler-cli
+@@ -286,8 +308,8 @@ capi_compilers_engines_exclude :=
+ # Define the compiler Cargo features for the C API. It always excludes
+ # LLVM for the moment because it causes the linker to fail since LLVM is not statically linked.
+ # TODO: Reenable LLVM in C-API
+-capi_compiler_features := --features $(subst $(space),$(comma),$(filter-out llvm, $(compilers))),wasmer-artifact-create,static-artifact-create,wasmer-artifact-load,static-artifact-load
+-capi_compilers_engines_exclude += llvm-universal
++capi_compiler_features := --features $(subst $(space),$(comma), $(compilers)),wasmer-artifact-create,static-artifact-create,wasmer-artifact-load,static-artifact-load
++#capi_compilers_engines_exclude += llvm-universal
+ 
+ # We exclude singlepass-universal because it doesn't support multivalue (required in wasm-c-api tests)
+ capi_compilers_engines_exclude += singlepass-universal
+@@ -391,7 +413,7 @@ check-capi:
+ 
+ build-wasmer:
+ 	$(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --release --manifest-path lib/cli/Cargo.toml $(compiler_features) --bin wasmer --locked
+-	
++
+ build-wasmer-v8:
+ 	$(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --release --manifest-path lib/cli/Cargo.toml --no-default-features --features="v8" --bin wasmer --locked
+ 
+@@ -498,36 +520,40 @@ build-docs-capi:
+ 	sed "$(SEDI)"  -e 's/name = "wasmer_c_api" # ##lib.name##/name = "wasmer" # ##lib.name##/' lib/c-api/Cargo.toml
+ 
+ build-capi:
+-	RUSTFLAGS="${RUSTFLAGS}" $(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --manifest-path lib/c-api/Cargo.toml --release \
+-		--no-default-features --features wat,compiler,wasi,middlewares,webc_runner $(capi_compiler_features) --locked
++	RUSTFLAGS="${RUSTFLAGS}" $(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --manifest-path $(SRC_DIR)/lib/c-api/Cargo.toml --release \
++		--no-default-features --features wat,sys-default,compiler,wasi,middlewares,webc_runner $(capi_compiler_features) --locked
+ 
+ build-capi-singlepass:
+-	RUSTFLAGS="${RUSTFLAGS}" $(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --manifest-path lib/c-api/Cargo.toml --release \
++	RUSTFLAGS="${RUSTFLAGS}" $(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --manifest-path $(SRC_DIR)/lib/c-api/Cargo.toml --release \
+ 		--no-default-features --features wat,compiler,singlepass,wasi,middlewares,webc_runner --locked
+ 
+ build-capi-singlepass-universal:
+-	RUSTFLAGS="${RUSTFLAGS}" $(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --manifest-path lib/c-api/Cargo.toml --release \
++	RUSTFLAGS="${RUSTFLAGS}" $(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --manifest-path $(SRC_DIR)/lib/c-api/Cargo.toml --release \
+ 		--no-default-features --features wat,compiler,singlepass,wasi,middlewares,webc_runner --locked
+ 
+ build-capi-cranelift:
+-	RUSTFLAGS="${RUSTFLAGS}" $(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --manifest-path lib/c-api/Cargo.toml --release \
++	RUSTFLAGS="${RUSTFLAGS}" $(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --manifest-path $(SRC_DIR)/lib/c-api/Cargo.toml --release \
+ 		--no-default-features --features wat,compiler,cranelift,wasi,middlewares,webc_runner --locked
+ 
+ build-capi-cranelift-universal:
+-	RUSTFLAGS="${RUSTFLAGS}" $(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --manifest-path lib/c-api/Cargo.toml --release \
++	RUSTFLAGS="${RUSTFLAGS}" $(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --manifest-path $(SRC_DIR)/lib/c-api/Cargo.toml --release \
+ 		--no-default-features --features wat,compiler,cranelift,wasi,middlewares,webc_runner --locked
+ 
+ build-capi-llvm:
+-	RUSTFLAGS="${RUSTFLAGS}" $(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --manifest-path lib/c-api/Cargo.toml --release \
++	RUSTFLAGS="${RUSTFLAGS}" $(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --manifest-path $(SRC_DIR)/lib/c-api/Cargo.toml --release \
++		--no-default-features --features wat,compiler,llvm,wasi,middlewares,webc_runner --locked
++
++build-capi-llvm-debug:
++	RUSTFLAGS="${RUSTFLAGS}" $(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --manifest-path $(SRC_DIR)/lib/c-api/Cargo.toml \
+ 		--no-default-features --features wat,compiler,llvm,wasi,middlewares,webc_runner --locked
+ 
+ build-capi-llvm-universal:
+-	RUSTFLAGS="${RUSTFLAGS}" $(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --manifest-path lib/c-api/Cargo.toml --release \
++	RUSTFLAGS="${RUSTFLAGS}" $(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --manifest-path $(SRC_DIR)/lib/c-api/Cargo.toml --release \
+ 		--no-default-features --features wat,compiler,llvm,wasi,middlewares,webc_runner --locked
+ 
+ build-capi-jsc:
+-	RUSTFLAGS="${RUSTFLAGS}" $(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --manifest-path lib/c-api/Cargo.toml --release \
+-		--no-default-features --features wat,jsc,wasi --locked
++	RUSTFLAGS="${RUSTFLAGS}" $(CARGO_BINARY) build $(CARGO_TARGET_FLAG) --manifest-path $(SRC_DIR)/lib/c-api/Cargo.toml --release \
++		--no-default-features --features wat,jsc-default,wasi --locked
+ 
+ # Headless (we include the minimal to be able to run)
+ 
+@@ -921,23 +947,33 @@ install: install-wasmer install-capi-headers install-capi-lib install-pkgconfig
+ 
+ install-capi: install-capi-headers install-capi-lib install-capi-pkgconfig install-misc
+ 
++install-capi-conan: install-capi-headers install-capi-static
++
++install-capi-conan-debug: install-capi-headers install-capi-static-debug
++
+ install-wasmer:
+ 	install -Dm755 target/release/wasmer $(DESTDIR)/bin/wasmer
+ 
+ install-capi-headers:
+-	for header in lib/c-api/*.h; do install -Dm644 "$$header" $(DESTDIR)/include/$$(basename $$header); done
+-	install -Dm644 lib/c-api/README.md $(DESTDIR)/include/wasmer-README.md
++	for header in $(SRC_DIR)/lib/c-api/*.h; do install -Dm644 "$$header" $(DESTDIR)/include/$$(basename $$header); done
++	install -Dm644 $(SRC_DIR)/lib/c-api/README.md $(DESTDIR)/include/wasmer-README.md
+ 
+ # Currently implemented for linux only. TODO
+ install-capi-lib:
+-	pkgver=$$($(CARGO_BINARY) pkgid --manifest-path lib/c-api/Cargo.toml | sed 's/^.*wasmer-c-api@//') && \
++	pkgver=$$($(CARGO_BINARY) pkgid --manifest-path $(SRC_DIR)/lib/c-api/Cargo.toml | sed 's/^.*wasmer-c-api@//') && \
+ 	shortver="$${pkgver%.*}" && \
+ 	majorver="$${shortver%.*}" && \
+-	install -Dm755 target/release/libwasmer.so "$(DESTDIR)/lib/libwasmer.so.$$pkgver" && \
++	install -Dm755 $(SRC_DIR)/target/release/libwasmer.so "$(DESTDIR)/lib/libwasmer.so.$$pkgver" && \
+ 	ln -sf "libwasmer.so.$$pkgver" "$(DESTDIR)/lib/libwasmer.so.$$shortver" && \
+ 	ln -sf "libwasmer.so.$$pkgver" "$(DESTDIR)/lib/libwasmer.so.$$majorver" && \
+ 	ln -sf "libwasmer.so.$$pkgver" "$(DESTDIR)/lib/libwasmer.so"
+ 
++install-capi-static:
++	install -Dm644 $(SRC_DIR)/target/release/libwasmer.a $(DESTDIR)/lib/libwasmer.a
++
++install-capi-static-debug:
++	install -Dm644 $(SRC_DIR)/target/debug/libwasmer.a $(DESTDIR)/lib/libwasmer.a
++
+ install-misc:
+ 	install -Dm644 LICENSE "$(DESTDIR)"/share/licenses/wasmer/LICENSE
+ 

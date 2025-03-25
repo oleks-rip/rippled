@@ -4,6 +4,12 @@ project(wasmedge_so
   LANGUAGES C
 )
 
+if(NOT TARGET llvm::llvm)
+  find_package(llvm REQUIRED)
+endif()
+
+#message("LLVM_AVAILABLE_LIBS: ${LLVM_AVAILABLE_LIBS} LLD_EXPORTED_TARGETS: ${LLD_EXPORTED_TARGETS} LLD_CMAKE_DIR: ${LLD_CMAKE_DIR}")
+
 if(NOT TARGET wasmedge::wasmedge)
   find_package(wasmedge REQUIRED)
 endif()
@@ -15,7 +21,24 @@ add_library(wasmedge_so SHARED
 
 add_library(wasmedge_so::wasmedge_so ALIAS wasmedge_so)
 
-target_link_libraries(wasmedge_so PRIVATE -Wl,--whole-archive -nostdlib wasmedge::wasmedge)
+target_link_libraries(wasmedge_so PRIVATE
+  -Wl,--no-undefined
+  -Wl,-Bsymbolic-functions
+  -Wl,--exclude-libs,ALL
+  -L${llvm_INCLUDE_DIR}/../lib
+  wasmedge::wasmedge
+  lldWasm
+  lldELF
+  lldCOFF
+  lldCommon
+  llvm::llvm
+  stdc++
+  m
+  zstd
+  z
+  pthread
+  dl
+)
 
 target_include_directories(wasmedge_so PUBLIC
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>

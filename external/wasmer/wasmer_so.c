@@ -12,25 +12,28 @@ wasmer2_config_delete(wasm_config_t* c)
     return wasm_config_delete(c);
 }
 
-static uint64_t m_test(wasmer_parser_operator_t wasm_operator) {
-    switch(wasm_operator) {
+static uint64_t
+m_test(wasmer_parser_operator_t wasm_operator)
+{
+    switch (wasm_operator)
+    {
         // `local.get` and `i32.const` cost 1 unit.
         case LocalGet:
         case I32Const:
             return 1;
 
-                    // `i32.add` costs 2 units.
+            // `i32.add` costs 2 units.
         case I32Add:
             return 2;
 
-                    // The other operations are free.
+            // The other operations are free.
         default:
             return 0;
     }
 }
 
 void
-wasmer2_config_push_middleware(wasm_config_t*c, wasmer_middleware_t*m)
+wasmer2_config_push_middleware(wasm_config_t* c, wasmer_middleware_t* m)
 {
     return wasm_config_push_middleware(c, m);
 }

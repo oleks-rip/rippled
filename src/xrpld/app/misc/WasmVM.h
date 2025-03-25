@@ -22,8 +22,8 @@
 #include <xrpl/beast/utility/Journal.h>
 #include <xrpl/protocol/TER.h>
 
-#include <string_view>
 #include <array>
+#include <string_view>
 
 namespace ripple {
 
@@ -108,11 +108,18 @@ class WasmEngine
 {
 protected:
     std::array<bool, 20> const implemented;
+
 public:
-    WasmEngine(std::array<bool, 20> const &a):implemented(a){}
+    WasmEngine(std::array<bool, 20> const& a) : implemented(a)
+    {
+    }
     virtual ~WasmEngine() = default;
 
-    bool isImplemented(int tidx) const {return implemented[tidx];}
+    bool
+    isImplemented(int tidx) const
+    {
+        return implemented[tidx];
+    }
 
     virtual Expected<bool, TER>
     run(vbytes const& wasmCode, std::string_view funcName, int32_t input)
@@ -149,10 +156,11 @@ public:
 
     virtual Expected<std::pair<bool, std::string>, TER>
     justRunP4(
-        vbytes const& wasmCode,
         std::string_view funcName,
         vbytes const& escrow_tx_json_data,
-        vbytes const& escrow_lo_json_data)
+        vbytes const& escrow_lo_json_data,
+        int m,
+        int i = 0)
     {
         return Unexpected<TER>(tecFAILED_PROCESSING);
     }
@@ -174,39 +182,50 @@ public:
         return -1;
     }
 
+    virtual void
+    clearModules()
+    {
+    }
+
     virtual int
     addInstance(int m)
     {
         return -1;
     }
 
+    virtual int32_t
+    runFunc(std::string_view const funcName, int32_t p, int m, int i = 0)
+    {
+        return -1;
+    }
+
     virtual int64_t
-    runFunc(std::string_view const funcName, int64_t p, int m = 0, int i = 0)
+    runFunc64(std::string_view const funcName, int64_t p, int m, int i = 0)
     {
         return -1;
     }
 
     virtual std::vector<uint64_t>
-    runSha(std::string_view const data)
+    runSha(std::string_view const data, int m, int i = 0)
     {
         return {};
     }
 
-
-    virtual
-    std::int64_t setMeter(std::int64_t def = 1'000'000'000LL)
+    virtual std::int64_t
+    setMeter(std::int64_t def = 1'000'000'000LL)
     {
         return -1;
     }
 
-    virtual
-    std::int64_t setGas(std::int64_t gas = 1'000'000'000LL, int m = 0, int i = 0)
+    // gas = 1'000'000'000LL
+    virtual std::int64_t
+    setGas(std::int64_t gas, int m, int i = 0)
     {
         return -1;
     }
 
-    virtual
-    std::int64_t getRemainingGas(int m = 0, int i = 0)
+    virtual std::int64_t
+    getRemainingGas(int m, int i = 0)
     {
         return -1;
     }

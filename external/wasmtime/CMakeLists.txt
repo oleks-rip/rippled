@@ -15,7 +15,15 @@ add_library(wasmtime_so SHARED
 
 add_library(wasmtime_so::wasmtime_so ALIAS wasmtime_so)
 
-target_link_libraries(wasmtime_so PRIVATE -Wl,--whole-archive -nostdlib -Wl,-Bsymbolic-functions wasmtime::wasmtime)
+target_link_libraries(wasmtime_so PRIVATE
+	-Wl,--no-undefined
+	-Wl,-Bsymbolic-functions
+	-Wl,--exclude-libs,ALL	
+	wasmtime::wasmtime
+    m
+    z
+    dl
+)
 
 target_include_directories(wasmtime_so PUBLIC
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>

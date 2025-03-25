@@ -4,8 +4,19 @@ project(wamr_so
   LANGUAGES C
 )
 
-if(NOT TARGET wasm-micro-runtime::wasm-micro-runtime)
-  find_package(wasm-micro-runtime REQUIRED)
+if(NOT TARGET llvm::llvm)
+  find_package(llvm REQUIRED)
+endif()
+
+#if (NOT DEFINED LLVM_DIR)
+#  set (LLVM_DIR ${llvm_INCLUDE_DIR}/../lib/cmake/llvm)  
+#endif()
+#find_package(LLVM REQUIRED CONFIG)
+#message("LLVM_AVAILABLE_LIBS: ${LLVM_AVAILABLE_LIBS}")
+
+
+if(NOT TARGET wamr::wamr)
+  find_package(wamr REQUIRED)
 endif()
 
 add_library(wamr_so SHARED
@@ -15,12 +26,26 @@ add_library(wamr_so SHARED
 
 add_library(wamr_so::wamr_so ALIAS wamr_so)
 
-target_link_libraries(wamr_so PRIVATE -Wl,--whole-archive -nostdlib -Wl,-Bsymbolic-functions wasm-micro-runtime::wasm-micro-runtime)
+
+target_link_libraries(wamr_so PRIVATE
+    -Wl,--exclude-libs,ALL
+    -Wl,-Bsymbolic-functions
+    -Wl,--no-undefined
+    wamr::wamr
+    #${llvm_INCLUDE_DIR}/../lib/libLLVM.so
+    llvm::llvm
+    stdc++
+    m
+    zstd
+    z
+    pthread
+    dl
+    )
 
 target_include_directories(wamr_so PUBLIC
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-  ${wasm-micro-runtime_INCLUDE_DIR}
+  ${wamr_INCLUDE_DIR}
 )
 
 install(

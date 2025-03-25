@@ -85,7 +85,7 @@ add_subdirectory(external/antithesis-sdk)
 add_subdirectory(external/wasmedge)
 add_subdirectory(external/wasmtime)
 add_subdirectory(external/wasmer)
-add_subdirectory(external/wasmi_so)
+add_subdirectory(external/wasmi)
 add_subdirectory(external/wamr)
 
 find_package(gRPC REQUIRED)

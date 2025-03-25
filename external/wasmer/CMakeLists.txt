@@ -4,6 +4,10 @@ project(wasmer_so
   LANGUAGES C
 )
 
+if(NOT TARGET llvm-18::llvm-18)
+  find_package(llvm-18 REQUIRED)
+endif()
+
 if(NOT TARGET wasmer::wasmer)
   find_package(wasmer REQUIRED)
 endif()
@@ -15,7 +19,20 @@ add_library(wasmer_so SHARED
 
 add_library(wasmer_so::wasmer_so ALIAS wasmer_so)
 
-target_link_libraries(wasmer_so PRIVATE -Wl,--no-undefined -Wl,-Bsymbolic-functions wasmer::wasmer)
+target_link_libraries(wasmer_so PRIVATE 
+    -Wl,--no-undefined
+    -Wl,-Bsymbolic-functions
+    -Wl,--exclude-libs,ALL
+    wasmer::wasmer
+    llvm-18::llvm-18
+    stdc++
+    curses
+    m
+    zstd
+    z
+    pthread
+    dl
+)
 
 target_include_directories(wasmer_so PUBLIC
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>

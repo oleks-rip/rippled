@@ -1,3 +1,0 @@
-[submodule "external/wasmi"]
-	path = external/wasmi
-	url = github.com:wasmi-labs/wasmi.git

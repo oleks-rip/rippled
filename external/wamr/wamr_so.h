@@ -1,7 +1,9 @@
 #pragma once
 
-#include <wasm_c_api.h>
-#include <wasm_export.h>
+#include <iwasm/wasm_c_api.h>
+#include <iwasm/wasm_export.h>
+
+// #pragma GCC visibility push(default)
 
 #if !defined(wamr_so_EXPORTS) && defined(__cplusplus)
 extern "C" {
@@ -162,6 +164,17 @@ wamr_trap_message(const wasm_trap_t*, wasm_message_t* out);
 void
 wamr_trap_delete(wasm_trap_t*);
 
+bool
+wamr_runtime_set_default_running_mode(RunningMode running_mode);
+bool
+wamr_runtime_set_running_mode(
+    wasm_module_inst_t module_inst,
+    RunningMode running_mode);
+RunningMode
+wamr_runtime_get_running_mode(wasm_module_inst_t module_inst);
+
 #if !defined(wamr_so_EXPORTS) && defined(__cplusplus)
 }
 #endif
+
+// #pragma GCC visibility pop

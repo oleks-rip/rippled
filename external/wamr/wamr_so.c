@@ -278,3 +278,23 @@ wamr_trap_delete(wasm_trap_t* t)
 {
     return wasm_trap_delete(t);
 }
+
+bool
+wamr_runtime_set_default_running_mode(RunningMode running_mode)
+{
+    return wasm_runtime_set_default_running_mode(running_mode);
+}
+
+bool
+wamr_runtime_set_running_mode(
+    wasm_module_inst_t module_inst,
+    RunningMode running_mode)
+{
+    return wasm_runtime_set_running_mode(module_inst, running_mode);
+}
+
+RunningMode
+wamr_runtime_get_running_mode(wasm_module_inst_t module_inst)
+{
+    return wasm_runtime_get_running_mode(module_inst);
+}

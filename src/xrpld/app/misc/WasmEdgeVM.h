@@ -57,11 +57,11 @@ public:
 
     virtual Expected<std::pair<bool, std::string>, TER>
     justRunP4(
-        vbytes const& wasmCode,
         std::string_view funcName,
         vbytes const& escrow_tx_json_data,
-        vbytes const& escrow_lo_json_data) override;
-
+        vbytes const& escrow_lo_json_data,
+        int m,
+        int i) override;
 
     virtual Expected<bool, TER>
     run(vbytes const& wasmCode,
@@ -70,15 +70,20 @@ public:
 
     virtual int
     addModule(vbytes const& wasmCode, bool instantiate) override;
+    virtual void
+    clearModules() override;
     virtual int
     addInstance(int m) override;
 
+    virtual int32_t
+    runFunc(std::string_view const funcName, int32_t p, int m, int i) override;
+
     virtual int64_t
-    runFunc(std::string_view const funcName, int64_t p, int m, int i) override;
+    runFunc64(std::string_view const funcName, int64_t p, int m, int i)
+        override;
 
     virtual std::vector<uint64_t>
-    runSha( std::string_view const data)override;
-
+    runSha(std::string_view const data, int m, int i) override;
 };
 
 }  // namespace ripple

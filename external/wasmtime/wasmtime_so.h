@@ -136,6 +136,9 @@ wasmtime2_valtype_new_funcref()
 
 wasm_functype_t*
 wasmtime2_functype_new_0_1(wasm_valtype_t* r);
+wasm_functype_t*
+wasmtime2_functype_new_1_0(wasm_valtype_t* r);
+
 void
 wasmtime2_functype_delete(wasm_functype_t*);
 
@@ -163,6 +166,15 @@ void
 wasmtime2_trap_message(const wasm_trap_t*, wasm_message_t* out);
 void
 wasmtime2_trap_delete(wasm_trap_t*);
+
+wasmtime_store_t*
+wasmtime3_store_new(wasm_engine_t* engine, void* data, void (*final)(void*));
+wasmtime_context_t*
+wasmtime3_store_context(wasmtime_store_t* store);
+wasmtime_linker_t*
+wasmtime3_linker_new(wasm_engine_t* engine);
+wasmtime_error_t*
+wasmtime3_linker_define_wasi(wasmtime_linker_t* linker);
 
 #if !defined(wasmtime2_so_EXPORTS) && defined(__cplusplus)
 }

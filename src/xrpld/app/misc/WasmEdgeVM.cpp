@@ -95,7 +95,7 @@ public:
     my_mod_inst_t(my_mod_inst_t&& o)
         : mod_inst(nullptr, &WasmEdge2_ModuleInstanceDelete)
     {
-        std::swap(mod_inst, o.mod_inst);
+        *this = std::move(o);
     }
 
     my_mod_inst_t&
@@ -104,7 +104,7 @@ public:
         if (this == &o)
             return *this;
 
-        std::swap(mod_inst, o.mod_inst);
+        mod_inst = std::move(o.mod_inst);
         return *this;
     }
 
@@ -126,15 +126,25 @@ public:
     WasmEdge_FunctionInstanceContext*
     getFunc(std::string_view funcName) const
     {
-        return WasmEdge2_ModuleInstanceFindFunction(
+        auto* f = WasmEdge2_ModuleInstanceFindFunction(
             mod_inst.get(), to_edge(funcName));
+        if (!f)
+            throw std::runtime_error(
+                std::string(engineName(wasmEngines::Edge)) +
+                ": can't find function " + std::string(funcName));
+        return f;
     }
 
     WasmEdge_MemoryInstanceContext*
     getMem() const
     {
-        return WasmEdge2_ModuleInstanceFindMemory(
-            mod_inst.get(), to_edge(V_MEM));
+        auto m =
+            WasmEdge2_ModuleInstanceFindMemory(mod_inst.get(), to_edge(V_MEM));
+        if (!m)
+            throw std::runtime_error(
+                std::string(engineName(wasmEngines::Edge)) +
+                " Can't find memory");
+        return m;
     }
 };
 
@@ -165,8 +175,7 @@ public:
 
     my_module_t(my_module_t&& o) : module(nullptr, &WasmEdge2_ASTModuleDelete)
     {
-        std::swap(module, o.module);
-        std::swap(mod_inst, o.mod_inst);
+        *this = std::move(o);
     }
 
     my_module_t(
@@ -220,8 +229,9 @@ public:
     {
         if (this == &o)
             return *this;
-        std::swap(module, o.module);
-        std::swap(mod_inst, o.mod_inst);
+
+        module = std::move(o.module);
+        mod_inst = std::move(o.mod_inst);
 
         return *this;
     }
@@ -253,7 +263,7 @@ public:
             }
         }
         mod_inst.emplace_back(s, x, module.get());
-        return static_cast<int>(mod_inst.size());
+        return static_cast<int>(mod_inst.size()) - 1;
     }
 
     int
@@ -320,10 +330,12 @@ public:
 
     Expected<std::pair<bool, std::string>, TER>
     justRunP4(
-        vbytes const& wasmCode,
+
         std::string_view funcName,
         vbytes const& escrow_tx_json_data,
-        vbytes const& escrow_lo_json_data);
+        vbytes const& escrow_lo_json_data,
+        int m,
+        int i);
 
     Expected<bool, TER>
     run(vbytes const& wasmCode,
@@ -332,27 +344,35 @@ public:
 
     int
     addModule(vbytes const& wasmCode, bool instantiate);
+    void
+    clearModules()
+    {
+        modules.clear();
+    }
     int
     addInstance(int m);
 
+    int32_t
+    runFunc(std::string_view const funcName, int32_t p, int m, int i);
+
     int64_t
-    runFunc(std::string_view const funcName, int64_t p, int m, int i);
+    runFunc64(std::string_view const funcName, int64_t p, int m, int i);
 
     std::vector<uint64_t>
-    runSha(std::string_view const data);
+    runSha(std::string_view const data, int m, int i);
 
 protected:
-    bool
+    int
     makeModule(
         // std::string_view name,
         vbytes const& wasmCode,
         imports_t const& imports = {});
 
     WasmEdge_FunctionInstanceContext*
-    getFunc(std::string_view funcName, int m = 0, int i = 0);
+    getFunc(std::string_view funcName, int m, int i = 0);
 
     WasmEdge_MemoryInstanceContext*
-    getMem(int m = 0, int i = 0);
+    getMem(int m, int i = 0);
 
     void
     add_param(std::vector<WasmEdge_Value>& in, int32_t p);
@@ -361,20 +381,26 @@ protected:
 
     template <int NR, class... Types>
     inline std::vector<WasmEdge_Value>
-    call(std::string_view func, Types... args);
+    call(std::string_view func, int m, int i, Types... args);
 
     template <int NR, class... Types>
     inline std::vector<WasmEdge_Value>
-    call(WasmEdge_FunctionInstanceContext* func, Types... args);
+    call(WasmEdge_FunctionInstanceContext* f, int m, int i, Types... args);
 
     template <int NR, class... Types>
     std::vector<WasmEdge_Value>
-    call(WasmEdge_FunctionInstanceContext* f, std::vector<WasmEdge_Value>& in);
+    call(
+        WasmEdge_FunctionInstanceContext* f,
+        int m,
+        int i,
+        std::vector<WasmEdge_Value>& in);
 
     template <int NR, class... Types>
     inline std::vector<WasmEdge_Value>
     call(
-        WasmEdge_FunctionInstanceContext* func,
+        WasmEdge_FunctionInstanceContext* f,
+        int m,
+        int i,
         std::vector<WasmEdge_Value>& in,
         std::int32_t p,
         Types... args);
@@ -382,7 +408,9 @@ protected:
     template <int NR, class... Types>
     inline std::vector<WasmEdge_Value>
     call(
-        WasmEdge_FunctionInstanceContext* func,
+        WasmEdge_FunctionInstanceContext* f,
+        int m,
+        int i,
         std::vector<WasmEdge_Value>& in,
         std::int64_t p,
         Types... args);
@@ -390,16 +418,20 @@ protected:
     template <int NR, class... Types>
     inline std::vector<WasmEdge_Value>
     call(
-        WasmEdge_FunctionInstanceContext* func,
+        WasmEdge_FunctionInstanceContext* f,
+        int m,
+        int i,
         std::vector<WasmEdge_Value>& in,
-        uint8_t const* m,
+        uint8_t const* d,
         std::size_t sz,
         Types... args);
 
     template <int NR, class... Types>
     inline std::vector<WasmEdge_Value>
     call(
-        WasmEdge_FunctionInstanceContext* func,
+        WasmEdge_FunctionInstanceContext* f,
+        int m,
+        int i,
         std::vector<WasmEdge_Value>& in,
         vbytes const& p,
         Types... args);
@@ -425,11 +457,13 @@ WasmEngineEdgeImpl::run(
     std::string_view funcName,
     int32_t input)
 {
-    if (makeModule(  //"mod01",
-            wasmCode))
+    int const m = makeModule(wasmCode);
+    int const i = 0;
+    if (m < 0)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
-    auto const Returns = call<1>(funcName, input);
+    auto* f = getFunc(funcName, m, i);
+    auto const Returns = call<1>(f, m, i, input);
     if (!WasmEdge2_ResultOK(funcRes))
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
@@ -445,11 +479,14 @@ WasmEngineEdgeImpl::run(
     std::string_view funcName,
     vbytes const& accountID)
 {
-    if (makeModule(  //"mod01",
-            wasmCode))
+    //"mod01",
+    int const m = makeModule(wasmCode);
+    int const i = 0;
+    if (m < 0)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
-    auto const Returns = call<1>(funcName, accountID);
+    auto* f = getFunc(funcName, m, i);
+    auto const Returns = call<1>(f, m, i, accountID);
     if (!WasmEdge2_ResultOK(funcRes))
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
@@ -466,11 +503,14 @@ WasmEngineEdgeImpl::run(
     vbytes const& escrow_tx_json_data,
     vbytes const& escrow_lo_json_data)
 {
-    if (makeModule(wasmCode))
+    int const m = makeModule(wasmCode);
+    int const i = 0;
+    if (m < 0)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
+    auto* f = getFunc(funcName, m, i);
     auto const Returns =
-        call<1>(funcName, escrow_tx_json_data, escrow_lo_json_data);
+        call<1>(f, m, i, escrow_tx_json_data, escrow_lo_json_data);
     if (!WasmEdge2_ResultOK(funcRes))
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
@@ -488,22 +528,25 @@ WasmEngineEdgeImpl::runP4(
     vbytes const& escrow_lo_json_data)
 {
     // Create and instantiate the module.
-    if (makeModule(wasmCode))
+    int const m = makeModule(wasmCode);
+    int const i = 0;
+    if (m < 0)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
-    return justRunP4(
-        wasmCode, funcName, escrow_tx_json_data, escrow_lo_json_data);
+    return justRunP4(funcName, escrow_tx_json_data, escrow_lo_json_data, m, i);
 }
 
 Expected<std::pair<bool, std::string>, TER>
 WasmEngineEdgeImpl::justRunP4(
-    vbytes const& wasmCode,
     std::string_view funcName,
     vbytes const& escrow_tx_json_data,
-    vbytes const& escrow_lo_json_data)
+    vbytes const& escrow_lo_json_data,
+    int m,
+    int i)
 {
+    auto* f = getFunc(funcName, m, i);
     auto const Returns =
-        call<1>(funcName, escrow_tx_json_data, escrow_lo_json_data);
+        call<1>(f, m, i, escrow_tx_json_data, escrow_lo_json_data);
     if (!WasmEdge2_ResultOK(funcRes))
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
@@ -512,7 +555,7 @@ WasmEngineEdgeImpl::justRunP4(
     memset(buf, 0, sizeof(buf));
 
     // memcpy(buf, mem.p + ptr, 9);
-    auto const* mem = getMem();
+    auto const* mem = getMem(m, i);
     WasmEdge2_MemoryInstanceGetData(mem, buf, ptr, 9);
 
     auto const flag = buf[0];
@@ -526,10 +569,10 @@ WasmEngineEdgeImpl::justRunP4(
 
     std::string newData(buf2.begin(), buf2.end());
 
-    call<0>(V_DEALLOC, ret_ptr, ret_len);
+    call<0>(V_DEALLOC, m, i, ret_ptr, ret_len);
     if (!WasmEdge2_ResultOK(funcRes))
         return Unexpected<TER>(tecFAILED_PROCESSING);
-    call<0>(V_DEALLOC, ptr, 9);
+    call<0>(V_DEALLOC, m, i, ptr, 9);
     if (!WasmEdge2_ResultOK(funcRes))
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
@@ -552,10 +595,13 @@ WasmEngineEdgeImpl::run(
     WasmEdge_FunctionInstanceContext* func = WasmEdge2_FunctionInstanceCreate(
         ftype.get(), &get_ledger_sqn, ledgerDataProvider, 0);
 
-    if (makeModule(wasmCode, {{"get_ledger_sqn", func}}))
+    int const m = makeModule(wasmCode, {{"get_ledger_sqn", func}});
+    int const i = 0;
+    if (m < 0)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
-    auto const Returns = call<1>(funcName);
+    auto* f = getFunc(funcName, m, i);
+    auto const Returns = call<1>(f, m, i);
     if (!WasmEdge2_ResultOK(funcRes))
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
@@ -565,7 +611,7 @@ WasmEngineEdgeImpl::run(
     return result;
 }
 
-bool
+int
 WasmEngineEdgeImpl::makeModule(
     // std::string_view name,
     vbytes const& wasmCode,
@@ -580,7 +626,7 @@ WasmEngineEdgeImpl::makeModule(
         wasmCode,
         true,
         imports);
-    return false;  // to be compatible with other VMs
+    return static_cast<int>(modules.size()) - 1;
 }
 
 int
@@ -594,7 +640,7 @@ WasmEngineEdgeImpl::addModule(vbytes const& wasmCode, bool instantiate)
         executor.get(),
         wasmCode,
         instantiate);
-    return static_cast<int>(modules.size());
+    return static_cast<int>(modules.size()) - 1;
 }
 
 int
@@ -635,32 +681,31 @@ WasmEngineEdgeImpl::add_param(std::vector<WasmEdge_Value>& in, int64_t p)
 
 template <int NR, class... Types>
 inline std::vector<WasmEdge_Value>
-WasmEngineEdgeImpl::call(std::string_view func, Types... args)
+WasmEngineEdgeImpl::call(std::string_view func, int m, int i, Types... args)
 {
     // Lookup our export function
-    auto* f = getFunc(func);
-    if (!f)
-    {
-        throw std::runtime_error(
-            std::string(engineName(wasmEngines::Edge)) +
-            std::string("Can't find ") + func.data());
-    }
-
-    return call<NR>(f, std::forward<Types>(args)...);
-}
-
-template <int NR, class... Types>
-std::vector<WasmEdge_Value>
-WasmEngineEdgeImpl::call(WasmEdge_FunctionInstanceContext* func, Types... args)
-{
-    std::vector<WasmEdge_Value> in;
-    return call<NR>(func, in, std::forward<Types>(args)...);
+    auto* f = getFunc(func, m, i);
+    return call<NR>(f, m, i, std::forward<Types>(args)...);
 }
 
 template <int NR, class... Types>
 std::vector<WasmEdge_Value>
 WasmEngineEdgeImpl::call(
-    WasmEdge_FunctionInstanceContext* func,
+    WasmEdge_FunctionInstanceContext* f,
+    int m,
+    int i,
+    Types... args)
+{
+    std::vector<WasmEdge_Value> in;
+    return call<NR>(f, m, i, in, std::forward<Types>(args)...);
+}
+
+template <int NR, class... Types>
+std::vector<WasmEdge_Value>
+WasmEngineEdgeImpl::call(
+    WasmEdge_FunctionInstanceContext* f,
+    int m,
+    int i,
     std::vector<WasmEdge_Value>& in)
 {
     std::vector<WasmEdge_Value> ret;
@@ -671,7 +716,7 @@ WasmEngineEdgeImpl::call(
     }
 
     funcRes = WasmEdge2_ExecutorInvoke(
-        executor.get(), func, in.data(), in.size(), ret.data(), ret.size());
+        executor.get(), f, in.data(), in.size(), ret.data(), ret.size());
     if (!WasmEdge2_ResultOK(funcRes))
     {
         std::cerr << std::string("failed to call func ") +
@@ -689,37 +734,43 @@ WasmEngineEdgeImpl::call(
 template <int NR, class... Types>
 std::vector<WasmEdge_Value>
 WasmEngineEdgeImpl::call(
-    WasmEdge_FunctionInstanceContext* func,
+    WasmEdge_FunctionInstanceContext* f,
+    int m,
+    int i,
     std::vector<WasmEdge_Value>& in,
     std::int32_t p,
     Types... args)
 {
     add_param(in, p);
-    return call<NR>(func, in, std::forward<Types>(args)...);
+    return call<NR>(f, m, i, in, std::forward<Types>(args)...);
 }
 
 template <int NR, class... Types>
 std::vector<WasmEdge_Value>
 WasmEngineEdgeImpl::call(
-    WasmEdge_FunctionInstanceContext* func,
+    WasmEdge_FunctionInstanceContext* f,
+    int m,
+    int i,
     std::vector<WasmEdge_Value>& in,
     std::int64_t p,
     Types... args)
 {
     add_param(in, p);
-    return call<NR>(func, in, std::forward<Types>(args)...);
+    return call<NR>(f, m, i, in, std::forward<Types>(args)...);
 }
 
 template <int NR, class... Types>
 std::vector<WasmEdge_Value>
 WasmEngineEdgeImpl::call(
-    WasmEdge_FunctionInstanceContext* func,
+    WasmEdge_FunctionInstanceContext* f,
+    int m,
+    int i,
     std::vector<WasmEdge_Value>& in,
-    uint8_t const* m,
+    uint8_t const* d,
     std::size_t sz,
     Types... args)
 {
-    auto const res = call<1>(V_ALLOC, static_cast<int32_t>(sz));
+    auto const res = call<1>(V_ALLOC, m, i, static_cast<int32_t>(sz));
     if (!WasmEdge2_ResultOK(funcRes))
     {
         std::cerr << std::string("failed to call func ") +
@@ -729,7 +780,7 @@ WasmEngineEdgeImpl::call(
     }
 
     auto const ptr = WasmEdge2_ValueGetI32(res[0]);
-    auto* mem = getMem();
+    auto* mem = getMem(m, i);
     if (!mem)
     {
         throw std::runtime_error(
@@ -737,7 +788,7 @@ WasmEngineEdgeImpl::call(
     }
 
     // memcpy(mem.p + ptr, m, sz);
-    funcRes = WasmEdge2_MemoryInstanceSetData(mem, m, ptr, sz);
+    funcRes = WasmEdge2_MemoryInstanceSetData(mem, d, ptr, sz);
     if (!WasmEdge2_ResultOK(funcRes))
     {
         std::cerr << std::string("failed to call func ") +
@@ -748,34 +799,48 @@ WasmEngineEdgeImpl::call(
 
     add_param(in, ptr);
     add_param(in, static_cast<int32_t>(sz));
-    return call<NR>(func, in, std::forward<Types>(args)...);
+    return call<NR>(f, m, i, in, std::forward<Types>(args)...);
 }
 
 template <int NR, class... Types>
 std::vector<WasmEdge_Value>
 WasmEngineEdgeImpl::call(
-    WasmEdge_FunctionInstanceContext* func,
+    WasmEdge_FunctionInstanceContext* f,
+    int m,
+    int i,
     std::vector<WasmEdge_Value>& in,
     vbytes const& p,
     Types... args)
 {
-    return call<NR>(func, in, p.data(), p.size(), std::forward<Types>(args)...);
+    return call<NR>(
+        f, m, i, in, p.data(), p.size(), std::forward<Types>(args)...);
+}
+
+int32_t
+WasmEngineEdgeImpl::runFunc(
+    std::string_view const funcName,
+    int32_t p,
+    int m,
+    int i)
+{
+    auto* f = getFunc(funcName, m, i);
+    auto res = call<1>(f, m, i, p);
+    if (!res.size() || !WasmEdge2_ResultOK(funcRes))
+        return -1;
+
+    auto const result = WasmEdge2_ValueGetI32(res[0]);
+    return result;
 }
 
 int64_t
-WasmEngineEdgeImpl::runFunc(
+WasmEngineEdgeImpl::runFunc64(
     std::string_view const funcName,
     int64_t p,
     int m,
     int i)
 {
     auto* f = getFunc(funcName, m, i);
-    if (!f)
-        throw std::runtime_error(
-            std::string(engineName(wasmEngines::Edge)) +
-            std::string(" Can't find ") + funcName.data());
-
-    auto res = call<1>(f, p);
+    auto res = call<1>(f, m, i, p);
     if (!res.size() || !WasmEdge2_ResultOK(funcRes))
         return -1;
 
@@ -784,11 +849,12 @@ WasmEngineEdgeImpl::runFunc(
 }
 
 std::vector<uint64_t>
-WasmEngineEdgeImpl::runSha(std::string_view const data)
+WasmEngineEdgeImpl::runSha(std::string_view const data, int m, int i)
 {
     std::string_view funcName = "sha512_process";
-    auto const Returns = call<1>(
-        funcName, reinterpret_cast<uint8_t const*>(data.data()), data.size());
+    auto* f = getFunc(funcName, m, i);
+    auto const* d = reinterpret_cast<uint8_t const*>(data.data());
+    auto const Returns = call<1>(f, m, i, d, data.size());
     if (!WasmEdge2_ResultOK(funcRes))
         return {};
 
@@ -796,7 +862,7 @@ WasmEngineEdgeImpl::runSha(std::string_view const data)
     std::uint64_t buf[8];
     memset(buf, 0, sizeof(buf));
 
-    auto const* mem = getMem();
+    auto const* mem = getMem(m, i);
     WasmEdge2_MemoryInstanceGetData(
         mem,
         reinterpret_cast<std::uint8_t*>(&buf[0]),
@@ -809,7 +875,7 @@ WasmEngineEdgeImpl::runSha(std::string_view const data)
 //////////////////////////////////////////////////////////////////////////////////////////
 
 WasmEngineEdge::WasmEngineEdge()
-    : WasmEngine({1, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+    : WasmEngine({1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
     , impl(std::make_unique<WasmEngineEdgeImpl>())
 
 {
@@ -888,15 +954,17 @@ WasmEngineEdge::runP4(
 
 Expected<std::pair<bool, std::string>, TER>
 WasmEngineEdge::justRunP4(
-    vbytes const& wasmCode,
+
     std::string_view funcName,
     vbytes const& escrow_tx_json_data,
-    vbytes const& escrow_lo_json_data)
+    vbytes const& escrow_lo_json_data,
+    int m,
+    int i)
 {
     try
     {
         return impl->justRunP4(
-            wasmCode, funcName, escrow_tx_json_data, escrow_lo_json_data);
+            funcName, escrow_tx_json_data, escrow_lo_json_data, m, i);
     }
     catch (std::exception const&)
     {
@@ -935,6 +1003,12 @@ WasmEngineEdge::addModule(vbytes const& wasmCode, bool instantiate)
     return -1;
 }
 
+void
+WasmEngineEdge::clearModules()
+{
+    return impl->clearModules();
+}
+
 int
 WasmEngineEdge::addInstance(int m)
 {
@@ -950,20 +1024,30 @@ WasmEngineEdge::addInstance(int m)
     return -1;
 }
 
-int64_t
+int32_t
 WasmEngineEdge::runFunc(
     std::string_view const funcName,
-    int64_t p,
+    int32_t p,
     int m,
     int i)
 {
     return impl->runFunc(funcName, p, m, i);
 }
 
-std::vector<uint64_t>
-WasmEngineEdge::runSha(std::string_view const data)
+int64_t
+WasmEngineEdge::runFunc64(
+    std::string_view const funcName,
+    int64_t p,
+    int m,
+    int i)
 {
-    return impl->runSha(data);
+    return impl->runFunc64(funcName, p, m, i);
+}
+
+std::vector<uint64_t>
+WasmEngineEdge::runSha(std::string_view const data, int m, int i)
+{
+    return impl->runSha(data, m, i);
 }
 
 }  // namespace ripple
