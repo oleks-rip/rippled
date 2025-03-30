@@ -76,12 +76,68 @@ using module_t =
 using mod_inst_t =
     std::unique_ptr<wasm_instance_t, decltype(&wasmi2_instance_delete)>;
 
+static wasm_trap_t*
+_proc_exit(wasm_val_vec_t const* p, wasm_val_vec_t*)
+{
+    std::cout << "Exit called: " << std::to_string(p->data[0].of.i32)
+              << std::endl;
+    return nullptr;
+}
+
 struct my_mod_inst_t
 {
     wasm_extern_vec_t exports;
     mod_inst_t mod_inst;
 
 private:
+    static void
+    checkImport(
+        wasm_extern_vec_t& out,
+        wasm_store_t* s,
+        wasm_module_t* m,
+        wasm_extern_vec_t const& in)
+    {
+        wasm_importtype_vec_t impts = {0, nullptr};
+        wasmi2_module_imports(m, &impts);
+
+        unsigned inserted = 0;
+        for (int i = 0; i < impts.size; ++i)
+        {
+            auto const* impt(impts.data[i]);
+
+            wasm_name_t const* name = wasmi2_importtype_name(impt);
+            wasm_externtype_t const* xtype = wasmi2_importtype_type(impt);
+            if (wasmi2_externtype_kind(xtype) == WASM_EXTERN_FUNC)
+            {
+                if (VW_PROC_EXIT == std::string_view(name->data, name->size))
+                {
+                    std::unique_ptr<
+                        wasm_functype_t,
+                        decltype(&wasmi2_functype_delete)>
+                        ftype(
+                            wasmi2_functype_new_1_0(wasmi2_valtype_new_i32()),
+                            &wasmi2_functype_delete);
+
+                    wasm_func_t* func =
+                        wasmi2_func_new(s, ftype.get(), &_proc_exit);
+
+                    out.data[inserted++] = wasmi2_func_as_extern(func);
+                    break;
+                }
+            }
+        }
+
+        if (inserted + in.size > MAX_IMPORT)
+            throw std::runtime_error(
+                std::string(engineName(wasmEngines::Time)) +
+                std::string(" Too small import buffer "));
+
+        for (int i = 0; i < in.size; ++i)
+            out.data[inserted++] = in.data[i];
+
+        out.size = inserted;
+    }
+
     static mod_inst_t
     init(
         wasm_store_t* s,
@@ -90,8 +146,18 @@ private:
         wasm_extern_vec_t const& imports = WASM_EMPTY_VEC)
     {
         wasm_trap_t* trap = nullptr;
+
+        ////////////////////////////////////////////////////////////////
+        // check wasi
+
+        wasm_extern_t* imp2_arr[MAX_IMPORT] = {nullptr};
+        wasm_extern_vec_t imports2 = WASM_ARRAY_VEC(imp2_arr);
+        checkImport(imports2, s, m, imports);
+
+        ////////////////////////////////////////////////////////////////
+
         mod_inst_t mi = mod_inst_t(
-            wasmi2_instance_new(s, m, &imports, &trap),
+            wasmi2_instance_new(s, m, &imports2, &trap),
             &wasmi2_instance_delete);
         if (!mi || trap)
         {

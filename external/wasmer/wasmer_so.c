@@ -268,6 +268,11 @@ wasmer2_functype_new_0_1(wasm_valtype_t* r)
 {
     return wasm_functype_new_0_1(r);
 }
+wasm_functype_t*
+wasmer2_functype_new_1_0(wasm_valtype_t* r)
+{
+    return wasm_functype_new_1_0(r);
+}
 void
 wasmer2_functype_delete(wasm_functype_t* r)
 {

@@ -875,9 +875,14 @@ WasmEngineEdgeImpl::runSha(std::string_view const data, int m, int i)
 //////////////////////////////////////////////////////////////////////////////////////////
 
 WasmEngineEdge::WasmEngineEdge()
-    : WasmEngine({1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+    : WasmEngine(
+#ifdef _DEBUG
+          {1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+#else
+          {1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+#endif
+          )
     , impl(std::make_unique<WasmEngineEdgeImpl>())
-
 {
 }
 

@@ -133,6 +133,8 @@ wasmi2_valtype_new_funcref()
 
 wasm_functype_t*
 wasmi2_functype_new_0_1(wasm_valtype_t* r);
+wasm_functype_t*
+wasmi2_functype_new_1_0(wasm_valtype_t* r);
 void
 wasmi2_functype_delete(wasm_functype_t*);
 

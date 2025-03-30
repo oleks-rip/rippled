@@ -666,7 +666,8 @@ class WasmPerf_test : public beast::unit_test::suite
         std::cout << std::endl;
         testcase(
             std::string(engineName(static_cast<wasmEngines>(ei))) +
-            " PerfTest 7, runSha, size(" + std::to_string(wasm.size()) + ")");
+            " PerfTest 7, runSha, mod size(" + std::to_string(wasm.size()) +
+            "), data size(" + std::to_string(p1Hex.size()) + ")");
 
         auto& times(testTimes[7][ei]);
         int const midx = e.addModule(wasm);
@@ -697,8 +698,8 @@ class WasmPerf_test : public beast::unit_test::suite
         std::cout << std::endl;
         testcase(
             std::string(engineName(static_cast<wasmEngines>(ei))) +
-            " PerfTest 8, runSha LRG, size(" + std::to_string(wasm.size()) +
-            ")");
+            " PerfTest 8, runSha LRG, mod size(" + std::to_string(wasm.size()) +
+            "), data size(" + std::to_string(bigHex.size()) + ")");
 
         auto& times(testTimes[8][ei]);
         int const midx = e.addModule(wasm);
@@ -717,7 +718,7 @@ class WasmPerf_test : public beast::unit_test::suite
             BEAST_EXPECT(r[0] > 0);
         }
 
-        BEAST_EXPECT(times[ADD_MOD_N] > 0);
+        BEAST_EXPECT(times[BIG_SHA_N] > 0);
     }
 
     void
@@ -868,13 +869,13 @@ public:
         {
             // clang-format off
             // debug
-            if (
+            //if (
             //    (e != wasmEngines::Edge)
-                (e != wasmEngines::Time)
+            //    (e != wasmEngines::Time)
             //    (e != wasmEngines::Wamr)
-            //    || (e== wasmEngines::Er)
+            //    (e != wasmEngines::Er)
             //    (e != wasmEngines::I)
-            ) continue;
+            //) continue;
             // clang-format on
 
             setWasmEngine(static_cast<wasmEngines>(e));
@@ -891,7 +892,7 @@ public:
 
             // need add wasi support to engines.
             if (engine->isImplemented(7)) ptest_7_RunSha(static_cast<wasmEngines>(e), *engine); engine->clearModules();
-            // if (engine->isImplemented(8)) ptest_8_RunShaLarge(static_cast<wasmEngines>(e), *engine); engine->clearModules();
+            if (engine->isImplemented(8)) ptest_8_RunShaLarge(static_cast<wasmEngines>(e), *engine); engine->clearModules();
 
             // if (engine->isImplemented(9)) ptest_9_P4Meter(static_cast<wasmEngines>(e), *engine); engine->clearModules();
 

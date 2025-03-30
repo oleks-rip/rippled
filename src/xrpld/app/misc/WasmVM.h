@@ -42,6 +42,10 @@ static const std::string_view V_SIZE = "size";
 static const std::string_view V_ALLOC = "allocate";
 static const std::string_view V_DEALLOC = "deallocate";
 
+static const std::string_view VW_PROC_EXIT = "proc_exit";
+
+static const unsigned MAX_IMPORT = 10;
+
 enum wasmEngines { Wamr, Edge, Time, Er, I, END };
 void setWasmEngine(wasmEngines);
 

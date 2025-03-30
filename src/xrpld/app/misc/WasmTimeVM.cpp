@@ -88,6 +88,55 @@ struct my_mod_inst_t
     mod_inst_t mod_inst;
 
 private:
+    static void
+    checkImport(
+        wasm_extern_vec_t& out,
+        wasm_store_t* s,
+        wasm_module_t* m,
+        wasm_extern_vec_t const& in)
+    {
+        wasm_importtype_vec_t impts = {0, nullptr};
+        wasmtime2_module_imports(m, &impts);
+
+        unsigned inserted = 0;
+        for (int i = 0; i < impts.size; ++i)
+        {
+            auto const* impt(impts.data[i]);
+
+            wasm_name_t const* name = wasmtime2_importtype_name(impt);
+            wasm_externtype_t const* xtype = wasmtime2_importtype_type(impt);
+            if (wasmtime2_externtype_kind(xtype) == WASM_EXTERN_FUNC)
+            {
+                if (VW_PROC_EXIT == std::string_view(name->data, name->size))
+                {
+                    std::unique_ptr<
+                        wasm_functype_t,
+                        decltype(&wasmtime2_functype_delete)>
+                        ftype(
+                            wasmtime2_functype_new_1_0(
+                                wasmtime2_valtype_new_i32()),
+                            &wasmtime2_functype_delete);
+
+                    wasm_func_t* func =
+                        wasmtime2_func_new(s, ftype.get(), &_proc_exit);
+
+                    out.data[inserted++] = wasmtime2_func_as_extern(func);
+                    break;
+                }
+            }
+        }
+
+        if (inserted + in.size > MAX_IMPORT)
+            throw std::runtime_error(
+                std::string(engineName(wasmEngines::Time)) +
+                std::string(" Too small import buffer "));
+
+        for (int i = 0; i < in.size; ++i)
+            out.data[inserted++] = in.data[i];
+
+        out.size = inserted;
+    }
+
     static mod_inst_t
     init(
         wasm_store_t* s,
@@ -97,9 +146,19 @@ private:
     {
         wasm_trap_t* trap = nullptr;
 
+        ////////////////////////////////////////////////////////////////
+        // check wasi
+
+        wasm_extern_t* imp2_arr[MAX_IMPORT] = {nullptr};
+        wasm_extern_vec_t imports2 = WASM_ARRAY_VEC(imp2_arr);
+        checkImport(imports2, s, m, imports);
+
+        ////////////////////////////////////////////////////////////////
+
         mod_inst_t mi = mod_inst_t(
-            wasmtime2_instance_new(s, m, &imports, &trap),
+            wasmtime2_instance_new(s, m, &imports2, &trap),
             &wasmtime2_instance_delete);
+
         if (!mi || trap)
         {
             print_wasm_error("can't create instance", trap);
