@@ -74,6 +74,22 @@ WasmEdge2_ConfigureAddHostRegistration(
     return WasmEdge_ConfigureAddHostRegistration(Cxt, Host);
 }
 
+void
+WasmEdge2_ConfigureStatisticsSetInstructionCounting(
+    WasmEdge_ConfigureContext* Cxt,
+    const bool IsCount)
+{
+    return WasmEdge_ConfigureStatisticsSetInstructionCounting(Cxt, IsCount);
+}
+
+void
+WasmEdge2_ConfigureStatisticsSetCostMeasuring(
+    WasmEdge_ConfigureContext* Cxt,
+    const bool IsMeasure)
+{
+    return WasmEdge_ConfigureStatisticsSetCostMeasuring(Cxt, IsMeasure);
+}
+
 // STORE
 WasmEdge_StoreContext*
 WasmEdge2_StoreCreate()
@@ -400,4 +416,46 @@ void
 WasmEdge2_FunctionTypeDelete(WasmEdge_FunctionTypeContext* Cxt)
 {
     return WasmEdge_FunctionTypeDelete(Cxt);
+}
+
+WasmEdge_StatisticsContext*
+WasmEdge2_StatisticsCreate(void)
+{
+    return WasmEdge_StatisticsCreate();
+}
+
+uint64_t
+WasmEdge2_StatisticsGetInstrCount(const WasmEdge_StatisticsContext* Cxt)
+{
+    return WasmEdge_StatisticsGetInstrCount(Cxt);
+}
+uint64_t
+WasmEdge2_StatisticsGetTotalCost(const WasmEdge_StatisticsContext* Cxt)
+{
+    return WasmEdge2_StatisticsGetTotalCost(Cxt);
+}
+void
+WasmEdge2_StatisticsSetCostTable(
+    WasmEdge_StatisticsContext* Cxt,
+    uint64_t* CostArr,
+    const uint32_t Len)
+{
+    return WasmEdge2_StatisticsSetCostTable(Cxt, CostArr, Len);
+}
+void
+WasmEdge2_StatisticsSetCostLimit(
+    WasmEdge_StatisticsContext* Cxt,
+    const uint64_t Limit)
+{
+    return WasmEdge2_StatisticsSetCostLimit(Cxt, Limit);
+}
+void
+WasmEdge2_StatisticsClear(WasmEdge_StatisticsContext* Cxt)
+{
+    return WasmEdge2_StatisticsClear(Cxt);
+}
+void
+WasmEdge2_StatisticsDelete(WasmEdge_StatisticsContext* Cxt)
+{
+    return WasmEdge2_StatisticsDelete(Cxt);
 }

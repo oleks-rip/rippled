@@ -21,7 +21,6 @@
 
 #include <wasmedge_so.h>
 
-#include <atomic>
 #include <memory>
 
 namespace ripple {
@@ -285,11 +284,16 @@ class WasmEngineEdgeImpl
     store_t store;
     validator_t validator;
     loader_t loader;
+
+    std::unique_ptr<
+        WasmEdge_StatisticsContext,
+        decltype(&WasmEdge2_StatisticsDelete)>
+        stats;
     executor_t executor;
 
     std::vector<my_module_t> modules;
 
-    engine_t engine;
+    // engine_t engine;
 
     // std::atomic_int ctr;
     WasmEdge_Result funcRes{0};
@@ -348,6 +352,7 @@ public:
     clearModules()
     {
         modules.clear();
+        store = {WasmEdge2_StoreCreate(), &WasmEdge2_StoreDelete};
     }
     int
     addInstance(int m);
@@ -360,6 +365,15 @@ public:
 
     std::vector<uint64_t>
     runSha(std::string_view const data, int m, int i);
+
+    std::int64_t
+    setMeter(std::int64_t def);
+
+    std::int64_t
+    setGas(std::int64_t gas, int m, int i);
+
+    std::int64_t
+    getRemainingGas(int m, int i);
 
 protected:
     int
@@ -444,10 +458,11 @@ WasmEngineEdgeImpl::WasmEngineEdgeImpl()
           WasmEdge2_ValidatorCreate(config.get()),
           &WasmEdge2_ValidatorDelete)
     , loader(WasmEdge2_LoaderCreate(config.get()), &WasmEdge2_LoaderDelete)
+    , stats(nullptr, &WasmEdge2_StatisticsDelete)
     , executor(
           WasmEdge2_ExecutorCreate(config.get(), nullptr),
           &WasmEdge2_ExecutorDelete)
-    , engine(WasmEdge2_VMCreate(config.get(), store.get()), &WasmEdge2_VMDelete)
+//, engine(WasmEdge2_VMCreate(config.get(), store.get()), &WasmEdge2_VMDelete)
 {
 }
 
@@ -872,6 +887,57 @@ WasmEngineEdgeImpl::runSha(std::string_view const data, int m, int i)
     return {&buf[0], &buf[8]};
 }
 
+std::int64_t
+WasmEngineEdgeImpl::setMeter(std::int64_t def)
+{
+    modules.clear();
+    executor.reset();
+    stats.reset();
+    loader.reset();
+    validator.reset();
+    store.reset();
+
+    config = {WasmEdge2_ConfigureCreate(), &WasmEdge2_ConfigureDelete};
+    WasmEdge2_ConfigureAddHostRegistration(
+        config.get(), WasmEdge_HostRegistration_Wasi);
+    WasmEdge2_ConfigureStatisticsSetInstructionCounting(config.get(), true);
+    WasmEdge2_ConfigureStatisticsSetCostMeasuring(config.get(), true);
+
+    store = {WasmEdge2_StoreCreate(), &WasmEdge2_StoreDelete};
+    validator = {
+        WasmEdge2_ValidatorCreate(config.get()), &WasmEdge2_ValidatorDelete};
+    loader = {WasmEdge2_LoaderCreate(config.get()), &WasmEdge2_LoaderDelete};
+
+    static uint64_t CostTable[std::numeric_limits<std::uint8_t>::max() + 1];
+    for (int i = 0; i < sizeof(CostTable) / sizeof(CostTable[0]); ++i)
+        CostTable[i] = 1;
+    stats = {WasmEdge2_StatisticsCreate(), &WasmEdge2_StatisticsDelete};
+    WasmEdge2_StatisticsSetCostTable(
+        stats.get(), CostTable, sizeof(CostTable) / sizeof(CostTable[0]));
+    WasmEdge2_StatisticsSetCostLimit(stats.get(), def);
+
+    executor = {
+        WasmEdge2_ExecutorCreate(config.get(), stats.get()),
+        &WasmEdge2_ExecutorDelete};
+
+    return def;
+}
+
+std::int64_t
+WasmEngineEdgeImpl::setGas(std::int64_t gas, int m, int i)
+{
+    WasmEdge2_StatisticsClear(stats.get());
+    WasmEdge2_StatisticsSetCostLimit(stats.get(), gas);
+    return gas;
+}
+
+std::int64_t
+WasmEngineEdgeImpl::getRemainingGas(int m, int i)
+{
+    std::uint64_t gas = WasmEdge2_StatisticsGetTotalCost(stats.get());
+    return static_cast<std::int64_t>(gas);
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////
 
 WasmEngineEdge::WasmEngineEdge()
@@ -1053,6 +1119,24 @@ std::vector<uint64_t>
 WasmEngineEdge::runSha(std::string_view const data, int m, int i)
 {
     return impl->runSha(data, m, i);
+}
+
+std::int64_t
+WasmEngineEdge::setMeter(std::int64_t def)
+{
+    return impl->setMeter(def);
+}
+
+std::int64_t
+WasmEngineEdge::setGas(std::int64_t gas, int m, int i)
+{
+    return impl->setGas(gas, m, i);
+}
+
+std::int64_t
+WasmEngineEdge::getRemainingGas(int m, int i)
+{
+    return impl->getRemainingGas(m, i);
 }
 
 }  // namespace ripple

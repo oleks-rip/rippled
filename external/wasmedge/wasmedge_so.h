@@ -37,6 +37,14 @@ void
 WasmEdge2_ConfigureAddHostRegistration(
     WasmEdge_ConfigureContext* Cxt,
     const enum WasmEdge_HostRegistration Host);
+void
+WasmEdge2_ConfigureStatisticsSetInstructionCounting(
+    WasmEdge_ConfigureContext* Cxt,
+    const bool IsCount);
+void
+WasmEdge2_ConfigureStatisticsSetCostMeasuring(
+    WasmEdge_ConfigureContext* Cxt,
+    const bool IsMeasure);
 
 // STORE
 WasmEdge_StoreContext*
@@ -214,6 +222,26 @@ WasmEdge2_FunctionInstanceCreate(
     const uint64_t Cost);
 void
 WasmEdge2_FunctionTypeDelete(WasmEdge_FunctionTypeContext* Cxt);
+
+WasmEdge_StatisticsContext*
+WasmEdge2_StatisticsCreate(void);
+uint64_t
+WasmEdge2_StatisticsGetInstrCount(const WasmEdge_StatisticsContext* Cxt);
+uint64_t
+WasmEdge2_StatisticsGetTotalCost(const WasmEdge_StatisticsContext* Cxt);
+void
+WasmEdge2_StatisticsSetCostTable(
+    WasmEdge_StatisticsContext* Cxt,
+    uint64_t* CostArr,
+    const uint32_t Len);
+void
+WasmEdge2_StatisticsSetCostLimit(
+    WasmEdge_StatisticsContext* Cxt,
+    const uint64_t Limit);
+void
+WasmEdge2_StatisticsClear(WasmEdge_StatisticsContext* Cxt);
+void
+WasmEdge2_StatisticsDelete(WasmEdge_StatisticsContext* Cxt);
 
 #if !defined(wasmedge_so_EXPORTS) && defined(__cplusplus)
 }
