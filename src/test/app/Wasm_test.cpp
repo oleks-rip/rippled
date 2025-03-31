@@ -773,6 +773,12 @@ class WasmPerf_test : public beast::unit_test::suite
 
         e.setMeter();
         int const midx = e.addModule(wasm);
+        if (midx < 0)
+        {
+            std::cerr << "Failed to load module" << std::endl;
+            return;
+        }
+        auto const sgas = e.getRemainingGas(midx);
 
         times[0] = usecs();
         for (int i = 0; i < GAS_N; ++i)
@@ -785,8 +791,105 @@ class WasmPerf_test : public beast::unit_test::suite
             BEAST_EXPECT(gas > 100);
             BEAST_EXPECT(r.value().second == "1");
         }
+        auto const egas = e.getRemainingGas(midx);
 
         BEAST_EXPECT(times[GAS_N] > 0);
+
+        std::cout << std::string(engineName(static_cast<wasmEngines>(ei))) +
+                " PerfTest 9, Gas wasted: "
+                  << sgas - egas << ", avg: " << (sgas - egas) / GAS_N
+                  << std::endl;
+    }
+
+    void
+    ptest_10_FibLargeMeter(wasmEngines ei, WasmEngine& e)
+    {
+        std::string const fibHex64 =
+            "0061736d0100000001090260000060017e017e0303020001071b02115f5f"
+            "7761736d5f63616c6c5f63746f727300000366696200010a440202000b3f"
+            "01017e200050044042000f0b2000420353044042010f0b200042027c2100"
+            "0340200042037d100120017c2101200042027d22004204550d000b200142"
+            "017c0b00490f7461726765745f6665617475726573042b0f6d757461626c"
+            "652d676c6f62616c732b087369676e2d6578742b0f7265666572656e6365"
+            "2d74797065732b0a6d756c746976616c7565";
+
+        auto const wasmStr = boost::algorithm::unhex(fibHex64);
+        vbytes const wasm(wasmStr.begin(), wasmStr.end());
+        std::string const funcName("fib");
+
+        std::cout << std::endl;
+        testcase(
+            std::string(engineName(static_cast<wasmEngines>(ei))) +
+            " PerfTest 10, Fibx64(" + std::to_string(FIB_VAL_64) +
+            ") meter, size(" + std::to_string(wasm.size()) + ")");
+
+        auto& times(testTimes[10][ei]);
+        e.setMeter();
+        int const midx = e.addModule(wasm);
+        if (midx < 0)
+        {
+            std::cerr << "Failed to load module" << std::endl;
+            return;
+        }
+        auto const sgas = e.getRemainingGas(midx);
+
+        times[0] = usecs();
+        for (int i = 0; i < FIB_N; ++i)
+        {
+            auto const r = e.runFunc64(funcName, FIB_VAL_64, midx);
+            times[i + 1] = usecs();
+
+            BEAST_EXPECT(r >= 0);
+        }
+        auto const egas = e.getRemainingGas(midx);
+
+        BEAST_EXPECT(times[FIB_N] > 0);
+
+        std::cout << std::string(engineName(static_cast<wasmEngines>(ei))) +
+                " PerfTest 10, Gas wasted: "
+                  << sgas - egas << ", avg: " << (sgas - egas) / FIB_VAL_64
+                  << std::endl;
+    }
+
+    void
+    ptest_11_RunShaLargeMeter(wasmEngines ei, WasmEngine& e)
+    {
+        auto const wasmStr = boost::algorithm::unhex(sha512Hex);
+        vbytes const wasm(wasmStr.begin(), wasmStr.end());
+
+        std::cout << std::endl;
+        testcase(
+            std::string(engineName(static_cast<wasmEngines>(ei))) +
+            " PerfTest 11, runSha LRG meter, mod size(" +
+            std::to_string(wasm.size()) + "), data size(" +
+            std::to_string(bigHex.size()) + ")");
+
+        auto& times(testTimes[11][ei]);
+        e.setMeter();
+        int const midx = e.addModule(wasm);
+        if (midx < 0)
+        {
+            std::cerr << "Failed to load module" << std::endl;
+            return;
+        }
+        auto const sgas = e.getRemainingGas(midx);
+
+        times[0] = usecs();
+        for (int i = 0; i < BIG_SHA_N; ++i)
+        {
+            auto const r = e.runSha(bigHex, midx);
+            times[i + 1] = usecs();
+
+            BEAST_EXPECT(r[0] > 0);
+        }
+        auto const egas = e.getRemainingGas(midx);
+
+        BEAST_EXPECT(times[BIG_SHA_N] > 0);
+
+        std::cout << std::string(engineName(static_cast<wasmEngines>(ei))) +
+                " PerfTest 11, Gas wasted: "
+                  << sgas - egas << ", avg: " << (sgas - egas) / BIG_SHA_N
+                  << std::endl;
     }
 
     void
@@ -869,13 +972,13 @@ public:
         {
             // clang-format off
             // debug
-            //if (
+            if (
             //    (e != wasmEngines::Edge)
-            //    (e != wasmEngines::Time)
+                (e != wasmEngines::Time)
             //    (e != wasmEngines::Wamr)
-            //    (e != wasmEngines::Er)
+            &&    (e != wasmEngines::Er)
             //    (e != wasmEngines::I)
-            //) continue;
+            ) continue;
             // clang-format on
 
             setWasmEngine(static_cast<wasmEngines>(e));
@@ -885,16 +988,18 @@ public:
             // if (engine->isImplemented(0)) ptest_0_AddModule(static_cast<wasmEngines>(e), *engine); engine->clearModules();
             // if (engine->isImplemented(1)) ptest_1_AddInstance(static_cast<wasmEngines>(e), *engine); engine->clearModules();
             // if (engine->isImplemented(2)) ptest_2_RunP4(static_cast<wasmEngines>(e), *engine); engine->clearModules();
-            // if (engine->isImplemented(3)) ptest_3_JustRunP4(static_cast<wasmEngines>(e), *engine); engine->clearModules();
+            if (engine->isImplemented(3)) ptest_3_JustRunP4(static_cast<wasmEngines>(e), *engine); engine->clearModules();
             // if (engine->isImplemented(4)) ptest_4_FibSmall(static_cast<wasmEngines>(e), *engine); engine->clearModules();
-            // if (engine->isImplemented(5)) ptest_5_FibLarge(static_cast<wasmEngines>(e), *engine); engine->clearModules();
+            if (engine->isImplemented(5)) ptest_5_FibLarge(static_cast<wasmEngines>(e), *engine); engine->clearModules();
             // if (engine->isImplemented(6)) ptest_6_BigModule(static_cast<wasmEngines>(e), *engine); engine->clearModules();
 
             // need add wasi support to engines.
-            if (engine->isImplemented(7)) ptest_7_RunSha(static_cast<wasmEngines>(e), *engine); engine->clearModules();
+            // if (engine->isImplemented(7)) ptest_7_RunSha(static_cast<wasmEngines>(e), *engine); engine->clearModules();
             if (engine->isImplemented(8)) ptest_8_RunShaLarge(static_cast<wasmEngines>(e), *engine); engine->clearModules();
 
-            // if (engine->isImplemented(9)) ptest_9_P4Meter(static_cast<wasmEngines>(e), *engine); engine->clearModules();
+            if (engine->isImplemented(9)) ptest_9_P4Meter(static_cast<wasmEngines>(e), *engine); engine->clearModules();
+            if (engine->isImplemented(10)) ptest_10_FibLargeMeter(static_cast<wasmEngines>(e), *engine); engine->clearModules();
+            if (engine->isImplemented(11)) ptest_11_RunShaLargeMeter(static_cast<wasmEngines>(e), *engine); engine->clearModules();
 
             // clang-format ON
 

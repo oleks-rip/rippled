@@ -216,7 +216,7 @@ public:
     }
 
     virtual std::int64_t
-    setMeter(std::int64_t def = 1'000'000'000LL)
+    setMeter(std::int64_t def = 1'000'000'000'000LL)
     {
         return -1;
     }

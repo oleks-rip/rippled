@@ -919,7 +919,7 @@ WasmEngineErImpl::runSha(std::string_view const data, int m, int i)
 }
 
 static std::uint64_t
-cos_fun(wasmer_parser_operator_t wasm_operator)
+cost_fun(wasmer_parser_operator_t wasm_operator)
 {
     switch (wasm_operator)
     {
@@ -943,7 +943,7 @@ WasmEngineErImpl::setMeter(std::int64_t def)
     engine.reset();
 
     wasmer_metering_t* meter =
-        wasmer2_metering_new(static_cast<std::uint64_t>(def), &cos_fun);
+        wasmer2_metering_new(static_cast<std::uint64_t>(def), &cost_fun);
     wasmer_middleware_t* middleware = wasmer2_metering_as_middleware(meter);
     wasm_config_t* config = wasmer2_config_new();
     wasmer2_config_push_middleware(config, middleware);
@@ -975,7 +975,7 @@ WasmEngineErImpl::getRemainingGas(int m, int i)
 //////////////////////////////////////////////////////////////////////////////////////////
 
 WasmEngineEr::WasmEngineEr()
-    : WasmEngine({1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+    : WasmEngine({1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0})
     , impl(std::make_unique<WasmEngineErImpl>())
 {
 }
