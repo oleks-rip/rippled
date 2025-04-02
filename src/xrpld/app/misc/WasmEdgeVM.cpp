@@ -359,6 +359,9 @@ public:
         int m,
         int i);
 
+    Expected<int, TER>
+    justRun(std::string_view funcName, int m, int i);
+
     int
     addModule(vbytes const& wasmCode, bool instantiate);
     void
@@ -672,6 +675,17 @@ WasmEngineEdgeImpl::justRun(
     auto const result = WasmEdge2_ValueGetI32(Returns[0]);
     // printf("Get the result: %d\n", result);
 
+    return result;
+}
+
+Expected<int, TER>
+WasmEngineEdgeImpl::justRun(std::string_view funcName, int m, int i)
+{
+    auto* f = getFunc(funcName, m, i);
+    auto const Returns = call<1>(f, m, i);
+    if (!WasmEdge2_ResultOK(funcRes))
+        return Unexpected<TER>(tecFAILED_PROCESSING);
+    auto const result = WasmEdge2_ValueGetI32(Returns[0]);
     return result;
 }
 
@@ -1141,6 +1155,19 @@ WasmEngineEdge::justRun(
     try
     {
         return impl->justRun(funcName, ledgerDataProvider, m, i);
+    }
+    catch (std::exception const&)
+    {
+    }
+    return Unexpected<TER>(tecFAILED_PROCESSING);
+}
+
+Expected<int, TER>
+WasmEngineEdge::justRun(std::string_view funcName, int m, int i)
+{
+    try
+    {
+        return impl->justRun(funcName, m, i);
     }
     catch (std::exception const&)
     {

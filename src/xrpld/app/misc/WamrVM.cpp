@@ -396,6 +396,9 @@ public:
         int m,
         int i);
 
+    Expected<int, TER>
+    justRun(std::string_view funcName, int m, int i);
+
     int
     addModule(vbytes const& wasmCode, bool instantiate);
     void
@@ -841,10 +844,21 @@ WamrEngineImpl::justRun(
 {
     auto* f = getFunc(funcName, m, i);
     auto res = call<1>(f, m, i);
-    if (!res.r.size || trap)
+    if (!res.r.size || res.r.data[0].kind != WASM_I32 || trap)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
-    return res.r.data[0].kind == WASM_I32 && res.r.data[0].of.i32;
+    return res.r.data[0].of.i32;
+}
+
+Expected<int, TER>
+WamrEngineImpl::justRun(std::string_view funcName, int m, int i)
+{
+    auto* f = getFunc(funcName, m, i);
+    auto res = call<1>(f, m, i);
+    if (!res.r.size || trap || res.r.data[0].kind != WASM_I32)
+        return Unexpected<TER>(tecFAILED_PROCESSING);
+
+    return res.r.data[0].of.i32;
 }
 
 int32_t
@@ -1037,6 +1051,19 @@ WamrEngine::justRun(
     try
     {
         return impl->justRun(funcName, ledgerDataProvider, m, i);
+    }
+    catch (std::exception const&)
+    {
+    }
+    return Unexpected<TER>(tecFAILED_PROCESSING);
+}
+
+Expected<int, TER>
+WamrEngine::justRun(std::string_view funcName, int m, int i)
+{
+    try
+    {
+        return impl->justRun(funcName, m, i);
     }
     catch (std::exception const&)
     {

@@ -459,6 +459,9 @@ public:
         int m,
         int i);
 
+    Expected<int, TER>
+    justRun(std::string_view funcName, int m, int i);
+
     int
     addModule(vbytes const& wasmCode, bool instantiate);
     void
@@ -931,6 +934,17 @@ WasmEngineTimeImpl::justRun(
     return res.r[0].kind == WASMTIME_I32 && res.r[0].of.i32;
 }
 
+Expected<int, TER>
+WasmEngineTimeImpl::justRun(std::string_view funcName, int m, int i)
+{
+    auto f = getFunc(funcName, m, i);
+    auto res = call<1>(f, m, i);
+    if (trap || res.r[0].kind != WASM_I32)
+        return Unexpected<TER>(tecFAILED_PROCESSING);
+
+    return res.r[0].of.i32;
+}
+
 int32_t
 WasmEngineTimeImpl::runFunc(
     std::string_view const funcName,
@@ -1141,6 +1155,19 @@ WasmEngineTime::preRun(
     try
     {
         return impl->preRun(wasmCode, ledgerDataProvider);
+    }
+    catch (std::exception const&)
+    {
+    }
+    return Unexpected<TER>(tecFAILED_PROCESSING);
+}
+
+Expected<int, TER>
+WasmEngineTime::justRun(std::string_view funcName, int m, int i)
+{
+    try
+    {
+        return impl->justRun(funcName, m, i);
     }
     catch (std::exception const&)
     {

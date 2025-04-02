@@ -69,8 +69,8 @@ public:
         LedgerDataProvider* ledgerDataProvider) override;
 
     virtual Expected<int, TER>
-    preRun(vbytes const& wasmCode,
-           LedgerDataProvider* ledgerDataProvider) override;
+    preRun(vbytes const& wasmCode, LedgerDataProvider* ledgerDataProvider)
+        override;
 
     virtual Expected<bool, TER>
     justRun(
@@ -78,6 +78,9 @@ public:
         LedgerDataProvider* ledgerDataProvider,
         int m,
         int i) override;
+
+    Expected<int, TER>
+    justRun(std::string_view funcName, int m, int i) override;
 
     virtual int
     addModule(vbytes const& wasmCode, bool instantiate) override;

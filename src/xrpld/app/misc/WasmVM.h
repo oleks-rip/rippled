@@ -194,6 +194,15 @@ public:
         return Unexpected<TER>(tecFAILED_PROCESSING);
     }
 
+    virtual Expected<int, TER>
+    justRun(
+        std::string_view funcName,
+        int m,
+        int i = 0)
+    {
+        return Unexpected<TER>(tecFAILED_PROCESSING);
+    }
+
     static std::unique_ptr<WasmEngine>
     instance();
 

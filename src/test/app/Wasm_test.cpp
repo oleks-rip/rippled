@@ -347,7 +347,8 @@ static const std::string testNames[] = {
     "JustRunP4 meter",
     "RunHostFunc meter",
     "Fib x64 meter",
-    "RunShaLarge meter"};
+    "RunShaLarge meter",
+    "ZKProof"};
 
 class WasmPerf_test : public beast::unit_test::suite
 {
@@ -365,6 +366,7 @@ class WasmPerf_test : public beast::unit_test::suite
     static const int SHA_N = 30;
     static const int BIG_SHA_N = 3;
     static const int GAS_N = 50;
+    static const int ZKP_N = 30;
 #else
     static const int ADD_MOD_SMALL_N = ADD_MOD_N;
     static const int FIB_VAL_32 = 35;
@@ -373,6 +375,7 @@ class WasmPerf_test : public beast::unit_test::suite
     static const int SHA_N = 500;
     static const int BIG_SHA_N = 20;
     static const int GAS_N = 500;
+    static const int ZKP_N = 200;
 #endif
 
     // testcase, engine, iteration
@@ -817,6 +820,73 @@ class WasmPerf_test : public beast::unit_test::suite
     }
 
     void
+    ptest8(
+        std::string name,
+        int tnum,
+        wasmEngines ei,
+        WasmEngine& e,
+        int inum,
+        const std::string& modHex,
+        std::string_view fname,
+        bool meter = false)
+    {
+        auto const ws = boost::algorithm::unhex(modHex);
+        vbytes const wasm(ws.begin(), ws.end());
+
+        std::cout << std::endl;
+        std::string s = name + "(" + std::to_string(tnum) + ") " + wname(ei) +
+            " mod size(" + std::to_string(wasm.size()) + "), hot";
+        testcase(s);
+
+        auto& times(testTimes[tnum][ei]);
+
+        // times[0] = usecs();
+        if (meter)
+            e.setMeter();
+        int midx = 0;
+        // int midx = e.addModule(wasm);
+        // if (midx < 0)
+        // {
+        //     std::cerr << "Failed to load module" << std::endl;
+        //     return;
+        // }
+
+        std::int64_t sgas = 0;
+        if (meter)
+            sgas = e.getRemainingGas(midx);
+
+        times[0] = usecs();
+        for (int i = 0; i < inum; ++i)
+        {
+            int midx = e.addModule(wasm);
+            if (midx < 0)
+            {
+                std::cerr << "Failed to load module" << std::endl;
+                return;
+            }
+
+            auto const r = e.justRun(fname, midx);
+            times[i + 1] = usecs();
+
+            BEAST_EXPECT(r.value() == 1);
+            // if (meter)
+            // {
+            //     auto const gas = e.getRemainingGas(midx);
+            //     BEAST_EXPECT(gas > 100);
+            // }
+        }
+
+        BEAST_EXPECT(times[inum] > 0);
+
+        if (meter)
+        {
+            auto const egas = e.getRemainingGas(midx);
+            std::cout << s << " Gas wasted: " << sgas - egas
+                      << ", avg: " << (sgas - egas) / inum << std::endl;
+        }
+    }
+
+    void
     ptest_Results()
     {
         std::cout << std::endl;
@@ -899,36 +969,40 @@ public:
             // clang-format off
             // debug
             if (
-            //    (e != wasmEngines::Edge)
+                (e == wasmEngines::Edge)
             //    (e != wasmEngines::Time)
-                (e != wasmEngines::Wamr)
+            //    (e != wasmEngines::Wamr)
             //    (e != wasmEngines::Er)
-            //    (e != wasmEngines::I)
+               || (e == wasmEngines::I)
             ) continue;
             // clang-format on
 
             setWasmEngine(static_cast<wasmEngines>(e));
             auto engine = WasmEngine::instance();
 
+            // update testNames
+
             // clang-format off
 
-            if (engine->isImplemented(0)) ptest0("AddModule", 0, static_cast<wasmEngines>(e), *engine, ADD_MOD_SMALL_N, p4Hex); engine->clearModules();
-            if (engine->isImplemented(1)) ptest1("AddInstance", 1, static_cast<wasmEngines>(e), *engine, ADD_MOD_N, p4Hex);     engine->clearModules();
-            if (engine->isImplemented(2)) ptest2("Run P4", 2, static_cast<wasmEngines>(e), *engine, e ==wasmEngines::Wamr ? 50 : ADD_MOD_SMALL_N,p4Hex, "compare_accountID", tx_js, lo_js ); engine->clearModules();
-            if (engine->isImplemented(3)) ptest3("JustRunP4", 3, static_cast<wasmEngines>(e), *engine, ADD_MOD_N, p4Hex, "compare_accountID", tx_js, lo_js); engine->clearModules();
-            if (engine->isImplemented(4)) ptest4("RunHostFunc", 4, static_cast<wasmEngines>(e), *engine, ADD_MOD_N, p5Hex, "ready"); engine->clearModules();
-            if (engine->isImplemented(5)) ptest5("Fib x32", 5, static_cast<wasmEngines>(e), *engine, 1, fib32Hex, "fib",FIB_VAL_32); engine->clearModules();
-            if (engine->isImplemented(6)) ptest6("Fib x64", 6, static_cast<wasmEngines>(e), *engine, 1, fib64Hex, "fib", FIB_VAL_64); engine->clearModules();
-            if (engine->isImplemented(7)) ptest0("AddBigModule", 7, static_cast<wasmEngines>(e), *engine, BIG_MOD_N, bigHex); engine->clearModules();
+            // if (engine->isImplemented(0)) ptest0("AddModule", 0, static_cast<wasmEngines>(e), *engine, ADD_MOD_SMALL_N, p4Hex); engine->clearModules();
+            // if (engine->isImplemented(1)) ptest1("AddInstance", 1, static_cast<wasmEngines>(e), *engine, ADD_MOD_N, p4Hex);     engine->clearModules();
+            // if (engine->isImplemented(2)) ptest2("Run P4", 2, static_cast<wasmEngines>(e), *engine, e ==wasmEngines::Wamr ? 50 : ADD_MOD_SMALL_N,p4Hex, "compare_accountID", tx_js, lo_js ); engine->clearModules();
+            // if (engine->isImplemented(3)) ptest3("JustRunP4", 3, static_cast<wasmEngines>(e), *engine, ADD_MOD_N, p4Hex, "compare_accountID", tx_js, lo_js); engine->clearModules();
+            // if (engine->isImplemented(4)) ptest4("RunHostFunc", 4, static_cast<wasmEngines>(e), *engine, ADD_MOD_N, p5Hex, "ready"); engine->clearModules();
+            // if (engine->isImplemented(5)) ptest5("Fib x32", 5, static_cast<wasmEngines>(e), *engine, 1, fib32Hex, "fib",FIB_VAL_32); engine->clearModules();
+            // if (engine->isImplemented(6)) ptest6("Fib x64", 6, static_cast<wasmEngines>(e), *engine, 1, fib64Hex, "fib", FIB_VAL_64); engine->clearModules();
+            // if (engine->isImplemented(7)) ptest0("AddBigModule", 7, static_cast<wasmEngines>(e), *engine, BIG_MOD_N, bigHex); engine->clearModules();
 
             // need add wasi support to engines.
-            if (engine->isImplemented(8)) ptest7("RunSha", 8, static_cast<wasmEngines>(e), *engine, SHA_N, sha512Hex, true, p1Hex); engine->clearModules();
-            if (engine->isImplemented(9)) ptest7("RunShaLarge", 9, static_cast<wasmEngines>(e), *engine, BIG_SHA_N, sha512Hex, false, bigHex);   engine->clearModules();
+            // if (engine->isImplemented(8)) ptest7("RunSha", 8, static_cast<wasmEngines>(e), *engine, SHA_N, sha512Hex, true, p1Hex); engine->clearModules();
+            // if (engine->isImplemented(9)) ptest7("RunShaLarge", 9, static_cast<wasmEngines>(e), *engine, BIG_SHA_N, sha512Hex, false, bigHex);   engine->clearModules();
 
-            if (engine->isImplemented(10)) ptest3("JustRunP4 meter", 10, static_cast<wasmEngines>(e), *engine, GAS_N, p4Hex, "compare_accountID", tx_js, lo_js, true ); engine->clearModules();
-            if (engine->isImplemented(11)) ptest4("RunHostFunc meter", 11, static_cast<wasmEngines>(e), *engine, ADD_MOD_N, p5Hex, "ready", true); engine->clearModules();
-            if (engine->isImplemented(12)) ptest6("Fib x64 meter", 12, static_cast<wasmEngines>(e), *engine, 1, fib64Hex, "fib", FIB_VAL_64, true); engine->clearModules();
-            if (engine->isImplemented(13)) ptest7("RunShaLarge meter", 13, static_cast<wasmEngines>(e), *engine, BIG_SHA_N, sha512Hex, false, bigHex, true); engine->clearModules();
+            // if (engine->isImplemented(10)) ptest3("JustRunP4 meter", 10, static_cast<wasmEngines>(e), *engine, GAS_N, p4Hex, "compare_accountID", tx_js, lo_js, true ); engine->clearModules();
+            // if (engine->isImplemented(11)) ptest4("RunHostFunc meter", 11, static_cast<wasmEngines>(e), *engine, ADD_MOD_N, p5Hex, "ready", true); engine->clearModules();
+            // if (engine->isImplemented(12)) ptest6("Fib x64 meter", 12, static_cast<wasmEngines>(e), *engine, 1, fib64Hex, "fib", FIB_VAL_64, true); engine->clearModules();
+            // if (engine->isImplemented(13)) ptest7("RunShaLarge meter", 13, static_cast<wasmEngines>(e), *engine, BIG_SHA_N, sha512Hex, false, bigHex, true); engine->clearModules();
+
+            ptest8("ZKProof", 14, static_cast<wasmEngines>(e), *engine, 20, bigHex, "bellman_groth16_test"); engine->clearModules();
 
             // clang-format ON
         }
