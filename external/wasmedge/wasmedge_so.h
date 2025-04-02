@@ -243,6 +243,9 @@ WasmEdge2_StatisticsClear(WasmEdge_StatisticsContext* Cxt);
 void
 WasmEdge2_StatisticsDelete(WasmEdge_StatisticsContext* Cxt);
 
+void
+WasmEdge3_PluginLoadWithDefaultPaths(void);
+
 #if !defined(wasmedge_so_EXPORTS) && defined(__cplusplus)
 }
 #endif

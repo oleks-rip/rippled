@@ -68,6 +68,17 @@ public:
         std::string_view funcName,
         LedgerDataProvider* ledgerDataProvider) override;
 
+    virtual Expected<int, TER>
+    preRun(vbytes const& wasmCode,
+           LedgerDataProvider* ledgerDataProvider) override;
+
+    virtual Expected<bool, TER>
+    justRun(
+        std::string_view funcName,
+        LedgerDataProvider* ledgerDataProvider,
+        int m,
+        int i) override;
+
     virtual int
     addModule(vbytes const& wasmCode, bool instantiate) override;
     virtual void
@@ -93,7 +104,6 @@ public:
 
     virtual std::int64_t
     getRemainingGas(int m, int i) override;
-
 };
 
 }  // namespace ripple

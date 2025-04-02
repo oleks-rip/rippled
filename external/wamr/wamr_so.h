@@ -173,6 +173,9 @@ wamr_runtime_set_running_mode(
 RunningMode
 wamr_runtime_get_running_mode(wasm_module_inst_t module_inst);
 
+void
+wamr_runtime_set_log_level(log_level_t level);
+
 #if !defined(wamr_so_EXPORTS) && defined(__cplusplus)
 }
 #endif

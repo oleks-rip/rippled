@@ -444,6 +444,16 @@ public:
         std::string_view funcName,
         LedgerDataProvider* ledgerDataProvider);
 
+    Expected<int, TER>
+    preRun(vbytes const& wasmCode, LedgerDataProvider* ledgerDataProvider);
+
+    Expected<bool, TER>
+    justRun(
+        std::string_view funcName,
+        LedgerDataProvider* ledgerDataProvider,
+        int m,
+        int i);
+
     int
     addModule(vbytes const& wasmCode, bool instantiate);
     void
@@ -825,11 +835,6 @@ WasmEngineIImpl::run(
     std::unique_ptr<wasm_functype_t, decltype(&wasmi2_functype_delete)> ftype(
         wasmi2_functype_new_0_1(vtype), &wasmi2_functype_delete);
 
-    // std::unique_ptr<wasm_func_t, decltype(&wasmi2_func_delete)> func(
-    //     wasmi2_func_new_with_env(store.get(),ftype.get(),
-    //     &get_ledger_sqn, ledgerDataProvider, nullptr),
-    //     &wasmi2_func_delete);
-
     wasm_func_t* func = wasmi2_func_new_with_env(
         store.get(), ftype.get(), &get_ledger_sqn, ledgerDataProvider, nullptr);
 
@@ -840,6 +845,37 @@ WasmEngineIImpl::run(
     if (m < 0)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
+    return justRun(funcName, ledgerDataProvider, m, i);
+}
+
+Expected<int, TER>
+WasmEngineIImpl::preRun(
+    vbytes const& wasmCode,
+    LedgerDataProvider* ledgerDataProvider)
+{
+    wasm_valtype_t* vtype(wasmi2_valtype_new_i32());
+    std::unique_ptr<wasm_functype_t, decltype(&wasmi2_functype_delete)> ftype(
+        wasmi2_functype_new_0_1(vtype), &wasmi2_functype_delete);
+
+    wasm_func_t* func = wasmi2_func_new_with_env(
+        store.get(), ftype.get(), &get_ledger_sqn, ledgerDataProvider, nullptr);
+
+    wasm_extern_t* arr[] = {wasmi2_func_as_extern(func)};
+    wasm_extern_vec_t imports = WASM_ARRAY_VEC(arr);
+    int const m = makeModule(wasmCode, {imports});
+    if (m < 0)
+        return Unexpected<TER>(tecFAILED_PROCESSING);
+
+    return m;
+}
+
+Expected<bool, TER>
+WasmEngineIImpl::justRun(
+    std::string_view funcName,
+    LedgerDataProvider* ledgerDataProvider,
+    int m,
+    int i)
+{
     auto* f = getFunc(funcName, m, i);
     auto res = call<1>(f, m, i);
 
@@ -901,7 +937,7 @@ WasmEngineIImpl::runSha(std::string_view const data, int m, int i)
 //////////////////////////////////////////////////////////////////////////////////////////
 
 WasmEngineI::WasmEngineI()
-    : WasmEngine({1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+    : WasmEngine({1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
     , impl(std::make_unique<WasmEngineIImpl>())
 
 {
@@ -1005,6 +1041,38 @@ WasmEngineI::run(
     try
     {
         return impl->run(wasmCode, funcName, ledgerDataProvider);
+    }
+    catch (std::exception const&)
+    {
+    }
+    return Unexpected<TER>(tecFAILED_PROCESSING);
+}
+
+Expected<int, TER>
+WasmEngineI::preRun(
+    vbytes const& wasmCode,
+    LedgerDataProvider* ledgerDataProvider)
+{
+    try
+    {
+        return impl->preRun(wasmCode, ledgerDataProvider);
+    }
+    catch (std::exception const&)
+    {
+    }
+    return Unexpected<TER>(tecFAILED_PROCESSING);
+}
+
+Expected<bool, TER>
+WasmEngineI::justRun(
+    std::string_view funcName,
+    LedgerDataProvider* ledgerDataProvider,
+    int m,
+    int i)
+{
+    try
+    {
+        return impl->justRun(funcName, ledgerDataProvider, m, i);
     }
     catch (std::exception const&)
     {

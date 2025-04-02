@@ -177,6 +177,23 @@ public:
         return Unexpected<TER>(tecFAILED_PROCESSING);
     }
 
+    virtual Expected<int, TER>
+    preRun(vbytes const& wasmCode,
+        LedgerDataProvider* ledgerDataProvider)
+    {
+        return Unexpected<TER>(tecFAILED_PROCESSING);
+    }
+
+    virtual Expected<bool, TER>
+    justRun(
+        std::string_view funcName,
+        LedgerDataProvider* ledgerDataProvider,
+        int m,
+        int i = 0)
+    {
+        return Unexpected<TER>(tecFAILED_PROCESSING);
+    }
+
     static std::unique_ptr<WasmEngine>
     instance();
 

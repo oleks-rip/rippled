@@ -80,7 +80,7 @@ private:
         auto const res = WasmEdge2_ExecutorInstantiate(x, &mi, s, m);
         if (!WasmEdge2_ResultOK(res))
             throw std::runtime_error(
-                std::string(engineName(wasmEngines::Er)) +
+                std::string(engineName(wasmEngines::Edge)) +
                 ": can't create instance, e:" +
                 WasmEdge2_ResultGetMessage(res));
         return {mi, &WasmEdge2_ModuleInstanceDelete};
@@ -289,11 +289,14 @@ class WasmEngineEdgeImpl
         WasmEdge_StatisticsContext,
         decltype(&WasmEdge2_StatisticsDelete)>
         stats;
+    std::int64_t gasMax = -1;
     executor_t executor;
 
     std::vector<my_module_t> modules;
 
-    // engine_t engine;
+    // need to be initialized for wasi for unknown reason
+    // may be it loads wasi_snapshot_preview1 plugin
+    engine_t engine;
 
     // std::atomic_int ctr;
     WasmEdge_Result funcRes{0};
@@ -346,6 +349,16 @@ public:
         std::string_view funcName,
         LedgerDataProvider* ledgerDataProvider);
 
+    Expected<int, TER>
+    preRun(vbytes const& wasmCode, LedgerDataProvider* ledgerDataProvider);
+
+    Expected<bool, TER>
+    justRun(
+        std::string_view funcName,
+        LedgerDataProvider* ledgerDataProvider,
+        int m,
+        int i);
+
     int
     addModule(vbytes const& wasmCode, bool instantiate);
     void
@@ -353,7 +366,10 @@ public:
     {
         modules.clear();
         store = {WasmEdge2_StoreCreate(), &WasmEdge2_StoreDelete};
+        engine = {
+            WasmEdge2_VMCreate(config.get(), store.get()), &WasmEdge2_VMDelete};
     }
+
     int
     addInstance(int m);
 
@@ -462,8 +478,9 @@ WasmEngineEdgeImpl::WasmEngineEdgeImpl()
     , executor(
           WasmEdge2_ExecutorCreate(config.get(), nullptr),
           &WasmEdge2_ExecutorDelete)
-//, engine(WasmEdge2_VMCreate(config.get(), store.get()), &WasmEdge2_VMDelete)
+    , engine(WasmEdge2_VMCreate(config.get(), store.get()), &WasmEdge2_VMDelete)
 {
+    // WasmEdge3_PluginLoadWithDefaultPaths();
 }
 
 Expected<bool, TER>
@@ -615,6 +632,38 @@ WasmEngineEdgeImpl::run(
     if (m < 0)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
+    return justRun(funcName, ledgerDataProvider, m, i);
+}
+
+Expected<int, TER>
+WasmEngineEdgeImpl::preRun(
+    vbytes const& wasmCode,
+    LedgerDataProvider* ledgerDataProvider)
+{
+    WasmEdge_ValType rtype[] = {WasmEdge2_ValTypeGenI32()};
+    std::unique_ptr<
+        WasmEdge_FunctionTypeContext,
+        decltype(&WasmEdge2_FunctionTypeDelete)>
+        ftype{
+            WasmEdge2_FunctionTypeCreate(nullptr, 0, rtype, 1),
+            &WasmEdge2_FunctionTypeDelete};
+    WasmEdge_FunctionInstanceContext* func = WasmEdge2_FunctionInstanceCreate(
+        ftype.get(), &get_ledger_sqn, ledgerDataProvider, 0);
+
+    int const m = makeModule(wasmCode, {{"get_ledger_sqn", func}});
+    if (m < 0)
+        return Unexpected<TER>(tecFAILED_PROCESSING);
+
+    return m;
+}
+
+Expected<bool, TER>
+WasmEngineEdgeImpl::justRun(
+    std::string_view funcName,
+    LedgerDataProvider* ledgerDataProvider,
+    int m,
+    int i)
+{
     auto* f = getFunc(funcName, m, i);
     auto const Returns = call<1>(f, m, i);
     if (!WasmEdge2_ResultOK(funcRes))
@@ -897,9 +946,7 @@ WasmEngineEdgeImpl::setMeter(std::int64_t def)
     validator.reset();
     store.reset();
 
-    config = {WasmEdge2_ConfigureCreate(), &WasmEdge2_ConfigureDelete};
-    WasmEdge2_ConfigureAddHostRegistration(
-        config.get(), WasmEdge_HostRegistration_Wasi);
+    config = initConfig();
     WasmEdge2_ConfigureStatisticsSetInstructionCounting(config.get(), true);
     WasmEdge2_ConfigureStatisticsSetCostMeasuring(config.get(), true);
 
@@ -915,10 +962,18 @@ WasmEngineEdgeImpl::setMeter(std::int64_t def)
     WasmEdge2_StatisticsSetCostTable(
         stats.get(), CostTable, sizeof(CostTable) / sizeof(CostTable[0]));
     WasmEdge2_StatisticsSetCostLimit(stats.get(), def);
+    gasMax = static_cast<decltype(gasMax)>(def);
+
+    [[maybe_unused]] std::uint64_t gas =
+        WasmEdge2_StatisticsGetTotalCost(stats.get());
 
     executor = {
         WasmEdge2_ExecutorCreate(config.get(), stats.get()),
         &WasmEdge2_ExecutorDelete};
+
+    // wasi
+    engine = {
+        WasmEdge2_VMCreate(config.get(), store.get()), &WasmEdge2_VMDelete};
 
     return def;
 }
@@ -928,6 +983,7 @@ WasmEngineEdgeImpl::setGas(std::int64_t gas, int m, int i)
 {
     WasmEdge2_StatisticsClear(stats.get());
     WasmEdge2_StatisticsSetCostLimit(stats.get(), gas);
+    gasMax = static_cast<decltype(gasMax)>(gas);
     return gas;
 }
 
@@ -935,7 +991,8 @@ std::int64_t
 WasmEngineEdgeImpl::getRemainingGas(int m, int i)
 {
     std::uint64_t gas = WasmEdge2_StatisticsGetTotalCost(stats.get());
-    return static_cast<std::int64_t>(gas);
+    std::int64_t left = gasMax - static_cast<decltype(gasMax)>(gas);
+    return left;
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -943,9 +1000,9 @@ WasmEngineEdgeImpl::getRemainingGas(int m, int i)
 WasmEngineEdge::WasmEngineEdge()
     : WasmEngine(
 #ifdef _DEBUG
-          {1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+          {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0}
 #else
-          {1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+          {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0}
 #endif
           )
     , impl(std::make_unique<WasmEngineEdgeImpl>())
@@ -1052,6 +1109,38 @@ WasmEngineEdge::run(
     try
     {
         return impl->run(wasmCode, funcName, ledgerDataProvider);
+    }
+    catch (std::exception const&)
+    {
+    }
+    return Unexpected<TER>(tecFAILED_PROCESSING);
+}
+
+Expected<int, TER>
+WasmEngineEdge::preRun(
+    vbytes const& wasmCode,
+    LedgerDataProvider* ledgerDataProvider)
+{
+    try
+    {
+        return impl->preRun(wasmCode, ledgerDataProvider);
+    }
+    catch (std::exception const&)
+    {
+    }
+    return Unexpected<TER>(tecFAILED_PROCESSING);
+}
+
+Expected<bool, TER>
+WasmEngineEdge::justRun(
+    std::string_view funcName,
+    LedgerDataProvider* ledgerDataProvider,
+    int m,
+    int i)
+{
+    try
+    {
+        return impl->justRun(funcName, ledgerDataProvider, m, i);
     }
     catch (std::exception const&)
     {

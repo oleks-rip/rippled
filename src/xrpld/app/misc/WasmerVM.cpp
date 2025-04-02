@@ -446,6 +446,16 @@ public:
         std::string_view funcName,
         LedgerDataProvider* ledgerDataProvider);
 
+    Expected<int, TER>
+    preRun(vbytes const& wasmCode, LedgerDataProvider* ledgerDataProvider);
+
+    Expected<bool, TER>
+    justRun(
+        std::string_view funcName,
+        LedgerDataProvider* ledgerDataProvider,
+        int m,
+        int i);
+
     int
     addModule(vbytes const& wasmCode, bool instantiate);
     void
@@ -851,6 +861,37 @@ WasmEngineErImpl::run(
     if (m < 0)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
+    return justRun(funcName, ledgerDataProvider, m, i);
+}
+
+Expected<int, TER>
+WasmEngineErImpl::preRun(
+    vbytes const& wasmCode,
+    LedgerDataProvider* ledgerDataProvider)
+{
+    wasm_valtype_t* vtype(wasmer2_valtype_new_i32());
+    std::unique_ptr<wasm_functype_t, decltype(&wasmer2_functype_delete)> ftype(
+        wasmer2_functype_new_0_1(vtype), &wasmer2_functype_delete);
+
+    wasm_func_t* func = wasmer2_func_new_with_env(
+        store.get(), ftype.get(), &get_ledger_sqn, ledgerDataProvider, nullptr);
+
+    wasm_extern_t* arr[] = {wasmer2_func_as_extern(func)};
+    wasm_extern_vec_t imports = WASM_ARRAY_VEC(arr);
+    int const m = makeModule(wasmCode, {imports});
+    if (m < 0)
+        return Unexpected<TER>(tecFAILED_PROCESSING);
+
+    return m;
+}
+
+Expected<bool, TER>
+WasmEngineErImpl::justRun(
+    std::string_view funcName,
+    LedgerDataProvider* ledgerDataProvider,
+    int m,
+    int i)
+{
     auto* f = getFunc(funcName, m, i);
     auto res = call<1>(f, m, i);
     if (!res.r.size || trap)
@@ -975,7 +1016,7 @@ WasmEngineErImpl::getRemainingGas(int m, int i)
 //////////////////////////////////////////////////////////////////////////////////////////
 
 WasmEngineEr::WasmEngineEr()
-    : WasmEngine({1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0})
+    : WasmEngine({1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0})
     , impl(std::make_unique<WasmEngineErImpl>())
 {
 }
@@ -1078,6 +1119,38 @@ WasmEngineEr::run(
     try
     {
         return impl->run(wasmCode, funcName, ledgerDataProvider);
+    }
+    catch (std::exception const&)
+    {
+    }
+    return Unexpected<TER>(tecFAILED_PROCESSING);
+}
+
+Expected<int, TER>
+WasmEngineEr::preRun(
+    vbytes const& wasmCode,
+    LedgerDataProvider* ledgerDataProvider)
+{
+    try
+    {
+        return impl->preRun(wasmCode, ledgerDataProvider);
+    }
+    catch (std::exception const&)
+    {
+    }
+    return Unexpected<TER>(tecFAILED_PROCESSING);
+}
+
+Expected<bool, TER>
+WasmEngineEr::justRun(
+    std::string_view funcName,
+    LedgerDataProvider* ledgerDataProvider,
+    int m,
+    int i)
+{
+    try
+    {
+        return impl->justRun(funcName, ledgerDataProvider, m, i);
     }
     catch (std::exception const&)
     {

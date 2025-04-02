@@ -386,6 +386,16 @@ public:
         std::string_view funcName,
         LedgerDataProvider* ledgerDataProvider);
 
+    Expected<int, TER>
+    preRun(vbytes const& wasmCode, LedgerDataProvider* ledgerDataProvider);
+
+    Expected<bool, TER>
+    justRun(
+        std::string_view funcName,
+        LedgerDataProvider* ledgerDataProvider,
+        int m,
+        int i);
+
     int
     addModule(vbytes const& wasmCode, bool instantiate);
     void
@@ -482,7 +492,8 @@ WamrEngineImpl::WamrEngineImpl()
     : engine(wamr_engine_new(), &wamr_engine_delete)
     , store(wamr_store_new(engine.get()), &wamr_store_delete)
 {
-    // wamr_runtime_set_default_running_mode(Mode_Fast_JIT);
+    // wamr_runtime_set_default_running_mode(Mode_LLVM_JIT);
+    wamr_runtime_set_log_level(WASM_LOG_LEVEL_FATAL);
 }
 
 int
@@ -787,11 +798,6 @@ WamrEngineImpl::run(
     std::unique_ptr<wasm_functype_t, decltype(&wamr_functype_delete)> ftype(
         wamr_functype_new_0_1(vtype), &wamr_functype_delete);
 
-    // std::unique_ptr<wasm_func_t, decltype(&wamr_func_delete)> func(
-    //     wamr_func_new_with_env(store.get(),ftype.get(),
-    //     &get_ledger_sqn, ledgerDataProvider, nullptr),
-    //     &wamr_func_delete);
-
     wasm_func_t* func = wamr_func_new_with_env(
         store.get(), ftype.get(), &get_ledger_sqn, ledgerDataProvider, nullptr);
 
@@ -802,6 +808,37 @@ WamrEngineImpl::run(
     if (m < 0)
         return Unexpected<TER>(tecFAILED_PROCESSING);
 
+    return justRun(funcName, ledgerDataProvider, m, i);
+}
+
+Expected<int, TER>
+WamrEngineImpl::preRun(
+    vbytes const& wasmCode,
+    LedgerDataProvider* ledgerDataProvider)
+{
+    wasm_valtype_t* vtype(wamr_valtype_new_i32());
+    std::unique_ptr<wasm_functype_t, decltype(&wamr_functype_delete)> ftype(
+        wamr_functype_new_0_1(vtype), &wamr_functype_delete);
+
+    wasm_func_t* func = wamr_func_new_with_env(
+        store.get(), ftype.get(), &get_ledger_sqn, ledgerDataProvider, nullptr);
+
+    wasm_extern_t* arr[] = {wamr_func_as_extern(func)};
+    wasm_extern_vec_t imports = WASM_ARRAY_VEC(arr);
+    int const m = makeModule(wasmCode, {imports});
+    if (m < 0)
+        return Unexpected<TER>(tecFAILED_PROCESSING);
+
+    return m;
+}
+
+Expected<bool, TER>
+WamrEngineImpl::justRun(
+    std::string_view funcName,
+    LedgerDataProvider* ledgerDataProvider,
+    int m,
+    int i)
+{
     auto* f = getFunc(funcName, m, i);
     auto res = call<1>(f, m, i);
     if (!res.r.size || trap)
@@ -862,7 +899,7 @@ WamrEngineImpl::runSha(std::string_view const data, int m, int i)
 //////////////////////////////////////////////////////////////////////////////////////////
 
 WamrEngine::WamrEngine()
-    : WasmEngine({1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+    : WasmEngine({1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
     , impl(std::make_unique<WamrEngineImpl>())
 {
 }
@@ -934,6 +971,9 @@ WamrEngine::runP4(
     catch (std::exception const&)
     {
     }
+    catch (...)
+    {
+    }
     return Unexpected<TER>(tecFAILED_PROCESSING);
 }
 
@@ -965,6 +1005,38 @@ WamrEngine::run(
     try
     {
         return impl->run(wasmCode, funcName, ledgerDataProvider);
+    }
+    catch (std::exception const&)
+    {
+    }
+    return Unexpected<TER>(tecFAILED_PROCESSING);
+}
+
+Expected<int, TER>
+WamrEngine::preRun(
+    vbytes const& wasmCode,
+    LedgerDataProvider* ledgerDataProvider)
+{
+    try
+    {
+        return impl->preRun(wasmCode, ledgerDataProvider);
+    }
+    catch (std::exception const&)
+    {
+    }
+    return Unexpected<TER>(tecFAILED_PROCESSING);
+}
+
+Expected<bool, TER>
+WamrEngine::justRun(
+    std::string_view funcName,
+    LedgerDataProvider* ledgerDataProvider,
+    int m,
+    int i)
+{
+    try
+    {
+        return impl->justRun(funcName, ledgerDataProvider, m, i);
     }
     catch (std::exception const&)
     {

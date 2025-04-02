@@ -298,3 +298,9 @@ wamr_runtime_get_running_mode(wasm_module_inst_t module_inst)
 {
     return wasm_runtime_get_running_mode(module_inst);
 }
+
+void
+wamr_runtime_set_log_level(log_level_t level)
+{
+    return wasm_runtime_set_log_level(level);
+}
