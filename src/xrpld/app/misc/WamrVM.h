@@ -80,7 +80,7 @@ public:
         int i) override;
 
     Expected<int, TER>
-    justRun(std::string_view funcName, int m, int i);
+    justRun(std::string_view funcName, int m, int i) override;
 
     virtual int
     addModule(vbytes const& wasmCode, bool instantiate) override;

@@ -28,7 +28,8 @@ extern std::string const p1Hex;
 extern std::string const p2Hex;
 extern std::string const p4Hex;
 extern std::string const p5Hex;
-extern std::string const bigHex;
+extern std::string const zkProofHex;
+extern std::string const zkAotHex;
 extern std::string const sha512Hex;
 extern std::string const fib32Hex;
 extern std::string const fib64Hex;
@@ -348,7 +349,10 @@ static const std::string testNames[] = {
     "RunHostFunc meter",
     "Fib x64 meter",
     "RunShaLarge meter",
-    "ZKProof"};
+    "ZKProof",
+    "ZKProof",
+    "ZKProof aot",
+    "ZKProof aot"};
 
 class WasmPerf_test : public beast::unit_test::suite
 {
@@ -377,6 +381,9 @@ class WasmPerf_test : public beast::unit_test::suite
     static const int GAS_N = 500;
     static const int ZKP_N = 200;
 #endif
+
+    static const int GAS_CHECK_N = 10;
+    static const int FIB_VAL_GAS_CHECK = 10;
 
     // testcase, engine, iteration
     std::vector<std::vector<std::vector<std::uint64_t>>> testTimes;
@@ -536,8 +543,9 @@ class WasmPerf_test : public beast::unit_test::suite
         }
 
         std::int64_t sgas = 0;
+        std::int64_t cgas = 0;
         if (meter)
-            sgas = e.getRemainingGas(midx);
+            cgas = sgas = e.getRemainingGas(midx);
 
         times[0] = usecs();
         for (int i = 0; i < inum; ++i)
@@ -546,11 +554,13 @@ class WasmPerf_test : public beast::unit_test::suite
             times[i + 1] = usecs();
 
             BEAST_EXPECT(r.value().second == "1");
-            // if (meter)
-            // {
-            //     auto const gas = e.getRemainingGas(midx);
-            //     BEAST_EXPECT(gas > 100);
-            // }
+            if (meter)
+            {
+                auto const egas = e.getRemainingGas(midx);
+                std::cout << s << " Gas in cycle: " << cgas - egas << std::endl;
+                cgas = egas;
+                // BEAST_EXPECT(gas > 100);
+            }
         }
 
         BEAST_EXPECT(times[inum] > 0);
@@ -558,7 +568,7 @@ class WasmPerf_test : public beast::unit_test::suite
         if (meter)
         {
             auto const egas = e.getRemainingGas(midx);
-            std::cout << s << " Gas wasted: " << sgas - egas
+            std::cout << s << " Gas overall: " << sgas - egas
                       << ", avg: " << (sgas - egas) / inum << std::endl;
         }
     }
@@ -615,8 +625,9 @@ class WasmPerf_test : public beast::unit_test::suite
 
         int midx = re1.value();
         std::int64_t sgas = 0;
+        std::int64_t cgas = 0;
         if (meter)
-            sgas = e.getRemainingGas(midx);
+            cgas = sgas = e.getRemainingGas(midx);
 
         times[0] = usecs();
         for (int i = 0; i < inum; ++i)
@@ -625,11 +636,13 @@ class WasmPerf_test : public beast::unit_test::suite
             times[i + 1] = usecs();
 
             BEAST_EXPECT(!r.value());
-            // if (meter)
-            // {
-            //     auto const gas = e.getRemainingGas(midx);
-            //     BEAST_EXPECT(gas > 100);
-            // }
+            if (meter)
+            {
+                auto const egas = e.getRemainingGas(midx);
+                std::cout << s << " Gas in cycle: " << cgas - egas << std::endl;
+                cgas = egas;
+                // BEAST_EXPECT(gas > 100);
+            }
         }
 
         BEAST_EXPECT(times[inum] > 0);
@@ -637,7 +650,7 @@ class WasmPerf_test : public beast::unit_test::suite
         if (meter)
         {
             auto const egas = e.getRemainingGas(midx);
-            std::cout << s << " Gas wasted: " << sgas - egas
+            std::cout << s << " Gas overall: " << sgas - egas
                       << ", avg: " << (sgas - egas) / inum << std::endl;
         }
 
@@ -726,8 +739,9 @@ class WasmPerf_test : public beast::unit_test::suite
         }
 
         std::int64_t sgas = 0;
+        std::int64_t cgas = 0;
         if (meter)
-            sgas = e.getRemainingGas(midx);
+            cgas = sgas = e.getRemainingGas(midx);
 
         times[0] = usecs();
         for (int i = 0; i < inum; ++i)
@@ -736,6 +750,14 @@ class WasmPerf_test : public beast::unit_test::suite
             times[i + 1] = usecs();
 
             BEAST_EXPECT(r >= 0);
+
+            if (meter)
+            {
+                auto const egas = e.getRemainingGas(midx);
+                std::cout << s << " Gas in cycle: " << cgas - egas << std::endl;
+                cgas = egas;
+                // BEAST_EXPECT(gas > 100);
+            }
         }
 
         BEAST_EXPECT(times[inum] > 0);
@@ -743,7 +765,7 @@ class WasmPerf_test : public beast::unit_test::suite
         if (meter)
         {
             auto const egas = e.getRemainingGas(midx);
-            std::cout << s << " Gas wasted: " << sgas - egas
+            std::cout << s << " Gas overall: " << sgas - egas
                       << ", avg: " << (sgas - egas) / inum << std::endl;
         }
     }
@@ -787,8 +809,9 @@ class WasmPerf_test : public beast::unit_test::suite
         }
 
         std::int64_t sgas = 0;
+        std::int64_t cgas = 0;
         if (meter)
-            sgas = e.getRemainingGas(midx);
+            cgas = sgas = e.getRemainingGas(midx);
 
         times[0] = usecs();
         for (int i = 0; i < inum; ++i)
@@ -807,6 +830,14 @@ class WasmPerf_test : public beast::unit_test::suite
             times[i + 1] = usecs();
 
             BEAST_EXPECT(r[0] > 0);
+
+            if (meter)
+            {
+                auto const egas = e.getRemainingGas(midx);
+                std::cout << s << " Gas in cycle: " << cgas - egas << std::endl;
+                cgas = egas;
+                // BEAST_EXPECT(gas > 100);
+            }
         }
 
         BEAST_EXPECT(times[inum] > 0);
@@ -814,7 +845,7 @@ class WasmPerf_test : public beast::unit_test::suite
         if (meter)
         {
             auto const egas = e.getRemainingGas(midx);
-            std::cout << s << " Gas wasted: " << sgas - egas
+            std::cout << s << " Gas overall: " << sgas - egas
                       << ", avg: " << (sgas - egas) / inum << std::endl;
         }
     }
@@ -828,14 +859,16 @@ class WasmPerf_test : public beast::unit_test::suite
         int inum,
         const std::string& modHex,
         std::string_view fname,
-        bool meter = false)
+        bool meter = false,
+        bool hot = true)
     {
         auto const ws = boost::algorithm::unhex(modHex);
         vbytes const wasm(ws.begin(), ws.end());
 
         std::cout << std::endl;
         std::string s = name + "(" + std::to_string(tnum) + ") " + wname(ei) +
-            " mod size(" + std::to_string(wasm.size()) + "), hot";
+            " mod size(" + std::to_string(wasm.size()) + "), " +
+            (hot ? "hot" : "cold");
         testcase(s);
 
         auto& times(testTimes[tnum][ei]);
@@ -844,36 +877,45 @@ class WasmPerf_test : public beast::unit_test::suite
         if (meter)
             e.setMeter();
         int midx = 0;
-        // int midx = e.addModule(wasm);
-        // if (midx < 0)
-        // {
-        //     std::cerr << "Failed to load module" << std::endl;
-        //     return;
-        // }
-
-        std::int64_t sgas = 0;
-        if (meter)
-            sgas = e.getRemainingGas(midx);
-
-        times[0] = usecs();
-        for (int i = 0; i < inum; ++i)
+        if (hot)
         {
-            int midx = e.addModule(wasm);
+            midx = e.addModule(wasm);
             if (midx < 0)
             {
                 std::cerr << "Failed to load module" << std::endl;
                 return;
+            }
+        }
+
+        std::int64_t sgas = 0;
+        std::int64_t cgas = 0;
+        if (meter)
+            cgas = sgas = e.getRemainingGas(midx);
+
+        times[0] = usecs();
+        for (int i = 0; i < inum; ++i)
+        {
+            if (!hot)
+            {
+                midx = e.addModule(wasm);
+                if (midx < 0)
+                {
+                    std::cerr << "Failed to load module" << std::endl;
+                    return;
+                }
             }
 
             auto const r = e.justRun(fname, midx);
             times[i + 1] = usecs();
 
             BEAST_EXPECT(r.value() == 1);
-            // if (meter)
-            // {
-            //     auto const gas = e.getRemainingGas(midx);
-            //     BEAST_EXPECT(gas > 100);
-            // }
+            if (meter)
+            {
+                auto const egas = e.getRemainingGas(midx);
+                std::cout << s << " Gas in cycle: " << cgas - egas << std::endl;
+                cgas = egas;
+                // BEAST_EXPECT(gas > 100);
+            }
         }
 
         BEAST_EXPECT(times[inum] > 0);
@@ -881,7 +923,7 @@ class WasmPerf_test : public beast::unit_test::suite
         if (meter)
         {
             auto const egas = e.getRemainingGas(midx);
-            std::cout << s << " Gas wasted: " << sgas - egas
+            std::cout << s << " Gas overall: " << sgas - egas
                       << ", avg: " << (sgas - egas) / inum << std::endl;
         }
     }
@@ -968,13 +1010,13 @@ public:
         {
             // clang-format off
             // debug
-            if (
-                (e == wasmEngines::Edge)
-            //    (e != wasmEngines::Time)
-            //    (e != wasmEngines::Wamr)
-            //    (e != wasmEngines::Er)
-               || (e == wasmEngines::I)
-            ) continue;
+            // if (
+            //     (e == wasmEngines::Edge)
+            // ||    (e == wasmEngines::Time)
+            // ||    (e == wasmEngines::Wamr)
+            // ||    (e == wasmEngines::Er)
+            // ||    (e == wasmEngines::I)
+            // ) continue;
             // clang-format on
 
             setWasmEngine(static_cast<wasmEngines>(e));
@@ -988,22 +1030,33 @@ public:
             // if (engine->isImplemented(1)) ptest1("AddInstance", 1, static_cast<wasmEngines>(e), *engine, ADD_MOD_N, p4Hex);     engine->clearModules();
             // if (engine->isImplemented(2)) ptest2("Run P4", 2, static_cast<wasmEngines>(e), *engine, e ==wasmEngines::Wamr ? 50 : ADD_MOD_SMALL_N,p4Hex, "compare_accountID", tx_js, lo_js ); engine->clearModules();
             // if (engine->isImplemented(3)) ptest3("JustRunP4", 3, static_cast<wasmEngines>(e), *engine, ADD_MOD_N, p4Hex, "compare_accountID", tx_js, lo_js); engine->clearModules();
-            // if (engine->isImplemented(4)) ptest4("RunHostFunc", 4, static_cast<wasmEngines>(e), *engine, ADD_MOD_N, p5Hex, "ready"); engine->clearModules();
+            // //if (engine->isImplemented(4)) ptest4("RunHostFunc", 4, static_cast<wasmEngines>(e), *engine, ADD_MOD_N, p5Hex, "ready"); engine->clearModules();
             // if (engine->isImplemented(5)) ptest5("Fib x32", 5, static_cast<wasmEngines>(e), *engine, 1, fib32Hex, "fib",FIB_VAL_32); engine->clearModules();
             // if (engine->isImplemented(6)) ptest6("Fib x64", 6, static_cast<wasmEngines>(e), *engine, 1, fib64Hex, "fib", FIB_VAL_64); engine->clearModules();
-            // if (engine->isImplemented(7)) ptest0("AddBigModule", 7, static_cast<wasmEngines>(e), *engine, BIG_MOD_N, bigHex); engine->clearModules();
+            // if (engine->isImplemented(7)) ptest0("AddBigModule", 7, static_cast<wasmEngines>(e), *engine, BIG_MOD_N, zkProofHex); engine->clearModules();
 
-            // need add wasi support to engines.
+            // // need add wasi support to engines.
             // if (engine->isImplemented(8)) ptest7("RunSha", 8, static_cast<wasmEngines>(e), *engine, SHA_N, sha512Hex, true, p1Hex); engine->clearModules();
-            // if (engine->isImplemented(9)) ptest7("RunShaLarge", 9, static_cast<wasmEngines>(e), *engine, BIG_SHA_N, sha512Hex, false, bigHex);   engine->clearModules();
+            // if (engine->isImplemented(9)) ptest7("RunShaLarge", 9, static_cast<wasmEngines>(e), *engine, BIG_SHA_N, sha512Hex, false, zkProofHex);   engine->clearModules();
 
+            // PERF WITH GAS
             // if (engine->isImplemented(10)) ptest3("JustRunP4 meter", 10, static_cast<wasmEngines>(e), *engine, GAS_N, p4Hex, "compare_accountID", tx_js, lo_js, true ); engine->clearModules();
-            // if (engine->isImplemented(11)) ptest4("RunHostFunc meter", 11, static_cast<wasmEngines>(e), *engine, ADD_MOD_N, p5Hex, "ready", true); engine->clearModules();
+            // //if (engine->isImplemented(11)) ptest4("RunHostFunc meter", 11, static_cast<wasmEngines>(e), *engine, ADD_MOD_N, p5Hex, "ready", true); engine->clearModules();
             // if (engine->isImplemented(12)) ptest6("Fib x64 meter", 12, static_cast<wasmEngines>(e), *engine, 1, fib64Hex, "fib", FIB_VAL_64, true); engine->clearModules();
-            // if (engine->isImplemented(13)) ptest7("RunShaLarge meter", 13, static_cast<wasmEngines>(e), *engine, BIG_SHA_N, sha512Hex, false, bigHex, true); engine->clearModules();
+            // if (engine->isImplemented(13)) ptest7("RunShaLarge meter", 13, static_cast<wasmEngines>(e), *engine, BIG_SHA_N, sha512Hex, false, zkProofHex, true); engine->clearModules();
 
-            ptest8("ZKProof", 14, static_cast<wasmEngines>(e), *engine, 20, bigHex, "bellman_groth16_test"); engine->clearModules();
+            // JUST GAS CHECK
+            if (engine->isImplemented(10)) ptest3("JustRunP4 meter", 10, static_cast<wasmEngines>(e), *engine, GAS_CHECK_N, p4Hex, "compare_accountID", tx_js, lo_js, true ); engine->clearModules();
+            if (engine->isImplemented(12)) ptest6("Fib x64 meter", 12, static_cast<wasmEngines>(e), *engine, GAS_CHECK_N, fib64Hex, "fib", FIB_VAL_GAS_CHECK, true); engine->clearModules();
+            if (engine->isImplemented(13)) ptest7("RunShaLarge meter", 13, static_cast<wasmEngines>(e), *engine, GAS_CHECK_N, sha512Hex, false, fib32Hex, true); engine->clearModules();
 
+
+            // ZK PROOF CHECK
+            //ptest8("ZKProof", 14, static_cast<wasmEngines>(e), *engine, 30, zkProofHex, "bellman_groth16_test", false, false); engine->clearModules();
+            //ptest8("ZKProof", 15, static_cast<wasmEngines>(e), *engine, 20, zkProofHex, "bellman_groth16_test", false, true); engine->clearModules();
+            //ptest8("ZKProof aot", 16, static_cast<wasmEngines>(e), *engine, 50, zkAotHex, "bellman_groth16_test", false, false); engine->clearModules();
+            //ptest8("ZKProof aot", 17, static_cast<wasmEngines>(e), *engine, 50, zkAotHex, "bellman_groth16_test", false, true); engine->clearModules();
+            static_assert(sizeof(testNames)/sizeof(testNames[0]) >= 17);
             // clang-format ON
         }
 
