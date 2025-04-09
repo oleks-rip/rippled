@@ -69,8 +69,8 @@ public:
         LedgerDataProvider* ledgerDataProvider) override;
 
     virtual Expected<int, TER>
-    preRun(vbytes const& wasmCode,
-           LedgerDataProvider* ledgerDataProvider) override;
+    preRun(vbytes const& wasmCode, LedgerDataProvider* ledgerDataProvider)
+        override;
 
     virtual Expected<bool, TER>
     justRun(
@@ -98,6 +98,14 @@ public:
 
     virtual std::vector<uint64_t>
     runSha(std::string_view const data, int m, int i) override;
+
+    virtual int32_t
+    runEnc(
+        std::string_view const funcName,
+        std::string& sv_res,
+        std::string_view const data,
+        int m,
+        int i) override;
 
     virtual std::int64_t
     setMeter(std::int64_t def) override;

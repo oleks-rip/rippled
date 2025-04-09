@@ -486,6 +486,14 @@ public:
     std::vector<uint64_t>
     runSha(std::string_view const data, int m, int i);
 
+    int32_t
+    runEnc(
+        std::string_view const funcName,
+        std::string& sv_res,
+        std::string_view const data,
+        int m,
+        int i);
+
     std::int64_t
     setMeter(std::int64_t def);
 
@@ -994,6 +1002,42 @@ WasmEngineTimeImpl::runSha(std::string_view const data, int m, int i)
     return {&buf[0], &buf[8]};
 }
 
+int32_t
+WasmEngineTimeImpl::runEnc(
+    std::string_view const funcName,
+    std::string& sv_res,
+    std::string_view const data,
+    int m,
+    int i)
+{
+    auto f = getFunc(funcName, m, i);
+
+    sv_res.resize(1024);
+    auto resm = call<1>(V_ALLOC, m, i, static_cast<int32_t>(1000));
+
+    if (trap || (resm.r[0].kind != WASM_I32))
+        return 0;
+    auto const ptrm = resm.r[0].of.i32;
+
+    auto res = call<1>(
+        f,
+        m,
+        i,
+        ptrm,
+        1000,
+        reinterpret_cast<uint8_t const*>(data.data()),
+        data.size());
+    if (trap)
+        return 0;
+
+    auto const sz = res.r[0].of.i32;
+    auto const mem = getMem(m, i);
+    memcpy(&sv_res[0], mem.p + ptrm, sz);
+    sv_res.resize(sz);
+
+    return 1;
+}
+
 std::int64_t
 WasmEngineTimeImpl::setMeter(std::int64_t def)
 {
@@ -1037,7 +1081,8 @@ WasmEngineTimeImpl::getRemainingGas(int m, int i)
 //////////////////////////////////////////////////////////////////////////////////////////
 
 WasmEngineTime::WasmEngineTime()
-    : WasmEngine({1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0})
+    : WasmEngine(
+          {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1})
     , impl(std::make_unique<WasmEngineTimeImpl>())
 {
 }
@@ -1270,6 +1315,17 @@ std::int64_t
 WasmEngineTime::getRemainingGas(int m, int i)
 {
     return impl->getRemainingGas(m, i);
+}
+
+int32_t
+WasmEngineTime::runEnc(
+    std::string_view const funcName,
+    std::string& sv_res,
+    std::string_view const data,
+    int m,
+    int i)
+{
+    return impl->runEnc(funcName, sv_res, data, m, i);
 }
 
 }  // namespace ripple

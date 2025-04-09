@@ -111,10 +111,10 @@ runEscrowWasm(
 class WasmEngine
 {
 protected:
-    std::array<bool, 20> const implemented;
+    std::array<bool, 30> const implemented;
 
 public:
-    WasmEngine(std::array<bool, 20> const& a) : implemented(a)
+    WasmEngine(std::array<bool, 30> const& a) : implemented(a)
     {
     }
     virtual ~WasmEngine() = default;
@@ -178,8 +178,7 @@ public:
     }
 
     virtual Expected<int, TER>
-    preRun(vbytes const& wasmCode,
-        LedgerDataProvider* ledgerDataProvider)
+    preRun(vbytes const& wasmCode, LedgerDataProvider* ledgerDataProvider)
     {
         return Unexpected<TER>(tecFAILED_PROCESSING);
     }
@@ -195,10 +194,7 @@ public:
     }
 
     virtual Expected<int, TER>
-    justRun(
-        std::string_view funcName,
-        int m,
-        int i = 0)
+    justRun(std::string_view funcName, int m, int i = 0)
     {
         return Unexpected<TER>(tecFAILED_PROCESSING);
     }
@@ -239,6 +235,17 @@ public:
     runSha(std::string_view const data, int m, int i = 0)
     {
         return {};
+    }
+
+    virtual int32_t
+    runEnc(
+        std::string_view const funcName,
+        std::string& sv_res,
+        std::string_view const data,
+        int m,
+        int i = 0)
+    {
+        return -1;
     }
 
     virtual std::int64_t

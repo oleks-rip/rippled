@@ -420,6 +420,14 @@ public:
     std::vector<uint64_t>
     runSha(std::string_view const data, int m, int i);
 
+    int32_t
+    runEnc(
+        std::string_view const funcName,
+        std::string& sv_res,
+        std::string_view const data,
+        int m,
+        int i);
+
 protected:
     int
     makeModule(
@@ -640,6 +648,10 @@ WamrEngineImpl::call(
     if (trap || (res.r.data[0].kind != WASM_I32))
         return {};
     auto const ptr = res.r.data[0].of.i32;
+    if (!ptr)
+        throw std::runtime_error(
+            std::string(engineName(wasmEngines::Wamr)) +
+            " + can't allocate memory, " + std::to_string(sz) + " bytes");
 
     auto mem = getMem(m, i);
     memcpy(mem.p + ptr, d, sz);
@@ -910,10 +922,47 @@ WamrEngineImpl::runSha(std::string_view const data, int m, int i)
     return {&buf[0], &buf[8]};
 }
 
+int32_t
+WamrEngineImpl::runEnc(
+    std::string_view const funcName,
+    std::string& sv_res,
+    std::string_view const data,
+    int m,
+    int i)
+{
+    auto* f = getFunc(funcName, m, i);
+
+    sv_res.resize(1024);
+    auto resm = call<1>(V_ALLOC, m, i, static_cast<int32_t>(1000));
+
+    if (trap || (resm.r.data[0].kind != WASM_I32))
+        return 0;
+    auto const ptrm = resm.r.data[0].of.i32;
+
+    auto res = call<1>(
+        f,
+        m,
+        i,
+        ptrm,
+        1000,
+        reinterpret_cast<uint8_t const*>(data.data()),
+        data.size());
+    if (!res.r.size || trap)
+        return 0;
+
+    auto const sz = res.r.data[0].of.i32;
+    auto const mem = getMem(m, i);
+    memcpy(&sv_res[0], mem.p + ptrm, sz);
+    sv_res.resize(sz);
+
+    return 1;
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////
 
 WamrEngine::WamrEngine()
-    : WasmEngine({1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+    : WasmEngine(
+          {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1})
     , impl(std::make_unique<WamrEngineImpl>())
 {
 }
@@ -1123,6 +1172,17 @@ std::vector<uint64_t>
 WamrEngine::runSha(std::string_view const data, int m, int i)
 {
     return impl->runSha(data, m, i);
+}
+
+int32_t
+WamrEngine::runEnc(
+    std::string_view const funcName,
+    std::string& sv_res,
+    std::string_view const data,
+    int m,
+    int i)
+{
+    return impl->runEnc(funcName, sv_res, data, m, i);
 }
 
 }  // namespace ripple

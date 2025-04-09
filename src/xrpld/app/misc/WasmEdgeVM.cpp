@@ -385,6 +385,14 @@ public:
     std::vector<uint64_t>
     runSha(std::string_view const data, int m, int i);
 
+    int32_t
+    runEnc(
+        std::string_view const funcName,
+        std::string& sv_res,
+        std::string_view const data,
+        int m,
+        int i);
+
     std::int64_t
     setMeter(std::int64_t def);
 
@@ -950,6 +958,44 @@ WasmEngineEdgeImpl::runSha(std::string_view const data, int m, int i)
     return {&buf[0], &buf[8]};
 }
 
+int32_t
+WasmEngineEdgeImpl::runEnc(
+    std::string_view const funcName,
+    std::string& sv_res,
+    std::string_view const data,
+    int m,
+    int i)
+{
+    auto* f = getFunc(funcName, m, i);
+
+    sv_res.resize(1024);
+    auto resm = call<1>(V_ALLOC, m, i, static_cast<int32_t>(1000));
+
+    if (!WasmEdge2_ResultOK(funcRes))
+        return 0;
+    auto const ptrm = WasmEdge2_ValueGetI32(resm[0]);
+
+    [[maybe_unused]] auto res = call<1>(
+        f,
+        m,
+        i,
+        ptrm,
+        1000,
+        reinterpret_cast<uint8_t const*>(data.data()),
+        data.size());
+    if (!WasmEdge2_ResultOK(funcRes))
+        return 0;
+
+    auto const sz = WasmEdge2_ValueGetI32(res[0]);
+    auto const mem = getMem(m, i);
+    // memcpy(&sv_res[0], mem.p + ptrm, 1000);
+    WasmEdge2_MemoryInstanceGetData(
+        mem, reinterpret_cast<std::uint8_t*>(&sv_res[0]), ptrm, sz);
+    sv_res.resize(sz);
+
+    return 1;
+}
+
 std::int64_t
 WasmEngineEdgeImpl::setMeter(std::int64_t def)
 {
@@ -1014,9 +1060,9 @@ WasmEngineEdgeImpl::getRemainingGas(int m, int i)
 WasmEngineEdge::WasmEngineEdge()
     : WasmEngine(
 #ifdef _DEBUG
-          {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0}
+          {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1}
 #else
-          {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0}
+          {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1}
 #endif
           )
     , impl(std::make_unique<WasmEngineEdgeImpl>())
@@ -1235,6 +1281,17 @@ std::vector<uint64_t>
 WasmEngineEdge::runSha(std::string_view const data, int m, int i)
 {
     return impl->runSha(data, m, i);
+}
+
+int32_t
+WasmEngineEdge::runEnc(
+    std::string_view const funcName,
+    std::string& sv_res,
+    std::string_view const data,
+    int m,
+    int i)
+{
+    return impl->runEnc(funcName, sv_res, data, m, i);
 }
 
 std::int64_t

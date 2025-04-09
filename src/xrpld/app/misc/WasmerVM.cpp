@@ -480,6 +480,14 @@ public:
     std::vector<uint64_t>
     runSha(std::string_view const data, int m, int i);
 
+    int32_t
+    runEnc(
+        std::string_view const funcName,
+        std::string& sv_res,
+        std::string_view const data,
+        int m,
+        int i);
+
     std::int64_t
     setMeter(std::int64_t def);
 
@@ -973,6 +981,42 @@ WasmEngineErImpl::runSha(std::string_view const data, int m, int i)
     return {&buf[0], &buf[8]};
 }
 
+int32_t
+WasmEngineErImpl::runEnc(
+    std::string_view const funcName,
+    std::string& sv_res,
+    std::string_view const data,
+    int m,
+    int i)
+{
+    auto* f = getFunc(funcName, m, i);
+
+    sv_res.resize(1024);
+    auto resm = call<1>(V_ALLOC, m, i, static_cast<int32_t>(1000));
+
+    if (trap || (resm.r.data[0].kind != WASM_I32))
+        return 0;
+    auto const ptrm = resm.r.data[0].of.i32;
+
+    auto res = call<1>(
+        f,
+        m,
+        i,
+        ptrm,
+        1000,
+        reinterpret_cast<uint8_t const*>(data.data()),
+        data.size());
+    if (!res.r.size || trap)
+        return 0;
+
+    auto const sz = res.r.data[0].of.i32;
+    auto const mem = getMem(m, i);
+    memcpy(&sv_res[0], mem.p + ptrm, sz);
+    sv_res.resize(sz);
+
+    return 1;
+}
+
 static std::uint64_t
 cost_fun(wasmer_parser_operator_t wasm_operator)
 {
@@ -1030,7 +1074,8 @@ WasmEngineErImpl::getRemainingGas(int m, int i)
 //////////////////////////////////////////////////////////////////////////////////////////
 
 WasmEngineEr::WasmEngineEr()
-    : WasmEngine({1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0})
+    : WasmEngine(
+          {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1})
     , impl(std::make_unique<WasmEngineErImpl>())
 {
 }
@@ -1241,6 +1286,17 @@ std::vector<uint64_t>
 WasmEngineEr::runSha(std::string_view const data, int m, int i)
 {
     return impl->runSha(data, m, i);
+}
+
+int32_t
+WasmEngineEr::runEnc(
+    std::string_view const funcName,
+    std::string& sv_res,
+    std::string_view const data,
+    int m,
+    int i)
+{
+    return impl->runEnc(funcName, sv_res, data, m, i);
 }
 
 std::int64_t
