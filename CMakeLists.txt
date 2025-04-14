@@ -82,6 +82,12 @@ add_subdirectory(external/secp256k1)
 add_library(secp256k1::secp256k1 ALIAS secp256k1)
 add_subdirectory(external/ed25519-donna)
 add_subdirectory(external/antithesis-sdk)
+add_subdirectory(external/wasmedge)
+add_subdirectory(external/wasmtime)
+add_subdirectory(external/wasmer)
+add_subdirectory(external/wasmi)
+add_subdirectory(external/wamr)
+
 find_package(gRPC REQUIRED)
 find_package(lz4 REQUIRED)
 # Target names with :: are not allowed in a generator expression.
@@ -103,6 +109,9 @@ endif()
 find_package(nudb REQUIRED)
 find_package(date REQUIRED)
 find_package(xxHash REQUIRED)
+#find_package(wasmedge REQUIRED)
+#find_package(wasmtime REQUIRED)
+#find_package(wasmer REQUIRED)
 
 target_link_libraries(ripple_libs INTERFACE
   ed25519::ed25519

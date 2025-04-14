@@ -1,0 +1,13 @@
+diff --git a/llvm/lib/Passes/PassBuilder.cpp b/llvm/lib/Passes/PassBuilder.cpp
+index 99e78d3b6..e61f9b534 100644
+--- a/llvm/lib/Passes/PassBuilder.cpp
++++ b/llvm/lib/Passes/PassBuilder.cpp
+@@ -970,7 +970,7 @@ Expected<InstCombineOptions> parseInstCombineOptions(StringRef Params) {
+   InstCombineOptions Result;
+   // When specifying "instcombine" in -passes enable fix-point verification by
+   // default, as this is what most tests should use.
+-  Result.setVerifyFixpoint(true);
++  // Result.setVerifyFixpoint(true);
+   while (!Params.empty()) {
+     StringRef ParamName;
+     std::tie(ParamName, Params) = Params.split(';');

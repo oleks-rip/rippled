@@ -1,0 +1,10 @@
+patches:
+  31.0.0:
+  - patch_description: install only static lib (to prevent conflict with shared)
+    patch_file: patches/static_only.patch
+    patch_type: conan
+sources:
+  31.0.0:
+    sha256: a0ddc68e4429a779fdc1baaec07d5270cd3cd2c29e309f430f73a13dbc1e5a4c
+    url: https://github.com/bytecodealliance/wasmtime/archive/refs/tags/v31.0.0.tar.gz
+

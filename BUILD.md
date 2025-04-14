@@ -204,6 +204,14 @@ It fixes some source files to add missing `#include`s.
    conan export --version 2.0.8 external/nudb
    ```
 
+Export our [Conan recipe for LLVM](./conan/llvm).
+
+	```
+	# Conan 1.x
+	conan export  -k conan/llvm llvm/20.1.1@
+	conan export  -k conan/wamr wamr/2.2.0@
+	```
+
 ### Build and Test
 
 1. Create a build directory and move into it.
@@ -225,8 +233,10 @@ It fixes some source files to add missing `#include`s.
 2. Generate CMake files for every configuration you want to build. 
 
     ```
-    conan install .. --output-folder . --build missing --settings build_type=Release
-    conan install .. --output-folder . --build missing --settings build_type=Debug
+    #release
+    conan install .. --output-folder . -b missing -s build_type=Release
+    #debug
+    conan install .. --output-folder . -b missing -s build_type=Release -s "&:build_type=Debug"
     ```
 
     For a single-configuration generator, e.g. `Unix Makefiles` or `Ninja`,
