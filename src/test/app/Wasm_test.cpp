@@ -375,7 +375,7 @@ class WasmPerf_test : public beast::unit_test::suite
     static const int ZKP_N = 200;
 #endif
 
-    static const int GAS_CHECK_N = 20;
+    static const int GAS_CHECK_N = 15;
     static const int FIB_VAL_GAS_CHECK = 10;
 
     // testcase, engine, iteration
@@ -394,21 +394,28 @@ class WasmPerf_test : public beast::unit_test::suite
         wasmEngines ei,
         WasmEngine& e,
         int inum,
-        const std::string& modHex)
+        const std::string& modHex,
+        bool meter = false)
     {
         auto const ws = boost::algorithm::unhex(modHex);
         vbytes const wasm(ws.begin(), ws.end());
 
         std::cout << std::endl;
         std::string s = name + "(" + std::to_string(tnum) + ") " + wname(ei) +
-            " mod size(" + std::to_string(wasm.size()) + "), cold";
+            " mod size(" + std::to_string(wasm.size()) +
+            "), cold, meter: " + std::to_string(meter);
         testcase(s);
 
         auto& times(testTimes[tnum][ei]);
 
+        if (meter)
+            e.setMeter();
+
         times[0] = usecs();
         for (int i = 0; i < inum; ++i)
         {
+            if (meter && ei == wasmEngines::Er)
+                e.setMeter();
             // if (!(i % 50))
             //     e.clearModules();
             auto const midx = e.addModule(wasm);
@@ -1164,10 +1171,12 @@ public:
             //ptest8("ZKProof aot", 17, static_cast<wasmEngines>(e), *engine, 50, zkAotHex, "bellman_groth16_test", true); engine->clearModules();
 
 
-            if (engine->isImplemented(18)) ptest6("Fib x64 small meter", 18, static_cast<wasmEngines>(e), *engine, GAS_CHECK_N, fib64Hex, "fib", FIB_VAL_GAS_CHECK, true, true); engine->clearModules();
-            if (engine->isImplemented(19)) ptest7("Sha512 small meter", 19, static_cast<wasmEngines>(e), *engine, GAS_CHECK_N, sha512PureHex, tx_js, true, true); engine->clearModules();
-            std::string sv_res;
-            if (engine->isImplemented(20)) ptest9("Base58 small meter", 20, static_cast<wasmEngines>(e), *engine, GAS_CHECK_N, b58Hex, "b58enco", std::string_view(tx_js.data(), 128), sv_res, true, true); engine->clearModules();
+            // if (engine->isImplemented(0)) ptest0("AddModule", 0, static_cast<wasmEngines>(e), *engine, ADD_MOD_SMALL_N, fib64Hex, true); engine->clearModules();
+
+             //if (engine->isImplemented(18)) ptest6("Fib x64 small meter", 18, static_cast<wasmEngines>(e), *engine, GAS_CHECK_N, fib64Hex, "fib", FIB_VAL_GAS_CHECK, true, true); engine->clearModules();
+             //if (engine->isImplemented(19)) ptest7("Sha512 small meter", 19, static_cast<wasmEngines>(e), *engine, GAS_CHECK_N, sha512PureHex, std::string_view(tx_js.data(), 128), true, true); engine->clearModules();
+             std::string sv_res;
+             if (engine->isImplemented(20)) ptest9("Base58 small meter", 20, static_cast<wasmEngines>(e), *engine, GAS_CHECK_N, b58Hex, "b58enco", std::string_view(tx_js.data(), 128), sv_res, true, true); engine->clearModules();
 
             static_assert(sizeof(testNames)/sizeof(testNames[0]) >= 20);
             // clang-format ON

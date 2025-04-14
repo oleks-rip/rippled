@@ -503,7 +503,7 @@ WamrEngineImpl::WamrEngineImpl()
     : engine(wamr_engine_new(), &wamr_engine_delete)
     , store(wamr_store_new(engine.get()), &wamr_store_delete)
 {
-    // wamr_runtime_set_default_running_mode(Mode_LLVM_JIT);
+    // wamr_runtime_set_default_running_mode(Mode_Interp);
     wamr_runtime_set_log_level(WASM_LOG_LEVEL_FATAL);
 }
 
