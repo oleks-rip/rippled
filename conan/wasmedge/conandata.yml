@@ -1,0 +1,10 @@
+patches:
+  0.14.1:
+  - patch_description: fix use latest llvm
+    patch_file: patches/use_llvm.patch
+    patch_type: conan
+sources:
+  0.14.1:
+    sha256: ff95d3b9d4736f36e31c0477208cc70f12a0a3f946bbf756f1e7b181877d5af3
+    url: https://github.com/WasmEdge/WasmEdge/archive/refs/tags/0.14.1.tar.gz
+

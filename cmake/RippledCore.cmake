@@ -65,6 +65,9 @@ target_link_libraries(xrpl.imports.main
     xrpl.libpb
     xxHash::xxhash
     $<$<BOOL:${voidstar}>:antithesis-sdk-cpp>
+    wasmedge_so::wasmedge_so
+    #wasmi_so::wasmi_so
+    wamr_so::wamr_so
 )
 
 include(add_module)
