@@ -21,6 +21,7 @@
 
 #include <wamr_so.h>
 
+// #include <cstdarg>
 #include <memory>
 
 namespace ripple {
@@ -29,7 +30,7 @@ namespace ripple {
 
 namespace {
 static wasm_trap_t*
-get_ledger_sqn(void* env, const wasm_val_vec_t*, wasm_val_vec_t* results)
+get_ledger_sqn(void* env, wasm_val_vec_t const*, wasm_val_vec_t* results)
 {
     auto sqn = reinterpret_cast<LedgerDataProvider*>(env)->get_ledger_sqn();
     if (results->size)
@@ -40,8 +41,48 @@ get_ledger_sqn(void* env, const wasm_val_vec_t*, wasm_val_vec_t* results)
     return nullptr;
 }
 
+// // This function is called from WAMR to log messages.
+// extern "C" void
+// wamr_log_to_rippled(
+//     uint32_t logLevel,
+//     char const* file,
+//     int line,
+//     char const* fmt,
+//     ...)
+// {
+//     // beast::Journal j = WasmEngine::instance().getJournal();
+
+//     std::ostringstream oss;
+
+//     // Format the variadic args
+//     if (file)
+//     {
+//         oss << "WAMR (" << file << ":" << line << "): ";
+//     }
+//     else
+//     {
+//         oss << "WAMR: ";
+//     }
+
+//     va_list args;
+//     va_start(args, fmt);
+
+//     char formatted[4096];
+//     vsnprintf(formatted, sizeof(formatted), fmt, args);
+//     formatted[sizeof(formatted) - 1] = '\0';
+
+//     va_end(args);
+
+//     oss << formatted;
+
+//     // j.stream(getLogLevel(logLevel)) << oss.str();
+// #ifdef DEBUG_OUTPUT_WAMR
+//     std::cerr << oss.str() << std::endl;
+// #endif
+// }
+
 static void
-print_wasm_error(const char* message, wasm_trap_t* trap)
+print_wasm_error(char const* message, wasm_trap_t* trap)
 {
     fprintf(stderr, "error: %s\n", message);
     wasm_byte_vec_t error_message;
@@ -51,7 +92,7 @@ print_wasm_error(const char* message, wasm_trap_t* trap)
         wamr_trap_message(trap, &error_message);
         wamr_trap_delete(trap);
     }
-    fprintf(stderr, "%.*s\n", (int)error_message.size, error_message.data);
+    fprintf(stderr, "%.*s\n", (int)error_message.num_elems-1, error_message.data);
     wamr_byte_vec_delete(&error_message);
 }
 
@@ -171,7 +212,7 @@ public:
             auto const* exp_type(export_types.data[i]);
 
             wasm_name_t const* name = wamr_exporttype_name(exp_type);
-            const wasm_externtype_t* exn_type = wamr_exporttype_type(exp_type);
+            wasm_externtype_t const* exn_type = wamr_exporttype_type(exp_type);
             if (wamr_externtype_kind(exn_type) == WASM_EXTERN_FUNC)
             {
                 if (funcName == std::string_view(name->data, name->size - 1))
@@ -224,6 +265,7 @@ public:
 struct my_module_t
 {
     module_t module;
+    wasm_exec_env_t exec_env = nullptr;
     std::vector<my_mod_inst_t> mod_inst;
     wasm_exporttype_vec_t export_types;
 
@@ -267,6 +309,8 @@ public:
             wamr_exporttype_vec_delete(&export_types);
         export_types = o.export_types;
         o.export_types = {0, nullptr, 0, 0, nullptr};
+        exec_env = o.exec_env;
+        o.exec_env = nullptr;
         return *this;
     }
 
@@ -284,7 +328,10 @@ public:
 
         wamr_module_exports(module.get(), &export_types);
         if (instantiate)
+        {
             mod_inst.emplace_back(s, module.get(), imports);
+            exec_env = wamr_instance_exec_env(mod_inst[0].mod_inst.get());
+        }
     }
 
     ~my_module_t()
@@ -316,10 +363,15 @@ public:
             if (!ins)
             {
                 ins = {s, module.get(), imports};
+                if (!exec_env)
+                    exec_env = wamr_instance_exec_env(ins.mod_inst.get());
+
                 return i;
             }
         }
         mod_inst.emplace_back(s, module.get(), imports);
+        if (!exec_env)
+            exec_env = wamr_instance_exec_env(mod_inst[0].mod_inst.get());
         return static_cast<int>(mod_inst.size()) - 1;
     }
 
@@ -331,6 +383,19 @@ public:
         if (!mod_inst[i])
             mod_inst[i] = my_mod_inst_t();
         return i;
+    }
+
+    std::int64_t
+    setGas(std::int64_t gas, int i = 0)
+    {
+        wamr_runtime_set_instruction_count_limit(exec_env, gas);
+        return gas;
+    }
+
+    std::int64_t
+    getRemainingGas(int i = 0)
+    {
+        return wamr_runtime_get_instruction_count_limit(exec_env);
     }
 };
 
@@ -347,6 +412,7 @@ class WamrEngineImpl
     std::unique_ptr<wasm_store_t, decltype(&wamr_store_delete)> store;
     std::vector<my_module_t> modules;
     wasm_trap_t* trap = nullptr;
+    std::int64_t defGas = -1;
 
 public:
     WamrEngineImpl();
@@ -418,15 +484,29 @@ public:
     runFunc64(std::string_view const funcName, int64_t p, int m, int i);
 
     std::vector<uint64_t>
-    runSha(std::string_view const data, int m, int i);
+    runFunc(
+        std::string_view const funcName,
+        std::string_view const data,
+        int m,
+        int i);
 
     int32_t
-    runEnc(
+    runFunc(
         std::string_view const funcName,
         std::string& sv_res,
         std::string_view const data,
         int m,
         int i);
+
+    std::int64_t
+    setMeter(std::int64_t def);
+
+    // gas = 1'000'000'000LL
+    std::int64_t
+    setGas(std::int64_t gas, int m, int i = 0);
+
+    std::int64_t
+    getRemainingGas(int m, int i = 0);
 
 protected:
     int
@@ -503,7 +583,7 @@ WamrEngineImpl::WamrEngineImpl()
     : engine(wamr_engine_new(), &wamr_engine_delete)
     , store(wamr_store_new(engine.get()), &wamr_store_delete)
 {
-    // wamr_runtime_set_default_running_mode(Mode_Interp);
+    wamr_runtime_set_default_running_mode(Mode_Interp);
     wamr_runtime_set_log_level(WASM_LOG_LEVEL_FATAL);
 }
 
@@ -520,7 +600,9 @@ int
 WamrEngineImpl::addModule(vbytes const& wasmCode, bool instantiate)
 {
     modules.emplace_back(store.get(), wasmCode, instantiate);
-    return static_cast<int>(modules.size()) - 1;
+    int const midx = static_cast<int>(modules.size()) - 1;
+    setGas(defGas, midx);
+    return midx;
 }
 
 int
@@ -904,9 +986,12 @@ WamrEngineImpl::runFunc64(
 }
 
 std::vector<uint64_t>
-WamrEngineImpl::runSha(std::string_view const data, int m, int i)
+WamrEngineImpl::runFunc(
+    std::string_view const funcName,
+    std::string_view const data,
+    int m,
+    int i)
 {
-    std::string_view funcName = "sha512_process";
     auto* f = getFunc(funcName, m, i);
     auto res = call<1>(
         f, m, i, reinterpret_cast<uint8_t const*>(data.data()), data.size());
@@ -923,7 +1008,7 @@ WamrEngineImpl::runSha(std::string_view const data, int m, int i)
 }
 
 int32_t
-WamrEngineImpl::runEnc(
+WamrEngineImpl::runFunc(
     std::string_view const funcName,
     std::string& sv_res,
     std::string_view const data,
@@ -958,11 +1043,31 @@ WamrEngineImpl::runEnc(
     return 1;
 }
 
+std::int64_t
+WamrEngineImpl::setMeter(std::int64_t def)
+{
+    defGas = def;
+    return def;
+}
+
+std::int64_t
+WamrEngineImpl::setGas(std::int64_t gas, int m, int i)
+{
+    modules[m].setGas(gas, i);
+    return gas;
+}
+
+std::int64_t
+WamrEngineImpl::getRemainingGas(int m, int i)
+{
+    return modules[m].getRemainingGas(i);
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////
 
 WamrEngine::WamrEngine()
     : WasmEngine(
-          {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1})
+          {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1})
     , impl(std::make_unique<WamrEngineImpl>())
 {
 }
@@ -1169,20 +1274,42 @@ WamrEngine::runFunc64(std::string_view const funcName, int64_t p, int m, int i)
 }
 
 std::vector<uint64_t>
-WamrEngine::runSha(std::string_view const data, int m, int i)
+WamrEngine::runFunc(
+    std::string_view const funcName,
+    std::string_view const data,
+    int m,
+    int i)
 {
-    return impl->runSha(data, m, i);
+    return impl->runFunc(funcName, data, m, i);
 }
 
 int32_t
-WamrEngine::runEnc(
+WamrEngine::runFunc(
     std::string_view const funcName,
     std::string& sv_res,
     std::string_view const data,
     int m,
     int i)
 {
-    return impl->runEnc(funcName, sv_res, data, m, i);
+    return impl->runFunc(funcName, sv_res, data, m, i);
+}
+
+std::int64_t
+WamrEngine::setMeter(std::int64_t def)
+{
+    return impl->setMeter(def);
+}
+
+std::int64_t
+WamrEngine::setGas(std::int64_t gas, int m, int i)
+{
+    return impl->setGas(gas, m, i);
+}
+
+std::int64_t
+WamrEngine::getRemainingGas(int m, int i)
+{
+    return impl->getRemainingGas(m, i);
 }
 
 }  // namespace ripple

@@ -18,14 +18,15 @@
 //==============================================================================
 
 #include <xrpld/app/misc/WamrVM.h>
-#include <xrpld/app/misc/WasmEdgeVM.h>
+// #include <xrpld/app/misc/WasmTimeVM.h>
+// #include <xrpld/app/misc/WasmEdgeVM.h>
 // #include <xrpld/app/misc/WasmiVM.h>
 
 #include <memory>
 
 namespace ripple {
 
-static wasmEngines g_engine = wasmEngines::Edge;
+static wasmEngines g_engine = wasmEngines::Wamr;
 
 void
 setWasmEngine(wasmEngines engine)
@@ -92,15 +93,16 @@ WasmEngine::instance()
     {
         case wasmEngines::Wamr:
             return std::make_unique<WamrEngine>();
+        case wasmEngines::Time:
+        //     return std::make_unique<WasmEngineTime>();
         case wasmEngines::I:
             // return std::make_unique<WasmEngineI>();
         case wasmEngines::Er:
             // return std::make_unique<WasmEngineEr>();
-        case wasmEngines::Time:
-            // return std::make_unique<WasmEngineTime>();
-        case wasmEngines::Edge:
+        // case wasmEngines::Edge:
         default:
-            return std::make_unique<WasmEngineEdge>();
+            // return std::make_unique<WasmEngineEdge>();
+            return std::make_unique<WamrEngine>();
     }
 }
 

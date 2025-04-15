@@ -1,5 +1,49 @@
 #include "wamr_so.h"
 
+#include <stdarg.h>
+#include <stdio.h>
+
+//extern "C"
+void
+wamr_log_to_rippled(
+    uint32_t logLevel,
+    char const* file,
+    int line,
+    char const* fmt,
+    ...)
+{
+    // beast::Journal j = WasmEngine::instance().getJournal();
+
+    //std::ostringstream oss;
+
+    // Format the variadic args
+    // if (file)
+    // {
+    //     oss << "WAMR (" << file << ":" << line << "): ";
+    // }
+    // else
+    // {
+    //     oss << "WAMR: ";
+    // }
+
+    va_list args;
+    va_start(args, fmt);
+
+    char formatted[4096];
+    vsnprintf(formatted, sizeof(formatted), fmt, args);
+    formatted[sizeof(formatted) - 1] = '\0';
+
+    va_end(args);
+
+    //oss << formatted;
+
+    // j.stream(getLogLevel(logLevel)) << oss.str();
+#ifdef DEBUG_OUTPUT_WAMR
+    std::cerr << oss.str() << std::endl;
+    printf("%s", formatted);
+#endif
+}
+
 wasm_engine_t*
 wamr_engine_new(void)
 {
@@ -303,4 +347,22 @@ void
 wamr_runtime_set_log_level(log_level_t level)
 {
     return wasm_runtime_set_log_level(level);
+}
+
+wasm_exec_env_t wamr_instance_exec_env(const wasm_instance_t*i)
+{
+    return wasm_instance_exec_env(i);
+}
+
+void
+wamr_runtime_set_instruction_count_limit(wasm_exec_env_t exec_env,
+                                         int64_t instruction_count)
+{
+    return wasm_runtime_set_instruction_count_limit(exec_env, instruction_count);
+}
+
+int64_t
+wamr_runtime_get_instruction_count_limit(wasm_exec_env_t exec_env)
+{
+    return wasm_runtime_get_instruction_count_limit(exec_env);
 }

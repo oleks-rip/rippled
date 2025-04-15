@@ -23,7 +23,9 @@
 #include <xrpl/protocol/TER.h>
 
 #include <array>
+#include <cstdint>
 #include <string_view>
+#include <vector>
 
 namespace ripple {
 
@@ -34,17 +36,17 @@ struct vmem
     std::size_t s = 0;
 };
 
-static const std::string_view V_MEM = "memory";
-static const std::string_view V_STORE = "store";
-static const std::string_view V_LOAD = "load";
-static const std::string_view V_SIZE = "size";
+static std::string_view const V_MEM = "memory";
+static std::string_view const V_STORE = "store";
+static std::string_view const V_LOAD = "load";
+static std::string_view const V_SIZE = "size";
 
-static const std::string_view V_ALLOC = "allocate";
-static const std::string_view V_DEALLOC = "deallocate";
+static std::string_view const V_ALLOC = "allocate";
+static std::string_view const V_DEALLOC = "deallocate";
 
-static const std::string_view VW_PROC_EXIT = "proc_exit";
+static std::string_view const VW_PROC_EXIT = "proc_exit";
 
-static const unsigned MAX_IMPORT = 10;
+static unsigned const MAX_IMPORT = 10;
 
 enum wasmEngines { Wamr, Edge, Time, Er, I, END };
 void setWasmEngine(wasmEngines);
@@ -232,13 +234,17 @@ public:
     }
 
     virtual std::vector<uint64_t>
-    runSha(std::string_view const data, int m, int i = 0)
+    runFunc(
+        std::string_view const funcName,
+        std::string_view const data,
+        int m,
+        int i = 0)
     {
         return {};
     }
 
     virtual int32_t
-    runEnc(
+    runFunc(
         std::string_view const funcName,
         std::string& sv_res,
         std::string_view const data,

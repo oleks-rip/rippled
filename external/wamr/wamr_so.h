@@ -1,13 +1,16 @@
 #pragma once
 
-#include <iwasm/wasm_c_api.h>
-#include <iwasm/wasm_export.h>
+#include <wasm_c_api.h>
+#include <wasm_export.h>
 
 // #pragma GCC visibility push(default)
 
 #if !defined(wamr_so_EXPORTS) && defined(__cplusplus)
 extern "C" {
 #endif
+
+void
+wamr_log_to_rippled(uint32_t logLevel, char const* file, int line, char const* fmt, ...);
 
 wasm_engine_t*
 wamr_engine_new(void);
@@ -175,6 +178,15 @@ wamr_runtime_get_running_mode(wasm_module_inst_t module_inst);
 
 void
 wamr_runtime_set_log_level(log_level_t level);
+
+wasm_exec_env_t
+wamr_instance_exec_env(const wasm_instance_t*);
+void
+wamr_runtime_set_instruction_count_limit(
+    wasm_exec_env_t exec_env,
+    int64_t instruction_count);
+int64_t
+wamr_runtime_get_instruction_count_limit(wasm_exec_env_t exec_env);
 
 #if !defined(wamr_so_EXPORTS) && defined(__cplusplus)
 }

@@ -17,7 +17,7 @@
 */
 //==============================================================================
 #pragma once
-
+/*
 #include <xrpld/app/misc/WasmVM.h>
 
 namespace ripple {
@@ -109,3 +109,4 @@ public:
 };
 
 }  // namespace ripple
+*/

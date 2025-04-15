@@ -65,10 +65,15 @@ target_link_libraries(xrpl.imports.main
     xrpl.libpb
     xxHash::xxhash
     $<$<BOOL:${voidstar}>:antithesis-sdk-cpp>
-    wasmedge_so::wasmedge_so
+    #wasmedge_so::wasmedge_so
     #wasmi_so::wasmi_so
     wamr_so::wamr_so
 )
+
+if (WIN32)
+  target_link_libraries(xrpl.imports.main INTERFACE ntdll)
+endif()
+
 
 include(add_module)
 include(target_link_modules)
