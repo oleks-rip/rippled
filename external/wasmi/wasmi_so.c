@@ -1,9 +1,104 @@
 #include "wasmi_so.h"
 
+wasmi_error_t *wasmi3_error_new(const char *s)
+{
+    return wasmi_error_new(s);
+}
+
+void wasmi3_error_delete( wasmi_error_t *error)
+{
+    // return wasmi_error_delete(error);
+}
+
+void wasmi3_error_message(const wasmi_error_t *error,
+                                            wasm_name_t *message)
+{
+    // return wasmi_error_message(error, message);
+}
+
+wasm_config_t*
+wasmi2_config_new(void)
+{
+    return wasm_config_new();
+}
+
+void
+wasmi2_config_delete(wasm_config_t* c)
+{
+    return wasm_config_delete(c);
+}
+
+void
+wasmi3_config_consume_fuel_set(wasm_config_t* c, bool v)
+{
+    return wasmi_config_consume_fuel_set(c, v);
+}
+void
+wasmi3_config_wasm_sign_extension_set(wasm_config_t* c, bool v)
+{
+    return wasmi_config_wasm_sign_extension_set(c, v);
+}
+void
+wasmi3_config_wasm_saturating_float_to_int_set(wasm_config_t* c, bool v)
+{
+    return wasmi_config_wasm_saturating_float_to_int_set(c, v);
+}
+void
+wasmi3_config_wasm_bulk_memory_set(wasm_config_t* c, bool v)
+{
+    return wasmi_config_wasm_bulk_memory_set(c, v);
+}
+void
+wasmi3_config_wasm_reference_types_set(wasm_config_t* c, bool v)
+{
+    return wasmi_config_wasm_reference_types_set(c, v);
+}
+void
+wasmi3_config_wasm_tail_call_set(wasm_config_t* c, bool v)
+{
+    return wasmi_config_wasm_tail_call_set(c, v);
+}
+void
+wasmi3_config_wasm_extended_const_set(wasm_config_t* c, bool v)
+{
+    return wasmi_config_wasm_extended_const_set(c, v);
+}
+void
+wasmi3_config_floats_set(wasm_config_t* c, bool v)
+{
+    return wasmi_config_floats_set(c, v);
+}
+void
+wasmi3_config_compilation_mode_set(wasm_config_t* c, bool v)
+{
+    return wasmi_config_compilation_mode_set(c, v);
+}
+void
+wasmi3_config_ignore_custom_sections_set(wasm_config_t* c, bool v)
+{
+    return wasmi_config_ignore_custom_sections_set(c, v);
+}
+void
+wasmi3_config_wasm_mutable_globals_set(wasm_config_t* c, bool v)
+{
+    return wasmi_config_wasm_mutable_globals_set(c, v);
+}
+void
+wasmi3_config_wasm_multi_value_set(wasm_config_t* c, bool v)
+{
+    return wasmi_config_wasm_multi_value_set(c, v);
+}
+
 wasm_engine_t*
 wasmi2_engine_new(void)
 {
     return wasm_engine_new();
+}
+
+wasm_engine_t*
+wasmi2_engine_new_with_config(wasm_config_t* c)
+{
+    return wasm_engine_new_with_config(c);
 }
 
 void
@@ -22,6 +117,18 @@ void
 wasmi2_store_delete(wasm_store_t* o)
 {
     return wasm_store_delete(o);
+}
+
+wasmi_store_t*
+wasmi3_store_new(wasm_engine_t* e, void *data, void (*finalizer)(void *))
+{
+    return wasmi_store_new(e, data, finalizer);
+}
+
+void
+wasmi3_store_delete(wasmi_store_t* o)
+{
+    return wasmi_store_delete(o);
 }
 
 wasm_module_t*
@@ -282,4 +389,23 @@ void
 wasmi2_trap_delete(wasm_trap_t* t)
 {
     return wasm_trap_delete(t);
+}
+
+
+wasmi_context_t*
+wasmi3_store_context(wasmi_store_t* store)
+{
+    return wasmi_store_context(store);
+}
+
+wasmi_error_t*
+wasmi3_store_set_fuel(wasm_store_t* ctx, uint64_t fuel)
+{
+    return wasm_store_set_fuel(ctx, fuel);
+}
+
+wasmi_error_t*
+wasmi3_store_get_fuel( wasm_store_t const* ctx, uint64_t* fuel)
+{
+    return wasm_store_get_fuel(ctx, fuel);
 }

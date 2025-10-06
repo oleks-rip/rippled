@@ -16,11 +16,11 @@ add_library(wasmi_so SHARED
 add_library(wasmi_so::wasmi_so ALIAS wasmi_so)
 
 target_link_libraries(wasmi_so PRIVATE
-	-Wl,--no-undefined
-	-Wl,-Bsymbolic-functions
-	-Wl,--exclude-libs,ALL
-	wasmi::wasmi
-	m
+    -Wl,--no-undefined
+    -Wl,-Bsymbolic-functions
+    -Wl,--exclude-libs,ALL
+    wasmi::wasmi
+    m
     z
     dl
 )

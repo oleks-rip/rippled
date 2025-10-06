@@ -20,7 +20,7 @@
 #include <xrpld/app/misc/WamrVM.h>
 #include <xrpld/app/misc/WasmTimeVM.h>
 // #include <xrpld/app/misc/WasmEdgeVM.h>
-// #include <xrpld/app/misc/WasmiVM.h>
+#include <xrpld/app/misc/WasmiVM.h>
 
 #include <memory>
 
@@ -96,13 +96,12 @@ WasmEngine::instance()
         case wasmEngines::Time:
             return std::make_unique<WasmEngineTime>();
         case wasmEngines::I:
-            // return std::make_unique<WasmEngineI>();
+            return std::make_unique<WasmEngineI>();
         case wasmEngines::Er:
             // return std::make_unique<WasmEngineEr>();
-        // case wasmEngines::Edge:
+        case wasmEngines::Edge:
         default:
-            // return std::make_unique<WasmEngineEdge>();
-            return std::make_unique<WamrEngine>();
+            throw std::runtime_error("no engine implemented");
     }
 }
 

@@ -6,8 +6,49 @@
 extern "C" {
 #endif
 
+wasmi_error_t *
+wasmi3_error_new(const char *s);
+void
+wasmi3_error_delete( wasmi_error_t *error);
+void
+wasmi3_error_message(const wasmi_error_t *error, wasm_name_t *message);
+
+wasm_config_t*
+wasmi2_config_new(void);
+void
+wasmi2_config_delete(wasm_config_t* config);
+
+void
+wasmi3_config_consume_fuel_set(wasm_config_t* c, bool v);
+void
+wasmi3_config_wasm_sign_extension_set(wasm_config_t* c, bool v);
+void
+wasmi3_config_wasm_saturating_float_to_int_set(wasm_config_t* c, bool v);
+void
+wasmi3_config_wasm_bulk_memory_set(wasm_config_t* c, bool v);
+void
+wasmi3_config_wasm_reference_types_set(wasm_config_t* c, bool v);
+void
+wasmi3_config_wasm_tail_call_set(wasm_config_t* c, bool v);
+void
+wasmi3_config_wasm_extended_const_set(wasm_config_t* c, bool v);
+void
+wasmi3_config_floats_set(wasm_config_t* c, bool v);
+void
+wasmi3_config_compilation_mode_set(wasm_config_t* c, bool v);
+void
+wasmi3_config_ignore_custom_sections_set(wasm_config_t* c, bool v);
+void
+wasmi3_config_wasm_mutable_globals_set(wasm_config_t* c, bool v);
+void
+wasmi3_config_wasm_multi_value_set(wasm_config_t* c, bool v);
+
+
+
 wasm_engine_t*
 wasmi2_engine_new(void);
+wasm_engine_t*
+wasmi2_engine_new_with_config(wasm_config_t*);
 
 void
 wasmi2_engine_delete(wasm_engine_t* o);
@@ -17,8 +58,19 @@ wasmi2_store_new(wasm_engine_t*);
 void
 wasmi2_store_delete(wasm_store_t* o);
 
+wasmi_store_t*
+wasmi3_store_new(wasm_engine_t* e, void *data, void (*finalizer)(void *));
+void
+wasmi3_store_delete(wasmi_store_t* o);
+
 wasm_module_t*
 wasmi2_module_new(wasm_store_t*, wasm_byte_vec_t const*);
+// wasmi_error_t*
+// wasmi3_module_new(
+//     wasm_engine_t* e,
+//     const uint8_t* wasm,
+//     size_t sz,
+//     wasmi_module_t** m);
 void
 wasmi2_module_delete(wasm_module_t* o);
 void
@@ -165,13 +217,13 @@ wasmi2_trap_delete(wasm_trap_t*);
 
 // FUEL
 wasmi_context_t*
-wasmi2_store_context(wasmi_store_t* store);
+wasmi3_store_context(wasmi_store_t* store);
 
 wasmi_error_t*
-wasmi2_context_set_fuel(wasmi_context_t* store, uint64_t fuel);
+wasmi3_store_set_fuel(wasm_store_t* ctx, uint64_t fuel);
 
 wasmi_error_t*
-wasmi2_context_get_fuel(const wasmi_context_t* context, uint64_t* fuel);
+wasmi3_store_get_fuel(const wasm_store_t* ctx, uint64_t* fuel);
 
 #if !defined(wasmi_so_EXPORTS) && defined(__cplusplus)
 }

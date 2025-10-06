@@ -1,14 +1,19 @@
-from conans import ConanFile, tools
+from conan import ConanFile, tools
 from conan.tools.cmake import CMake, CMakeToolchain, CMakeDeps, cmake_layout
-from conan.tools.files import apply_conandata_patches, export_conandata_patches, get, copy
+from conan.tools.files import (
+    apply_conandata_patches,
+    export_conandata_patches,
+    # get,
+)
+from conan.tools.scm import Git
+
 import os
-import json
+# import json
 
 required_conan_version = ">=1.55.0"
 
 class WasmiConan(ConanFile):
     name = "wasmi"
-    version = "0.42.1"
     license = "Apache License v2.0"
     url = "https://github.com/wasmi-labs/wasmi.git"
     description = "WebAssembly (Wasm) interpreter"
@@ -16,15 +21,14 @@ class WasmiConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
     options = {"shared": [True, False]}
     default_options = {"shared": False}
-    generators = "CMakeToolchain", "CMakeDeps"
+    # generators = "CMakeToolchain", "CMakeDeps"
     #requires = [("llvm/20.1.1@")]
 
     def export_sources(self):
         export_conandata_patches(self)
         pass
 
-
-    #def build_requirements(self):
+    # def build_requirements(self):
     #    self.tool_requires("llvm/20.1.1")
 
 
@@ -39,11 +43,20 @@ class WasmiConan(ConanFile):
 
 
     def source(self):
-        get(self, **self.conan_data["sources"][self.version], strip_root=True)
+        git = Git(self)
+        git.fetch_commit(
+            url="https://github.com/wasmi-labs/wasmi.git",
+            commit="f628a7a86c9715f2c306f6ef9aea1cc2bdca5fa7",
+        )
+        #get(self, **self.conan_data["sources"][self.version], strip_root=True)
 
 
     def generate(self):
         tc = CMakeToolchain(self)
+
+        tc.variables["CMAKE_CXX_STANDARD"] = 20
+        tc.variables["BUILD_SHARED_LIBS"] = 0
+
         tc.generate()
 
         # This generates "foo-config.cmake" and "bar-config.cmake" in self.generators_folder

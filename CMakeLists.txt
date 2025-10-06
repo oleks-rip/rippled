@@ -100,7 +100,7 @@ add_library(secp256k1::secp256k1 ALIAS secp256k1)
 add_subdirectory(external/ed25519-donna)
 add_subdirectory(external/antithesis-sdk)
 #add_subdirectory(external/wasmedge)
-#add_subdirectory(external/wasmi)
+add_subdirectory(external/wasmi)
 add_subdirectory(external/wasmtime)
 add_subdirectory(external/wamr)
 

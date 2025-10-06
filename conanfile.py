@@ -33,7 +33,7 @@ class Xrpl(ConanFile):
         # 'wasmedge/0.14.1',
         'wasm-xrplf/2.4.1-xrplf',
         'wasmtime/37.0.0',
-        'wasmi/0.51.1',
+        'wasmi/0.42.1',
     ]
 
     test_requires = [

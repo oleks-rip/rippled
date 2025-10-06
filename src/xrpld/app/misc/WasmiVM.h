@@ -17,7 +17,7 @@
 */
 //==============================================================================
 #pragma once
-/*
+
 #include <xrpld/app/misc/WasmVM.h>
 
 namespace ripple {
@@ -97,16 +97,28 @@ public:
         override;
 
     virtual std::vector<uint64_t>
-    runSha(std::string_view const data, int m, int i) override;
+    runFunc(
+        std::string_view const funcName,
+        std::string_view const data,
+        int m,
+        int i) override;
 
     virtual int32_t
-    runEnc(
+    runFunc(
         std::string_view const funcName,
         std::string& sv_res,
         std::string_view const data,
         int m,
         int i) override;
+
+    virtual std::int64_t
+    setMeter(std::int64_t def) override;
+
+    virtual std::int64_t
+    setGas(std::int64_t gas, int m, int i) override;
+
+    virtual std::int64_t
+    getRemainingGas(int m, int i) override;
 };
 
 }  // namespace ripple
-*/

@@ -49,15 +49,23 @@ static void
 print_wasm_error(char const* message, wasm_trap_t* trap)
 {
     fprintf(stderr, "error: %s\n", message);
-    wasm_byte_vec_t error_message;
+    wasm_byte_vec_t error_message = WASM_EMPTY_VEC;
 
     if (trap)
     {
         wasmtime2_trap_message(trap, &error_message);
         wasmtime2_trap_delete(trap);
+
+        fprintf(
+            stderr,
+            "%s %.*s\n",
+            message,
+            (int)error_message.size,
+            error_message.data);
+        wasmtime2_byte_vec_delete(&error_message);
     }
-    fprintf(stderr, "%.*s\n", (int)error_message.size, error_message.data);
-    wasmtime2_byte_vec_delete(&error_message);
+    else
+        fprintf(stderr, "%s\n", message);
 }
 
 // clang-format off

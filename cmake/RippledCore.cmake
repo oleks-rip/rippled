@@ -67,7 +67,7 @@ target_link_libraries(xrpl.imports.main
     $<$<BOOL:${voidstar}>:antithesis-sdk-cpp>
     #wasmedge_so::wasmedge_so
     wasmtime_so::wasmtime_so
-    #wasmi_so::wasmi_so
+    wasmi_so::wasmi_so
     wamr_so::wamr_so
 )
 

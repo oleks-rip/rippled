@@ -1107,11 +1107,11 @@ public:
             // clang-format off
             // debug
             if (
-                  (e == wasmEngines::Edge)
-            // || (e == wasmEngines::Time)
-            // || (e == wasmEngines::Wamr)
-               || (e == wasmEngines::Er)
-               || (e == wasmEngines::I)
+                (e == wasmEngines::Edge)
+          // || (e == wasmEngines::Time)
+          // || (e == wasmEngines::Wamr)
+             || (e == wasmEngines::Er)
+          // || (e == wasmEngines::I)
             ) continue;
             // clang-format on
 
