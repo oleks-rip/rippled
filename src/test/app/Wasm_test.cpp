@@ -1108,8 +1108,8 @@ public:
             // debug
             if (
                   (e == wasmEngines::Edge)
-               || (e == wasmEngines::Time)
-             //|| (e == wasmEngines::Wamr)
+            // || (e == wasmEngines::Time)
+            // || (e == wasmEngines::Wamr)
                || (e == wasmEngines::Er)
                || (e == wasmEngines::I)
             ) continue;

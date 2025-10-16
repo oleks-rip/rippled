@@ -18,7 +18,7 @@
 //==============================================================================
 
 #include <xrpld/app/misc/WamrVM.h>
-// #include <xrpld/app/misc/WasmTimeVM.h>
+#include <xrpld/app/misc/WasmTimeVM.h>
 // #include <xrpld/app/misc/WasmEdgeVM.h>
 // #include <xrpld/app/misc/WasmiVM.h>
 
@@ -94,7 +94,7 @@ WasmEngine::instance()
         case wasmEngines::Wamr:
             return std::make_unique<WamrEngine>();
         case wasmEngines::Time:
-        //     return std::make_unique<WasmEngineTime>();
+            return std::make_unique<WasmEngineTime>();
         case wasmEngines::I:
             // return std::make_unique<WasmEngineI>();
         case wasmEngines::Er:
