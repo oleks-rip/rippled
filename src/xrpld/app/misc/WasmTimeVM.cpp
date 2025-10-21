@@ -620,7 +620,7 @@ WasmEngineTimeImpl::WasmEngineTimeImpl()
 bool
 WasmEngineTimeImpl::setInterp(wasm_config_t* c)
 {
-    // return true;  // enable jit
+    return true;  // enable jit
 
     auto* err = wasmtime2_config_target_set(c, "pulley64");
     if (err)

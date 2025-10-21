@@ -4,8 +4,8 @@ project(wasmtime_so
   LANGUAGES C
 )
 
-if(NOT TARGET wasmtime::wasmtime)
-  find_package(wasmtime REQUIRED)
+if(NOT TARGET wwinch::wwinch)
+  find_package(wwinch REQUIRED)
 endif()
 
 add_library(wasmtime_so SHARED
@@ -19,7 +19,7 @@ target_link_libraries(wasmtime_so PRIVATE
 	-Wl,--no-undefined
 	-Wl,-Bsymbolic-functions
 	-Wl,--exclude-libs,ALL	
-	wasmtime::wasmtime
+	wwinch::wwinch
     m
     z
     dl
@@ -28,7 +28,7 @@ target_link_libraries(wasmtime_so PRIVATE
 target_include_directories(wasmtime_so PUBLIC
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-  ${wasmtime_INCLUDE_DIR}
+  ${wwinch_INCLUDE_DIR}
 )
 
 install(
