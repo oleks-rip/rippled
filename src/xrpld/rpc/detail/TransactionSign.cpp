@@ -1023,12 +1023,16 @@ transactionSubmit(
 
     auto const& ledger = app.openLedger().current();
     auto j = app.journal("RPCHandler");
-    JLOG(j.debug()) << "transactionSubmit: " << jvRequest;
+    // JLOG(j.debug()) << "transactionSubmit: " << jvRequest;
 
     // Add and amend fields based on the transaction type.
     SigningForParams signForParams;
     transactionPreProcessResult preprocResult = transactionPreProcessImpl(
         jvRequest, role, signForParams, validatedLedgerAge, app);
+
+    auto const& tx = preprocResult.second;
+    std::string const s = tx ? strHex(tx->getTransactionID()) : "_";
+    JLOG(j.debug()) << "transactionSubmit(" << s << "): " << jvRequest;
 
     if (!preprocResult.second)
         return preprocResult.first;
