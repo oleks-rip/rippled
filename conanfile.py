@@ -1,9 +1,6 @@
-import re
-
+from conan import ConanFile, __version__ as conan_version
 from conan.tools.cmake import CMake, CMakeToolchain, cmake_layout
-
-from conan import ConanFile
-from conan import __version__ as conan_version
+import re
 
 
 class Xrpl(ConanFile):
@@ -33,6 +30,7 @@ class Xrpl(ConanFile):
         "nudb/2.0.9",
         "openssl/3.5.4",
         "soci/4.0.3",
+        #"wasmi/0.42.1",
         "wasm-xrplf/2.4.1-xrplf",
         "zlib/1.3.1",
     ]
@@ -197,6 +195,7 @@ class Xrpl(ConanFile):
             "protobuf::libprotobuf",
             "soci::soci",
             "sqlite3::sqlite",
+            #"wasmi::wasmi",
             "wasm-xrplf::wasm-xrplf",
             "xxhash::xxhash",
             "zlib::zlib",
