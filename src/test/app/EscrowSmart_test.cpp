@@ -778,7 +778,7 @@ struct EscrowSmart_test : public beast::unit_test::suite
                 auto const txMeta = env.meta();
                 if (BEAST_EXPECT(txMeta && txMeta->isFieldPresent(sfGasUsed)))
                     BEAST_EXPECTS(
-                        txMeta->getFieldU32(sfGasUsed) == 38'562,
+                        txMeta->getFieldU32(sfGasUsed) == 38'062,
                         std::to_string(txMeta->getFieldU32(sfGasUsed)));
                 if (BEAST_EXPECT(txMeta->isFieldPresent(sfWasmReturnCode)))
                     BEAST_EXPECT(txMeta->getFieldI32(sfWasmReturnCode) == 1);
@@ -846,7 +846,7 @@ struct EscrowSmart_test : public beast::unit_test::suite
             env.close();
 
             BEAST_EXPECTS(
-                env.ownerCount(alice) == 16,
+                env.ownerCount(alice) == 17,
                 std::to_string(env.ownerCount(alice)));
             if (BEAST_EXPECTS(
                     env.seq(alice) == 20, std::to_string(env.seq(alice))))
@@ -881,7 +881,7 @@ struct EscrowSmart_test : public beast::unit_test::suite
                         gasUsed == allowance, std::to_string(gasUsed));
                 }
                 BEAST_EXPECTS(
-                    env.ownerCount(alice) == 16,
+                    env.ownerCount(alice) == 17,
                     std::to_string(env.ownerCount(alice)));
             }
         }

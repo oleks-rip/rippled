@@ -7,7 +7,6 @@
 
 #ifdef _DEBUG
 // #define DEBUG_OUTPUT 1
-// #define DEBUG_OUTPUT_WAMR 1
 #endif
 
 // #define SHOW_CALL_TIME 1
@@ -81,33 +80,32 @@ wamr_log_to_rippled(
     return;
 #endif
 
+#ifdef DEBUG_OUTPUT
+    auto& oss = std::cerr;
+#else
     beast::Journal j = WasmEngine::instance().getJournal();
-    std::ostringstream oss;
+    auto oss = j.stream(getLogLevel(logLevel));
+#endif
+
+    va_list args;
+    va_start(args, fmt);
+    char formatted[4096];
+    vsnprintf(formatted, sizeof(formatted), fmt, args);
+    formatted[sizeof(formatted) - 1] = '\0';
+    va_end(args);
 
     // Format the variadic args
     if (file)
     {
-        oss << "WAMR (" << file << ":" << line << "): ";
+        oss << "WAMR (" << file << ":" << line << "): " << formatted;
     }
     else
     {
-        oss << "WAMR: ";
+        oss << "WAMR: " << formatted;
     }
 
-    va_list args;
-    va_start(args, fmt);
-
-    char formatted[4096];
-    vsnprintf(formatted, sizeof(formatted), fmt, args);
-    formatted[sizeof(formatted) - 1] = '\0';
-
-    va_end(args);
-
-    oss << formatted;
-
-    j.stream(getLogLevel(logLevel)) << oss.str();
-#ifdef DEBUG_OUTPUT_WAMR
-    std::cerr << oss.str() << std::endl;
+#ifdef DEBUG_OUTPUT
+    oss << std::endl;
 #endif
 }
 

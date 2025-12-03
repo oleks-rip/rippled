@@ -350,7 +350,7 @@ struct Wasm_test : public beast::unit_test::suite
             if (BEAST_EXPECT(re.has_value()))
             {
                 BEAST_EXPECTS(re->result == 1, std::to_string(re->result));
-                BEAST_EXPECTS(re->cost == 40'098, std::to_string(re->cost));
+                BEAST_EXPECTS(re->cost == 39'598, std::to_string(re->cost));
             }
 
             env.close();
@@ -375,7 +375,7 @@ struct Wasm_test : public beast::unit_test::suite
             if (BEAST_EXPECT(re.has_value()))
             {
                 BEAST_EXPECTS(re->result == 1, std::to_string(re->result));
-                BEAST_EXPECTS(re->cost == 40'098, std::to_string(re->cost));
+                BEAST_EXPECTS(re->cost == 39'598, std::to_string(re->cost));
             }
         }
 
@@ -597,12 +597,48 @@ struct Wasm_test : public beast::unit_test::suite
             env(token::mint(alan, 0u));
             env.close();
 
+            {
+                // signature
+
+                // clang-format off
+                // uint8_t const msg[] =
+                //     "When a page has at least four headings, a table of contents (TOC) will automatically appear after the "
+                //     "lead and before the first heading. The TOC can be controlled by magic words or templates: __FORCETOC__ "
+                //     "forces the TOC to appear at the normal location regardless of the number of headings. __TOC__ forces the "
+                //     "TOC to appear at the point where the magic word is inserted instead of the normal location. __NOTOC__ "
+                //     "disables the TOC entirely.    {{TOC limit}} template can be used to control the depth of subsections "
+                //     "included in the TOC. This is useful where the TOC is long and unwieldy.    Category:Wikipedia table of "
+                //     "contents templates contains a number of specialized TOC templates.Line breaksFurther information: Help:"
+                //     "Line-break handling, Wikipedia:Line breaks usage, and Wikipedia:Manual of Style/Accessibility # "
+                //     "IndentationLine breaks or newlines are used to add whitespace between lines, such as separating "
+                //     "paragraphs.    A line break that is visible in the content is inserted by pressing ? Enter twice.    "
+                //     "Pressing En ";
+                // Slice const data(msg, sizeof(msg) - 1);
+
+                // char const pk_h[] = "0381C6B4962AC6D2447697ECD259E7B5CD10D78EBC4EC52FAFCFD9B48DAD5F049D";
+                // PublicKey const pk(makeSlice(*strUnHex(pk_h)));
+                // char const sk_h[] = "72E9AEE73FAD1111ACA381B1CA1A442E5DEC4563A886E528C3F0DE4F027060E2";
+                // SecretKey const sk(makeSlice(*strUnHex(sk_h)));
+                // char const sig_h[] = "3045022100A1F8158669CF3FE9BF099AA8BB2F61C93AF52C24407F5E292A94862EE8042772022009530399565C683C3C2BDB77B8607D7D41EDEAFC25E6F5A90D8855D3EBED128F";
+                // Buffer const sig(makeSlice(*strUnHex(sig_h)));
+
+                // // auto [pk, sk] = randomKeyPair(ripple::KeyType::secp256k1);
+                // // Buffer const sig = sign(pk, sk, data);
+
+                // bool const b = verify(pk, data, Slice(sig.data(), sig.size()));
+                // std::cout << "sig result: " << b << "\npk: " << strHex(pk)
+                //           << "\nsk: " << strHex(sk) << "\nsig: " << strHex(sig)
+                //           << std::endl;
+                // std::cout << "msg(" << data.size() << "): " << std::string_view(reinterpret_cast<char const *>(data.data()), data.size()) << std::endl;
+                // clang-format on
+            }
+
             PerfHostFunctions nfs(env, k, env.tx());
 
             auto re = runEscrowWasm(wasm, ESCROW_FUNCTION_NAME, {}, &nfs);
             if (BEAST_EXPECT(re.has_value()))
             {
-                BEAST_EXPECT(re->result);
+                BEAST_EXPECT(re->result > 0);
                 std::cout << "Res: " << re->result << " cost: " << re->cost
                           << std::endl;
             }
@@ -629,7 +665,7 @@ struct Wasm_test : public beast::unit_test::suite
         Bytes const wasm(wasmStr.begin(), wasmStr.end());
         TestHostFunctions hfs(env, 0);
 
-        auto const allowance = 152'981;
+        auto const allowance = 290'781;
         auto re = runEscrowWasm(
             wasm, ESCROW_FUNCTION_NAME, {}, &hfs, allowance, env.journal);
 

@@ -1060,7 +1060,10 @@ struct PerfHostFunctions : public TestHostFunctions
             return Unexpected(HostFunctionError::INVALID_PARAMS);
 
         PublicKey const pk(pubkey);
-        return verify(pk, message, signature);
+        auto const x = verify(pk, message, signature);
+        // std::cout << "sig hf result: " << x << "\npk: " << strHex(pubkey)  << "\nsig: " << strHex(signature) << std::endl;
+        // std::cout << "msg(" << message.size() << "): " << std::string_view(reinterpret_cast<char const *>(message.data()), message.size()) << std::endl;
+        return x;
     }
 
     Expected<Hash, HostFunctionError>
