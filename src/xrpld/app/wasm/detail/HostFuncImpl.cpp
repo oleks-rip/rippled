@@ -16,6 +16,7 @@ Expected<std::int32_t, HostFunctionError>
 WasmHostFunctionsImpl::getLedgerSqn()
 {
     auto seq = ctx.view().seq();
+    std::cout << "=======SEQ==================\n" << seq << std::endl;
     if (seq > std::numeric_limits<int32_t>::max())
         return Unexpected(HostFunctionError::INTERNAL);  // LCOV_EXCL_LINE
     return static_cast<int32_t>(seq);
