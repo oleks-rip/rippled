@@ -150,6 +150,9 @@ LEDGER_ENTRY(ltACCOUNT_ROOT, 0x0061, AccountRoot, account, ({
     {sfAMMID,                SoeOptional}, // pseudo-account designator
     {sfVaultID,              SoeOptional}, // pseudo-account designator
     {sfLoanBrokerID,         SoeOptional}, // pseudo-account designator
+    {sfSponsoredOwnerCount,  SoeDefault},
+    {sfSponsoringOwnerCount, SoeDefault},
+    {sfSponsoringAccountCount,SoeDefault},
 }))
 
 /** A ledger object which contains a list of object identifiers.
@@ -286,6 +289,8 @@ LEDGER_ENTRY(ltRIPPLE_STATE, 0x0072, RippleState, state, ({
     {sfHighNode,             SoeOptional},
     {sfHighQualityIn,        SoeOptional},
     {sfHighQualityOut,       SoeOptional},
+    {sfHighSponsor,          SoeOptional},
+    {sfLowSponsor,           SoeOptional},
 }))
 
 /** The ledger object which lists the network's fee settings.
@@ -605,6 +610,21 @@ LEDGER_ENTRY(ltLOAN, 0x0089, Loan, loan, ({
     // number of digits after the decimal point (excluding
     // trailing zeros).
     {sfLoanScale,                SoeDefault},
+}))
+
+/** A ledger object representing a sponsorship.
+    \sa keylet::sponsor
+ */
+LEDGER_ENTRY(ltSPONSORSHIP, 0x0090, Sponsorship, sponsorship, ({
+    {sfPreviousTxnID,        SoeRequired},
+    {sfPreviousTxnLgrSeq,    SoeRequired},
+    {sfOwner,                SoeRequired},
+    {sfSponsee,              SoeRequired},
+    {sfFeeAmount,            SoeOptional},
+    {sfMaxFee,               SoeOptional},
+    {sfReserveCount,         SoeDefault},
+    {sfOwnerNode,            SoeRequired},
+    {sfSponseeNode,          SoeRequired},
 }))
 
 #undef EXPAND

@@ -5,6 +5,7 @@
 #include <xrpl/ledger/helpers/AccountRootHelpers.h>
 #include <xrpl/ledger/helpers/CredentialHelpers.h>
 #include <xrpl/ledger/helpers/DirectoryHelpers.h>
+#include <xrpl/ledger/helpers/SponsorHelpers.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
 #include <xrpl/protocol/Keylet.h>
@@ -106,9 +107,13 @@ PermissionedDomainSet::doApply()
         // Create new permissioned domain.
         // Check reserve availability for new object creation
         auto const balance = STAmount((*ownerSle)[sfBalance]).xrp();
-        auto const reserve = ctx_.view().fees().accountReserve((*ownerSle)[sfOwnerCount] + 1);
-        if (balance < reserve)
-            return tecINSUFFICIENT_RESERVE;
+        auto const sponsorSle = getTxReserveSponsor(view(), ctx_.tx);
+        if (!sponsorSle)
+            return sponsorSle.error();  // LCOV_EXCL_LINE
+        if (auto const ret = checkInsufficientReserve(
+                ctx_.view(), ctx_.tx, ownerSle, balance, *sponsorSle, 1, 0, j_);
+            !isTesSuccess(ret))
+            return ret;
 
         bool const fixEnabled = view().rules().enabled(fixCleanup3_1_3);
         auto const seq = fixEnabled ? ctx_.tx.getSeqValue() : ctx_.tx.getFieldU32(sfSequence);
@@ -125,7 +130,8 @@ PermissionedDomainSet::doApply()
 
         slePd->setFieldU64(sfOwnerNode, *page);
         // If we succeeded, the new entry counts against the creator's reserve.
-        adjustOwnerCount(view(), ownerSle, 1, ctx_.journal);
+        adjustOwnerCount(view(), ownerSle, *sponsorSle, 1, ctx_.journal);
+        addSponsorToLedgerEntry(slePd, *sponsorSle);
         view().insert(slePd);
     }
 

@@ -30,6 +30,7 @@
 #include <xrpl/json/json_value.h>
 #include <xrpl/json/to_string.h>
 #include <xrpl/ledger/Dir.h>
+#include <xrpl/ledger/helpers/AccountRootHelpers.h>
 #include <xrpl/ledger/helpers/DelegateHelpers.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
@@ -254,7 +255,7 @@ class Delegate_test : public beast::unit_test::Suite
             Account const bob{"bob"};
 
             auto const txFee = env.current()->fees().base;
-            env.fund(env.current()->fees().accountReserve(0) + txFee, alice);
+            env.fund(baseAccountReserve(*env.current(), 0) + txFee, alice);
             env.fund(XRP(100000), bob);
             env.close();
 
@@ -271,7 +272,7 @@ class Delegate_test : public beast::unit_test::Suite
 
             auto const txFee = env.current()->fees().base;
 
-            env.fund(env.current()->fees().accountReserve(1) + (txFee * 4), alice);
+            env.fund(baseAccountReserve(*env.current(), 1) + (txFee * 4), alice);
             env.fund(XRP(100000), bob, carol);
             env.close();
 
@@ -297,8 +298,8 @@ class Delegate_test : public beast::unit_test::Suite
             Account const alice{"alice"};
             Account const bob{"bob"};
 
-            env.fund(drops(env.current()->fees().accountReserve(1)), alice);
-            env.fund(drops(env.current()->fees().accountReserve(2)), bob);
+            env.fund(drops(baseAccountReserve(*env.current(), 1)), alice);
+            env.fund(drops(baseAccountReserve(*env.current(), 2)), bob);
             env.close();
 
             // alice gives bob permission
@@ -401,7 +402,7 @@ class Delegate_test : public beast::unit_test::Suite
                 Account const carol{"carol"};
 
                 auto const baseFee = env.current()->fees().base;
-                auto const reserve = env.current()->fees().accountReserve(1);
+                auto const reserve = baseAccountReserve(*env.current(), 1);
                 auto const paymentAmount = XRP(1);
                 auto const highFee = reserve + baseFee;
                 BEAST_EXPECT(highFee > reserve);
@@ -467,9 +468,9 @@ class Delegate_test : public beast::unit_test::Suite
             Account const carol{"carol"};
 
             auto const baseFee = env.current()->fees().base;
-            auto const baseReserve = env.current()->fees().accountReserve(0);
+            auto const baseReserve = baseAccountReserve(*env.current(), 0);
 
-            env.fund(env.current()->fees().accountReserve(1) + baseFee + XRP(1), alice);
+            env.fund(baseAccountReserve(*env.current(), 1) + baseFee + XRP(1), alice);
             env.fund(baseReserve, bob);
             env.fund(XRP(1000), carol);
             env.close();
@@ -502,7 +503,7 @@ class Delegate_test : public beast::unit_test::Suite
             Account const carol{"carol"};
 
             auto const baseFee = env.current()->fees().base;
-            auto const reserve = env.current()->fees().accountReserve(1);
+            auto const reserve = baseAccountReserve(*env.current(), 1);
 
             // Alice is funded with (reserve + baseFee): after DelegateSet she has
             // exactly 'reserve', which is insufficient to send XRP(10) while keeping
@@ -2103,7 +2104,10 @@ class Delegate_test : public beast::unit_test::Suite
             {"CredentialDelete", featureCredentials},
             {"NFTokenModify", featureDynamicNFT},
             {"PermissionedDomainSet", featurePermissionedDomains},
-            {"PermissionedDomainDelete", featurePermissionedDomains}};
+            {"PermissionedDomainDelete", featurePermissionedDomains},
+            {"SponsorshipTransfer", featureSponsor},
+            {"SponsorshipSet", featureSponsor},
+        };
 
         // Can not delegate tx if any required feature disabled.
         {
@@ -2182,7 +2186,7 @@ class Delegate_test : public beast::unit_test::Suite
         // DO NOT modify expectedDelegableCount unless all scenarios, including
         // edge cases, have been fully tested and verified.
         // ====================================================================
-        std::size_t const expectedDelegableCount = 51;
+        std::size_t const expectedDelegableCount = 53;
 
         BEAST_EXPECTS(
             delegableCount == expectedDelegableCount,

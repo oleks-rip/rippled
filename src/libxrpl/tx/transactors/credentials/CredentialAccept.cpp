@@ -4,6 +4,7 @@
 #include <xrpl/ledger/ApplyView.h>
 #include <xrpl/ledger/helpers/AccountRootHelpers.h>
 #include <xrpl/ledger/helpers/CredentialHelpers.h>
+#include <xrpl/ledger/helpers/SponsorHelpers.h>
 #include <xrpl/protocol/AccountID.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
@@ -93,12 +94,13 @@ CredentialAccept::doApply()
     if (!sleSubject || !sleIssuer)
         return tefINTERNAL;  // LCOV_EXCL_LINE
 
-    {
-        STAmount const reserve{
-            view().fees().accountReserve(sleSubject->getFieldU32(sfOwnerCount) + 1)};
-        if (preFeeBalance_ < reserve)
-            return tecINSUFFICIENT_RESERVE;
-    }
+    auto const sponsorSle = getTxReserveSponsor(view(), ctx_.tx);
+    if (!sponsorSle)
+        return sponsorSle.error();  // LCOV_EXCL_LINE
+    if (auto const ret = checkInsufficientReserve(
+            view(), ctx_.tx, sleSubject, preFeeBalance_, *sponsorSle, 1, 0, ctx_.journal);
+        !isTesSuccess(ret))
+        return ret;
 
     auto const credType(ctx_.tx[sfCredentialType]);
     Keylet const credentialKey = keylet::credential(accountID_, issuer, credType);
@@ -117,8 +119,10 @@ CredentialAccept::doApply()
     sleCred->setFieldU32(sfFlags, lsfAccepted);
     view().update(sleCred);
 
-    adjustOwnerCount(view(), sleIssuer, -1, j_);
-    adjustOwnerCount(view(), sleSubject, 1, j_);
+    adjustOwnerCountObj(view(), sleIssuer, sleCred, -1, j_);
+    removeSponsorFromLedgerEntry(sleCred);
+    adjustOwnerCount(view(), sleSubject, *sponsorSle, 1, j_);
+    addSponsorToLedgerEntry(sleCred, *sponsorSle);
 
     return tesSUCCESS;
 }

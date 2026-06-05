@@ -765,6 +765,30 @@ parseVault(
 }
 
 static Expected<uint256, json::Value>
+parseSponsorship(
+    json::Value const& params,
+    json::StaticString const fieldName,
+    [[maybe_unused]] unsigned const apiVersion)
+{
+    if (!params.isObject())
+    {
+        return parseObjectID(params, fieldName);
+    }
+
+    auto const sponsorAccountID =
+        LedgerEntryHelpers::requiredAccountID(params, jss::sponsor, "malformedSponsor");
+    if (!sponsorAccountID)
+        return Unexpected(sponsorAccountID.error());
+
+    auto const sponseeAccountID =
+        LedgerEntryHelpers::requiredAccountID(params, jss::sponsee, "malformedSponsee");
+    if (!sponseeAccountID)
+        return Unexpected(sponseeAccountID.error());
+
+    return keylet::sponsor(*sponsorAccountID, *sponseeAccountID).key;
+}
+
+static Expected<uint256, json::Value>
 parseXChainOwnedClaimID(
     json::Value const& claimId,
     json::StaticString const fieldName,

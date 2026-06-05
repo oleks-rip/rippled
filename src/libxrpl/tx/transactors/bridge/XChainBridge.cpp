@@ -13,6 +13,7 @@
 #include <xrpl/ledger/ReadView.h>
 #include <xrpl/ledger/helpers/AccountRootHelpers.h>
 #include <xrpl/ledger/helpers/DirectoryHelpers.h>
+#include <xrpl/ledger/helpers/SponsorHelpers.h>
 #include <xrpl/protocol/AccountID.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
@@ -436,8 +437,7 @@ transferHelper(
             return tecINTERNAL;  // LCOV_EXCL_LINE
 
         {
-            auto const ownerCount = sleSrc->getFieldU32(sfOwnerCount);
-            auto const reserve = psb.fees().accountReserve(ownerCount);
+            auto const reserve = accountReserve(psb, sleSrc, j, 0, 0);
 
             auto const availableBalance = [&]() -> STAmount {
                 STAmount curBal = (*sleSrc)[sfBalance];
@@ -726,10 +726,10 @@ finalizeClaimHelper(
                 return result;
             }
 
+            adjustOwnerCountObj(outerSb, sleOwner, sleClaimID, -1, j);
+
             // Remove the claim id from the ledger
             outerSb.erase(sleClaimID);
-
-            adjustOwnerCount(outerSb, sleOwner, -1, j);
         }
     }
 
@@ -948,6 +948,7 @@ TER
 applyCreateAccountAttestations(
     ApplyView& view,
     RawView& rawView,
+    STTx const& tx,
     TIter attBegin,
     TIter attEnd,
     AccountID const& doorAccount,
@@ -1029,10 +1030,11 @@ applyCreateAccountAttestations(
 
             // Check reserve
             auto const balance = (*sleDoor)[sfBalance];
-            auto const reserve = psb.fees().accountReserve((*sleDoor)[sfOwnerCount] + 1);
-
-            if (balance < reserve)
-                return Unexpected(tecINSUFFICIENT_RESERVE);
+            // Don't sponsor door account objects in transactions not sent by the door account
+            // itself
+            if (auto const ret = checkInsufficientReserve(psb, tx, sleDoor, balance, {}, 1, 0, j);
+                !isTesSuccess(ret))
+                return Unexpected(ret);  // tecINSUFFICIENT_RESERVE
         }
 
         std::vector<Attestations::AttestationCreateAccount> atts;
@@ -1137,8 +1139,9 @@ applyCreateAccountAttestations(
         if (!sleDoor)
             return tecINTERNAL;  // LCOV_EXCL_LINE
 
-        // Reserve was already checked
-        adjustOwnerCount(psb, sleDoor, 1, j);
+        // Don't sponsor door account objects in transactions not sent by the door account
+        // itself
+        adjustOwnerCount(psb, sleDoor, {}, 1, j);
         psb.insert(createdSleClaimID);
         psb.update(sleDoor);
     }
@@ -1311,6 +1314,7 @@ attestationDoApply(ApplyContext& ctx)
         return applyCreateAccountAttestations(
             ctx.view(),
             ctx.rawView(),
+            ctx.tx,
             &*att,
             &*att + 1,
             thisDoor,
@@ -1436,10 +1440,13 @@ XChainCreateBridge::preclaim(PreclaimContext const& ctx)
             return terNO_ACCOUNT;
 
         auto const balance = (*sleAcc)[sfBalance];
-        auto const reserve = ctx.view.fees().accountReserve((*sleAcc)[sfOwnerCount] + 1);
-
-        if (balance < reserve)
-            return tecINSUFFICIENT_RESERVE;
+        auto const sponsorSle = getTxReserveSponsor(ctx.view, ctx.tx);
+        if (!sponsorSle)
+            return sponsorSle.error();  // LCOV_EXCL_LINE
+        if (auto const ret = checkInsufficientReserve(
+                ctx.view, ctx.tx, sleAcc, balance, *sponsorSle, 1, 0, ctx.j);
+            !isTesSuccess(ret))
+            return ret;
     }
 
     return tesSUCCESS;
@@ -1481,7 +1488,11 @@ XChainCreateBridge::doApply()
         (*sleBridge)[sfOwnerNode] = *page;
     }
 
-    adjustOwnerCount(ctx_.view(), sleAcct, 1, ctx_.journal);
+    auto const sponsorSle = getTxReserveSponsor(view(), ctx_.tx);
+    if (!sponsorSle)
+        return sponsorSle.error();  // LCOV_EXCL_LINE
+    adjustOwnerCount(ctx_.view(), sleAcct, *sponsorSle, 1, ctx_.journal);
+    addSponsorToLedgerEntry(sleBridge, *sponsorSle);
 
     ctx_.view().insert(sleBridge);
     ctx_.view().update(sleAcct);
@@ -1984,10 +1995,13 @@ XChainCreateClaimID::preclaim(PreclaimContext const& ctx)
             return terNO_ACCOUNT;
 
         auto const balance = (*sleAcc)[sfBalance];
-        auto const reserve = ctx.view.fees().accountReserve((*sleAcc)[sfOwnerCount] + 1);
-
-        if (balance < reserve)
-            return tecINSUFFICIENT_RESERVE;
+        auto const sponsorSle = getTxReserveSponsor(ctx.view, ctx.tx);
+        if (!sponsorSle)
+            return sponsorSle.error();  // LCOV_EXCL_LINE
+        if (auto const ret = checkInsufficientReserve(
+                ctx.view, ctx.tx, sleAcc, balance, *sponsorSle, 1, 0, ctx.j);
+            !isTesSuccess(ret))
+            return ret;
     }
 
     return tesSUCCESS;
@@ -2043,7 +2057,11 @@ XChainCreateClaimID::doApply()
         (*sleClaimID)[sfOwnerNode] = *page;
     }
 
-    adjustOwnerCount(ctx_.view(), sleAcct, 1, ctx_.journal);
+    auto const sponsorSle = getTxReserveSponsor(view(), ctx_.tx);
+    if (!sponsorSle)
+        return sponsorSle.error();  // LCOV_EXCL_LINE
+    adjustOwnerCount(ctx_.view(), sleAcct, *sponsorSle, 1, ctx_.journal);
+    addSponsorToLedgerEntry(sleClaimID, *sponsorSle);
 
     ctx_.view().insert(sleClaimID);
     ctx_.view().update(sleBridge);

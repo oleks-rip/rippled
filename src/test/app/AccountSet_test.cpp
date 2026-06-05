@@ -1,8 +1,8 @@
-
 #include <test/jtx/Account.h>
 #include <test/jtx/Env.h>
 #include <test/jtx/amount.h>
 #include <test/jtx/balance.h>
+#include <test/jtx/did.h>
 #include <test/jtx/flags.h>
 #include <test/jtx/multisign.h>
 #include <test/jtx/noop.h>
@@ -12,6 +12,7 @@
 #include <test/jtx/regkey.h>
 #include <test/jtx/sendmax.h>
 #include <test/jtx/sig.h>
+#include <test/jtx/sponsor.h>
 #include <test/jtx/tags.h>
 #include <test/jtx/ter.h>
 #include <test/jtx/ticket.h>
@@ -430,14 +431,33 @@ public:
             env.close();
 
             // Because we're hacking the ledger we need the account to have
-            // non-zero sfMintedNFTokens and sfBurnedNFTokens fields.  This
-            // prevents an exception when the AccountRoot template is applied.
+            // non-zero sfMintedNFTokens, sfBurnedNFTokens,
+            // sfSponsoredOwnerCount, sfSponsoringOwnerCount,
+            // sfSponsoringAccountCount fields. This prevents an exception when
+            // the AccountRoot template is applied.
             {
                 uint256 const nftId0{token::getNextID(env, gw, 0u)};
                 env(token::mint(gw, 0u));
                 env.close();
 
                 env(token::burn(gw, nftId0));
+                env.close();
+
+                env(did::set(gw),
+                    did::Uri("uri"),
+                    sponsor::As(alice, spfSponsorReserve),
+                    Sig(sfSponsorSignature, alice));
+                env.close();
+
+                env(did::set(alice),
+                    did::Uri("uri"),
+                    sponsor::As(gw, spfSponsorReserve),
+                    Sig(sfSponsorSignature, gw));
+                env.close();
+
+                env(sponsor::transfer(alice, tfSponsorshipCreate),
+                    sponsor::As(gw, spfSponsorReserve),
+                    Sig(sfSponsorSignature, gw));
                 env.close();
             }
 

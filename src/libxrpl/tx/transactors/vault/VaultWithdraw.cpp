@@ -6,6 +6,7 @@
 #include <xrpl/beast/utility/instrumentation.h>
 #include <xrpl/ledger/ReadView.h>
 #include <xrpl/ledger/View.h>
+#include <xrpl/ledger/helpers/SponsorHelpers.h>
 #include <xrpl/ledger/helpers/TokenHelpers.h>
 #include <xrpl/ledger/helpers/VaultHelpers.h>
 #include <xrpl/protocol/AccountID.h>
@@ -325,9 +326,19 @@ VaultWithdraw::doApply()
     view().update(vault);
 
     auto const& vaultAccount = vault->at(sfAccount);
+    auto const sponsorSle = getTxReserveSponsor(view(), ctx_.tx);
+    if (!sponsorSle)
+        return sponsorSle.error();  // LCOV_EXCL_LINE
+
     // Transfer shares from depositor to vault.
     if (auto const ter = accountSend(
-            view(), accountID_, vaultAccount, sharesRedeemed, j_, WaiveTransferFee::Yes);
+            view(),
+            accountID_,
+            vaultAccount,
+            sharesRedeemed,
+            j_,
+            *sponsorSle,
+            WaiveTransferFee::Yes);
         !isTesSuccess(ter))
         return ter;
 
@@ -336,7 +347,8 @@ VaultWithdraw::doApply()
     // Keep MPToken if holder is the vault owner.
     if (accountID_ != vault->at(sfOwner))
     {
-        if (auto const ter = removeEmptyHolding(view(), accountID_, sharesRedeemed.asset(), j_);
+        if (auto const ter =
+                removeEmptyHolding(view(), ctx_.tx, accountID_, sharesRedeemed.asset(), j_);
             isTesSuccess(ter))
         {
             JLOG(j_.debug())  //

@@ -8,6 +8,7 @@
 #include <xrpl/ledger/ReadView.h>
 #include <xrpl/ledger/helpers/AccountRootHelpers.h>
 #include <xrpl/ledger/helpers/DirectoryHelpers.h>
+#include <xrpl/ledger/helpers/SponsorHelpers.h>
 #include <xrpl/protocol/AccountID.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
@@ -215,8 +216,8 @@ removeSignersFromLedger(
         // LCOV_EXCL_STOP
     }
 
-    adjustOwnerCount(
-        view, view.peek(accountKeylet), removeFromOwnerCount, registry.getJournal("View"));
+    adjustOwnerCountObj(
+        view, view.peek(accountKeylet), signers, removeFromOwnerCount, registry.getJournal("View"));
 
     view.erase(signers);
 
@@ -315,19 +316,26 @@ SignerListSet::replaceSignerList()
     if (!sle)
         return tefINTERNAL;  // LCOV_EXCL_LINE
 
-    // Compute new reserve.  Verify the account has funds to meet the reserve.
-    std::uint32_t const oldOwnerCount{(*sle)[sfOwnerCount]};
-
     static constexpr int kAddedOwnerCount = 1;
     std::uint32_t const flags{lsfOneOwnerCount};
-
-    XRPAmount const newReserve{view().fees().accountReserve(oldOwnerCount + kAddedOwnerCount)};
 
     // We check the reserve against the starting balance because we want to
     // allow dipping into the reserve to pay fees.  This behavior is consistent
     // with TicketCreate.
-    if (preFeeBalance_ < newReserve)
-        return tecINSUFFICIENT_RESERVE;
+    auto const sponsorSle = getTxReserveSponsor(view(), ctx_.tx);
+    if (!sponsorSle)
+        return sponsorSle.error();  // LCOV_EXCL_LINE
+    if (auto const ret = checkInsufficientReserve(
+            ctx_.view(),
+            ctx_.tx,
+            sle,
+            preFeeBalance_,
+            *sponsorSle,
+            kAddedOwnerCount,
+            0,
+            ctx_.journal);
+        !isTesSuccess(ret))
+        return ret;
 
     // Everything's ducky.  Add the ltSIGNER_LIST to the ledger.
     auto signerList = std::make_shared<SLE>(signerListKeylet);
@@ -349,7 +357,8 @@ SignerListSet::replaceSignerList()
 
     // If we succeeded, the new entry counts against the
     // creator's reserve.
-    adjustOwnerCount(view(), sle, kAddedOwnerCount, viewJ);
+    adjustOwnerCount(view(), sle, *sponsorSle, kAddedOwnerCount, viewJ);
+    addSponsorToLedgerEntry(signerList, *sponsorSle);
     return tesSUCCESS;
 }
 

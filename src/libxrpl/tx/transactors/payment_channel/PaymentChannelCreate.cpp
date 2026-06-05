@@ -7,6 +7,7 @@
 #include <xrpl/ledger/View.h>
 #include <xrpl/ledger/helpers/AccountRootHelpers.h>
 #include <xrpl/ledger/helpers/DirectoryHelpers.h>
+#include <xrpl/ledger/helpers/SponsorHelpers.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
 #include <xrpl/protocol/Keylet.h>
@@ -79,12 +80,17 @@ PaymentChannelCreate::preclaim(PreclaimContext const& ctx)
     // Check reserve and funds availability
     {
         auto const balance = (*sle)[sfBalance];
-        auto const reserve = ctx.view.fees().accountReserve((*sle)[sfOwnerCount] + 1);
+        auto const sponsorSle = getTxReserveSponsor(ctx.view, ctx.tx);
+        if (!sponsorSle)
+            return sponsorSle.error();  // LCOV_EXCL_LINE
+        if (auto const ret =
+                checkInsufficientReserve(ctx.view, ctx.tx, sle, balance, *sponsorSle, 1, 0, ctx.j);
+            !isTesSuccess(ret))
+            return ret;
 
-        if (balance < reserve)
-            return tecINSUFFICIENT_RESERVE;
-
-        if (balance < reserve + ctx.tx[sfAmount])
+        if (auto const ret = checkInsufficientReserve(
+                ctx.view, ctx.tx, sle, balance - ctx.tx[sfAmount], *sponsorSle, 1, 0, ctx.j);
+            !isTesSuccess(ret))
             return tecUNFUNDED;
     }
 
@@ -178,7 +184,11 @@ PaymentChannelCreate::doApply()
 
     // Deduct owner's balance, increment owner count
     (*sle)[sfBalance] = (*sle)[sfBalance] - ctx_.tx[sfAmount];
-    adjustOwnerCount(ctx_.view(), sle, 1, ctx_.journal);
+    auto const sponsorSle = getTxReserveSponsor(view(), ctx_.tx);
+    if (!sponsorSle)
+        return sponsorSle.error();  // LCOV_EXCL_LINE
+    adjustOwnerCount(ctx_.view(), sle, *sponsorSle, 1, ctx_.journal);
+    addSponsorToLedgerEntry(slep, *sponsorSle);
     ctx_.view().update(sle);
 
     return tesSUCCESS;

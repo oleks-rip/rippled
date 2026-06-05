@@ -5,6 +5,7 @@
 #include <xrpl/ledger/ReadView.h>
 #include <xrpl/ledger/helpers/AccountRootHelpers.h>
 #include <xrpl/ledger/helpers/DirectoryHelpers.h>
+#include <xrpl/ledger/helpers/SponsorHelpers.h>
 #include <xrpl/protocol/AccountID.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
@@ -70,13 +71,14 @@ addSLE(ApplyContext& ctx, SLE::ref sle, AccountID const& owner)
         return tefINTERNAL;  // LCOV_EXCL_LINE
 
     // Check reserve availability for new object creation
-    {
-        auto const balance = STAmount((*sleAccount)[sfBalance]).xrp();
-        auto const reserve = ctx.view().fees().accountReserve((*sleAccount)[sfOwnerCount] + 1);
-
-        if (balance < reserve)
-            return tecINSUFFICIENT_RESERVE;
-    }
+    auto const sponsorSle = getTxReserveSponsor(ctx.view(), ctx.tx);
+    if (!sponsorSle)
+        return sponsorSle.error();  // LCOV_EXCL_LINE
+    auto const balance = STAmount((*sleAccount)[sfBalance]).xrp();
+    if (auto const ret = checkInsufficientReserve(
+            ctx.view(), ctx.tx, sleAccount, balance, *sponsorSle, 1, 0, ctx.journal);
+        !isTesSuccess(ret))
+        return ret;
 
     // Add ledger object to ledger
     ctx.view().insert(sle);
@@ -89,7 +91,8 @@ addSLE(ApplyContext& ctx, SLE::ref sle, AccountID const& owner)
             return tecDIR_FULL;  // LCOV_EXCL_LINE
         (*sle)[sfOwnerNode] = *page;
     }
-    adjustOwnerCount(ctx.view(), sleAccount, 1, ctx.journal);
+    adjustOwnerCount(ctx.view(), sleAccount, *sponsorSle, 1, ctx.journal);
+    addSponsorToLedgerEntry(sle, *sponsorSle);
     ctx.view().update(sleAccount);
 
     return tesSUCCESS;

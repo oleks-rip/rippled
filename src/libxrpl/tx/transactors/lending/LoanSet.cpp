@@ -8,6 +8,7 @@
 #include <xrpl/ledger/View.h>
 #include <xrpl/ledger/helpers/AccountRootHelpers.h>
 #include <xrpl/ledger/helpers/LendingHelpers.h>
+#include <xrpl/ledger/helpers/SponsorHelpers.h>
 #include <xrpl/ledger/helpers/TokenHelpers.h>
 #include <xrpl/protocol/AccountID.h>
 #include <xrpl/protocol/Asset.h>
@@ -512,14 +513,18 @@ LoanSet::doApply()
         }
     }
 
-    adjustOwnerCount(view, borrowerSle, 1, j_);
+    auto const sponsorSle = getTxReserveSponsor(view, tx);
+    if (!sponsorSle)
+        return sponsorSle.error();  // LCOV_EXCL_LINE
     {
-        auto const ownerCount = borrowerSle->at(sfOwnerCount);
         auto const balance =
             accountID_ == borrower ? preFeeBalance_ : borrowerSle->at(sfBalance).value().xrp();
-        if (balance < view.fees().accountReserve(ownerCount))
-            return tecINSUFFICIENT_RESERVE;
+        if (auto const ret =
+                checkInsufficientReserve(view, tx, borrowerSle, balance, *sponsorSle, 1, 0, j_);
+            !isTesSuccess(ret))
+            return ret;
     }
+    adjustOwnerCount(view, borrowerSle, *sponsorSle, 1, j_);
 
     // Account for the origination fee using two payments
     //
@@ -532,7 +537,7 @@ LoanSet::doApply()
         "xrpl::LoanSet::doApply",
         "borrower signed transaction");
     if (auto const ter = addEmptyHolding(
-            view, borrower, borrowerSle->at(sfBalance).value().xrp(), vaultAsset, j_);
+            view, tx, borrower, borrowerSle->at(sfBalance).value().xrp(), vaultAsset, j_);
         ter && ter != tecDUPLICATE)
     {
         // ignore tecDUPLICATE. That means the holding already exists, and
@@ -555,7 +560,7 @@ LoanSet::doApply()
             "broker owner signed transaction");
 
         if (auto const ter = addEmptyHolding(
-                view, brokerOwner, brokerOwnerSle->at(sfBalance).value().xrp(), vaultAsset, j_);
+                view, tx, brokerOwner, brokerOwnerSle->at(sfBalance).value().xrp(), vaultAsset, j_);
             ter && ter != tecDUPLICATE)
         {
             // ignore tecDUPLICATE. That means the holding already exists,
@@ -573,6 +578,7 @@ LoanSet::doApply()
             vaultAsset,
             {{borrower, loanAssetsToBorrower}, {brokerOwner, originationFee}},
             j_,
+            {},  // Vault and Broker cannot be sponsored
             WaiveTransferFee::Yes))
         return ter;
 
@@ -618,6 +624,7 @@ LoanSet::doApply()
     loan->at(sfPreviousPaymentDueDate) = 0;
     loan->at(sfNextPaymentDueDate) = startDate + paymentInterval;
     loan->at(sfPaymentRemaining) = paymentTotal;
+    addSponsorToLedgerEntry(loan, *sponsorSle);
     view.insert(loan);
 
     // Update the balances in the vault
@@ -633,7 +640,7 @@ LoanSet::doApply()
     adjustImpreciseNumber(brokerSle->at(sfDebtTotal), newDebtDelta, vaultAsset, vaultScale);
     // The broker's owner count is solely for the number of outstanding loans,
     // and is distinct from the broker's pseudo-account's owner count
-    adjustOwnerCount(view, brokerSle, 1, j_);
+    adjustOwnerCount(view, brokerSle, {}, 1, j_);
     loanSequenceProxy += 1;
     // The sequence should be extremely unlikely to roll over, but fail if it
     // does

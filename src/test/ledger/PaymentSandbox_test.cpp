@@ -14,6 +14,7 @@
 #include <xrpl/ledger/ApplyViewImpl.h>
 #include <xrpl/ledger/PaymentSandbox.h>
 #include <xrpl/ledger/ReadView.h>
+#include <xrpl/ledger/helpers/AccountRootHelpers.h>
 #include <xrpl/ledger/helpers/RippleStateHelpers.h>
 #include <xrpl/ledger/helpers/TokenHelpers.h>
 #include <xrpl/protocol/AccountID.h>
@@ -330,7 +331,7 @@ class PaymentSandbox_test : public beast::unit_test::Suite
         };
 
         auto reserve = [](jtx::Env& env, std::uint32_t count) -> XRPAmount {
-            return env.current()->fees().accountReserve(count);
+            return baseAccountReserve(*env.current(), count);
         };
 
         Env env(*this, features);

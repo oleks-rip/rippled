@@ -5,6 +5,7 @@
 #include <xrpl/core/ServiceRegistry.h>
 #include <xrpl/ledger/helpers/AccountRootHelpers.h>
 #include <xrpl/ledger/helpers/DirectoryHelpers.h>
+#include <xrpl/ledger/helpers/SponsorHelpers.h>
 #include <xrpl/protocol/Indexes.h>
 #include <xrpl/protocol/Protocol.h>
 #include <xrpl/protocol/SField.h>
@@ -94,11 +95,13 @@ DelegateSet::doApply()
     if (permissions.empty())
         return tecINTERNAL;  // LCOV_EXCL_LINE
 
-    STAmount const reserve{
-        ctx_.view().fees().accountReserve(sleOwner->getFieldU32(sfOwnerCount) + 1)};
-
-    if (preFeeBalance_ < reserve)
-        return tecINSUFFICIENT_RESERVE;
+    auto const sponsorSle = getTxReserveSponsor(view(), ctx_.tx);
+    if (!sponsorSle)
+        return sponsorSle.error();  // LCOV_EXCL_LINE
+    if (auto const ret = checkInsufficientReserve(
+            view(), ctx_.tx, sleOwner, preFeeBalance_, *sponsorSle, 1, 0, ctx_.journal);
+        !isTesSuccess(ret))
+        return ret;
 
     sle = std::make_shared<SLE>(delegateKey);
     sle->setAccountID(sfAccount, accountID_);
@@ -126,7 +129,8 @@ DelegateSet::doApply()
     (*sle)[sfDestinationNode] = *destPage;
 
     ctx_.view().insert(sle);
-    adjustOwnerCount(ctx_.view(), sleOwner, 1, ctx_.journal);
+    adjustOwnerCount(ctx_.view(), sleOwner, *sponsorSle, 1, ctx_.journal);
+    addSponsorToLedgerEntry(sle, *sponsorSle);
 
     return tesSUCCESS;
 }
@@ -166,7 +170,7 @@ DelegateSet::deleteDelegate(ApplyView& view, SLE::ref sle, beast::Journal j)
     if (!sleOwner)
         return tecINTERNAL;  // LCOV_EXCL_LINE
 
-    adjustOwnerCount(view, sleOwner, -1, j);
+    adjustOwnerCountObj(view, sleOwner, sle, -1, j);
 
     view.erase(sle);
 

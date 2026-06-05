@@ -6,6 +6,7 @@
 #include <xrpl/beast/utility/instrumentation.h>
 #include <xrpl/ledger/helpers/CredentialHelpers.h>
 #include <xrpl/ledger/helpers/MPTokenHelpers.h>
+#include <xrpl/ledger/helpers/SponsorHelpers.h>
 #include <xrpl/ledger/helpers/TokenHelpers.h>
 #include <xrpl/ledger/helpers/VaultHelpers.h>
 #include <xrpl/protocol/Feature.h>
@@ -23,6 +24,7 @@
 #include <xrpl/protocol/XRPAmount.h>
 #include <xrpl/tx/Transactor.h>
 
+#include <optional>
 #include <stdexcept>
 
 namespace xrpl {
@@ -220,7 +222,7 @@ VaultDeposit::doApply()
     if (vault->isFlag(lsfVaultPrivate) && accountID_ != vault->at(sfOwner))
     {
         if (auto const err = enforceMPTokenAuthorization(
-                ctx_.view(), mptIssuanceID, accountID_, preFeeBalance_, j_);
+                ctx_.view(), ctx_.tx, mptIssuanceID, accountID_, preFeeBalance_, j_);
             !isTesSuccess(err))
             return err;
     }
@@ -230,7 +232,12 @@ VaultDeposit::doApply()
         if (!view().exists(keylet::mptoken(mptIssuanceID, accountID_)))
         {
             if (auto const err = authorizeMPToken(
-                    view(), preFeeBalance_, mptIssuanceID->value(), accountID_, ctx_.journal);
+                    view(),
+                    ctx_.tx,
+                    preFeeBalance_,
+                    mptIssuanceID->value(),
+                    accountID_,
+                    ctx_.journal);
                 !isTesSuccess(err))
                 return err;
         }
@@ -243,6 +250,7 @@ VaultDeposit::doApply()
                 accountID_ == vault->at(sfOwner), "xrpl::VaultDeposit::doApply : account is owner");
             if (auto const err = authorizeMPToken(
                     view(),
+                    ctx_.tx,
                     preFeeBalance_,             // priorBalance
                     mptIssuanceID->value(),     // mptIssuanceID
                     sleIssuance->at(sfIssuer),  // account
@@ -309,7 +317,7 @@ VaultDeposit::doApply()
 
     // Transfer assets from depositor to vault.
     if (auto const ter = accountSend(
-            view(), accountID_, vaultAccount, assetsDeposited, j_, WaiveTransferFee::Yes);
+            view(), accountID_, vaultAccount, assetsDeposited, j_, {}, WaiveTransferFee::Yes);
         !isTesSuccess(ter))
         return ter;
 
@@ -335,9 +343,19 @@ VaultDeposit::doApply()
         }
     }
 
+    auto const sponsorSle = getTxReserveSponsor(view(), ctx_.tx);
+    if (!sponsorSle)
+        return sponsorSle.error();  // LCOV_EXCL_LINE
+
     // Transfer shares from vault to depositor.
-    if (auto const ter =
-            accountSend(view(), vaultAccount, accountID_, sharesCreated, j_, WaiveTransferFee::Yes);
+    if (auto const ter = accountSend(
+            view(),
+            vaultAccount,
+            accountID_,
+            sharesCreated,
+            j_,
+            *sponsorSle,
+            WaiveTransferFee::Yes);
         !isTesSuccess(ter))
         return ter;
 

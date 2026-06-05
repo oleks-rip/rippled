@@ -62,7 +62,7 @@ public:
         beast::Journal const& j) override;
 
     static Expected<MPTID, TER>
-    create(ApplyView& view, beast::Journal journal, MPTCreateArgs const& args);
+    create(ApplyView& view, STTx const& tx, beast::Journal journal, MPTCreateArgs const& args);
 };
 
 }  // namespace xrpl

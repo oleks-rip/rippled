@@ -104,7 +104,10 @@ public:
     send(Args&&... args)
     {
         return accountSend(
-            std::forward<Args>(args)..., WaiveTransferFee::Yes, AllowMPTOverflow::Yes);
+            std::forward<Args>(args)...,
+            SLE::pointer(),
+            WaiveTransferFee::Yes,
+            AllowMPTOverflow::Yes);
     }
 
     [[nodiscard]] bool

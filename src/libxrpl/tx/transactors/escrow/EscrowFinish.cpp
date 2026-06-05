@@ -14,6 +14,7 @@
 #include <xrpl/ledger/helpers/EscrowHelpers.h>
 #include <xrpl/ledger/helpers/MPTokenHelpers.h>
 #include <xrpl/ledger/helpers/RippleStateHelpers.h>
+#include <xrpl/ledger/helpers/SponsorHelpers.h>
 #include <xrpl/ledger/helpers/TokenHelpers.h>
 #include <xrpl/protocol/AccountID.h>
 #include <xrpl/protocol/Concepts.h>
@@ -222,6 +223,11 @@ EscrowFinish::preclaim(PreclaimContext const& ctx)
                 return ret;
         }
     }
+
+    auto const sponsorSle = getTxReserveSponsor(ctx.view, ctx.tx);
+    if (!sponsorSle)
+        return sponsorSle.error();
+
     return tesSUCCESS;
 }
 
@@ -360,6 +366,7 @@ EscrowFinish::doApply()
                 [&]<typename T>(T const&) {
                     return escrowUnlockApplyHelper<T>(
                         ctx_.view(),
+                        ctx_.tx,
                         lockedRate,
                         sled,
                         preFeeBalance_,
@@ -390,9 +397,7 @@ EscrowFinish::doApply()
     ctx_.view().update(sled);
 
     // Adjust source owner count
-    auto const sle = ctx_.view().peek(keylet::account(account));
-    adjustOwnerCount(ctx_.view(), sle, -1, ctx_.journal);
-    ctx_.view().update(sle);
+    adjustOwnerCountObj(ctx_.view(), account, slep, -1, ctx_.journal);
 
     // Remove escrow from ledger
     ctx_.view().erase(slep);

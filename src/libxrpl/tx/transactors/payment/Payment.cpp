@@ -11,6 +11,7 @@
 #include <xrpl/ledger/helpers/DelegateHelpers.h>
 #include <xrpl/ledger/helpers/MPTokenHelpers.h>
 #include <xrpl/ledger/helpers/PermissionedDEXHelpers.h>
+#include <xrpl/ledger/helpers/SponsorHelpers.h>
 #include <xrpl/ledger/helpers/TokenHelpers.h>
 #include <xrpl/protocol/AccountID.h>
 #include <xrpl/protocol/Asset.h>
@@ -39,6 +40,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <unordered_set>
@@ -121,6 +123,18 @@ Payment::preflight(PreflightContext const& ctx)
 
     if (!ctx.rules.enabled(featureMPTokensV1) && isDstMPT)
         return temDISABLED;
+
+    if (tx.isFlag(tfSponsorCreatedAccount))
+    {
+        if (!ctx.rules.enabled(featureSponsor))
+            return temDISABLED;
+
+        if (tx.isFlag(tfNoRippleDirect) || tx.isFlag(tfPartialPayment) || tx.isFlag(tfLimitQuality))
+            return temINVALID_FLAG;
+
+        if (!dstAmount.native())
+            return temBAD_AMOUNT;
+    }
 
     if (!mpTokensV2 && isDstMPT && ctx.tx.isFieldPresent(sfPaths))
         return temMALFORMED;
@@ -347,7 +361,13 @@ Payment::preclaim(PreclaimContext const& ctx)
             // transaction would succeed.
             return telNO_DST_PARTIAL;
         }
-        if (dstAmount < STAmount(ctx.view.fees().reserve))
+        if (ctx.tx.isFlag(tfSponsorCreatedAccount))
+        {
+            // The minimum amount when creating a Sponsored Account is 1 drop.
+            // Since the reserve is covered by the sponsor, you don't need to hold the 1-increment
+            // reserve yourself.
+        }
+        else if (dstAmount < STAmount(ctx.view.fees().reserve))
         {
             // accountReserve is the minimum amount that an account can have.
             // Reserve is not scaled by load.
@@ -360,16 +380,25 @@ Payment::preclaim(PreclaimContext const& ctx)
             return tecNO_DST_INSUF_XRP;
         }
     }
-    else if (sleDst->isFlag(lsfRequireDestTag) && !ctx.tx.isFieldPresent(sfDestinationTag))
+    else
     {
-        // The tag is basically account-specific information we don't
-        // understand, but we can require someone to fill it in.
+        // The tfSponsorCreatedAccount flag is specific to account creation via
+        // sponsorship. If the destination account already exists, applying this
+        // flag is invalid.
+        if (ctx.tx.isFlag(tfSponsorCreatedAccount))
+            return tecNO_SPONSOR_PERMISSION;
 
-        // We didn't make this test for a newly-formed account because there's
-        // no way for this field to be set.
-        JLOG(ctx.j.trace()) << "Malformed transaction: DestinationTag required.";
+        if (sleDst->isFlag(lsfRequireDestTag) && !ctx.tx.isFieldPresent(sfDestinationTag))
+        {
+            // The tag is basically account-specific information we don't
+            // understand, but we can require someone to fill it in.
 
-        return tecDST_TAG_NEEDED;
+            // We didn't make this test for a newly-formed account because
+            // there's no way for this field to be set.
+            JLOG(ctx.j.trace()) << "Malformed transaction: DestinationTag required.";
+
+            return tecDST_TAG_NEEDED;
+        }
     }
 
     // Payment with at least one intermediate step and uses transitive balances.
@@ -432,6 +461,25 @@ Payment::doApply()
         sleDst->setAccountID(sfAccount, dstAccountID);
         sleDst->setFieldU32(sfSequence, view().seq());
         sleDst->setFieldAmount(sfBalance, XRPAmount(beast::kZero));
+
+        if (ctx_.tx.isFlag(tfSponsorCreatedAccount))
+        {
+            auto const sponsor = view().peek(keylet::account(accountID_));
+            if (!sponsor)
+                return tefINTERNAL;  // LCOV_EXCL_LINE
+            auto const currentSponsoringAccountCount =
+                sponsor->getFieldU32(sfSponsoringAccountCount);
+            if (currentSponsoringAccountCount == std::numeric_limits<std::uint32_t>::max())
+            {
+                JLOG(j_.fatal()) << "Sponsoring account count overflow for account "
+                                 << to_string(accountID_);
+                return tecINTERNAL;  // LCOV_EXCL_LINE
+            }
+            sponsor->setFieldU32(sfSponsoringAccountCount, currentSponsoringAccountCount + 1);
+
+            addSponsorToLedgerEntry(sleDst, sponsor);
+            view().update(sponsor);
+        }
 
         view().insert(sleDst);
     }
@@ -599,12 +647,9 @@ Payment::doApply()
     if (!sleSrc)
         return tefINTERNAL;  // LCOV_EXCL_LINE
 
-    // ownerCount is the number of entries in this ledger for this
-    // account that require a reserve.
-    auto const ownerCount = sleSrc->getFieldU32(sfOwnerCount);
-
-    // This is the total reserve in drops.
-    auto const reserve = view().fees().accountReserve(ownerCount);
+    // the number of reserves in this ledger for this account that require a
+    // reserve.
+    auto const reserve = accountReserve(view(), sleSrc, j_);
 
     // In a delegated payment, the fee payer is the delegated account,
     // not the source account (accountID_).

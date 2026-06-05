@@ -8,6 +8,7 @@
 #include <xrpl/ledger/ReadView.h>
 #include <xrpl/ledger/helpers/AccountRootHelpers.h>
 #include <xrpl/ledger/helpers/DirectoryHelpers.h>
+#include <xrpl/ledger/helpers/SponsorHelpers.h>
 #include <xrpl/protocol/Feature.h>
 #include <xrpl/protocol/Indexes.h>
 #include <xrpl/protocol/LedgerFormats.h>
@@ -23,6 +24,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
 
 namespace xrpl {
 
@@ -101,15 +103,32 @@ MPTokenIssuanceCreate::preflight(PreflightContext const& ctx)
 }
 
 Expected<MPTID, TER>
-MPTokenIssuanceCreate::create(ApplyView& view, beast::Journal journal, MPTCreateArgs const& args)
+MPTokenIssuanceCreate::create(
+    ApplyView& view,
+    STTx const& tx,
+    beast::Journal journal,
+    MPTCreateArgs const& args)
 {
     auto const acct = view.peek(keylet::account(args.account));
     if (!acct)
         return Unexpected(tecINTERNAL);  // LCOV_EXCL_LINE
 
-    if (args.priorBalance &&
-        *(args.priorBalance) < view.fees().accountReserve((*acct)[sfOwnerCount] + 1))
-        return Unexpected(tecINSUFFICIENT_RESERVE);
+    SLE::pointer sponsorSle;
+    if (!isPseudoAccount(acct))
+    {
+        auto sle = getTxReserveSponsor(view, tx);
+        if (!sle)
+            return Unexpected(sle.error());
+        sponsorSle = std::move(*sle);
+    }
+
+    if (args.priorBalance)
+    {
+        if (auto const ret = checkInsufficientReserve(
+                view, tx, acct, *(args.priorBalance), sponsorSle, 1, 0, journal);
+            !isTesSuccess(ret))
+            return Unexpected(ret);  // tecINSUFFICIENT_RESERVE
+    }
 
     auto const mptId = makeMptID(args.sequence, args.account);
     auto const mptIssuanceKeylet = keylet::mptIssuance(mptId);
@@ -163,11 +182,13 @@ MPTokenIssuanceCreate::create(ApplyView& view, beast::Journal journal, MPTCreate
             (*mptIssuance)[sfReferenceHolding] = *args.referenceHolding;
         }
 
+        addSponsorToLedgerEntry(mptIssuance, sponsorSle);
+
         view.insert(mptIssuance);
     }
 
     // Update owner count.
-    adjustOwnerCount(view, acct, 1, journal);
+    adjustOwnerCount(view, acct, sponsorSle, 1, journal);
 
     return mptId;
 }
@@ -178,6 +199,7 @@ MPTokenIssuanceCreate::doApply()
     auto const& tx = ctx_.tx;
     auto const result = create(
         view(),
+        tx,
         j_,
         {
             .priorBalance = preFeeBalance_,

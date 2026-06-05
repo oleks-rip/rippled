@@ -1077,6 +1077,35 @@ TRANSACTION(ttLOAN_PAY, 84, LoanPay,
     {sfAmount, SoeRequired, SoeMptSupported},
 }))
 
+/** This transaction transfer sponsorship */
+#if TRANSACTION_INCLUDE
+#   include <xrpl/tx/transactors/sponsor/SponsorshipTransfer.h>
+#endif
+TRANSACTION(ttSPONSORSHIP_TRANSFER, 85, SponsorshipTransfer,
+    Delegation::Delegable,
+    featureSponsor,
+    NoPriv,
+    ({
+    {sfObjectID, SoeOptional},
+    {sfSponsee, SoeOptional},
+}))
+
+/** This transaction create sponsorship object */
+#if TRANSACTION_INCLUDE
+#   include <xrpl/tx/transactors/sponsor/SponsorshipSet.h>
+#endif
+TRANSACTION(ttSPONSORSHIP_SET, 86, SponsorshipSet,
+    Delegation::Delegable,
+    featureSponsor,
+    NoPriv,
+    ({
+    {sfCounterpartySponsor, SoeOptional},
+    {sfSponsee, SoeOptional},
+    {sfFeeAmount, SoeOptional},
+    {sfMaxFee, SoeOptional},
+    {sfReserveCount, SoeOptional},
+}))
+
 /** This system-generated transaction type is used to update the status of the various amendments.
 
     For details, see: https://xrpl.org/amendments.html

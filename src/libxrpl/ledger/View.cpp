@@ -14,6 +14,7 @@
 #include <xrpl/ledger/helpers/DirectoryHelpers.h>
 #include <xrpl/ledger/helpers/MPTokenHelpers.h>
 #include <xrpl/ledger/helpers/RippleStateHelpers.h>
+#include <xrpl/ledger/helpers/SponsorHelpers.h>
 #include <xrpl/ledger/helpers/TokenHelpers.h>
 #include <xrpl/protocol/AccountID.h>
 #include <xrpl/protocol/Asset.h>
@@ -443,7 +444,7 @@ doWithdraw(
     // Create trust line or MPToken for the receiving account
     if (dstAcct == senderAcct)
     {
-        if (auto const ter = addEmptyHolding(view, senderAcct, priorBalance, amount.asset(), j);
+        if (auto const ter = addEmptyHolding(view, tx, senderAcct, priorBalance, amount.asset(), j);
             !isTesSuccess(ter) && ter != tecDUPLICATE)
             return ter;
     }
@@ -469,9 +470,13 @@ doWithdraw(
         // LCOV_EXCL_STOP
     }
 
+    auto const sponsorSle = getTxReserveSponsor(view, tx);
+    if (!sponsorSle)
+        return sponsorSle.error();  // LCOV_EXCL_LINE
+
     // Move the funds directly from the broker's pseudo-account to the
     // dstAcct
-    return accountSend(view, sourceAcct, dstAcct, amount, j, WaiveTransferFee::Yes);
+    return accountSend(view, sourceAcct, dstAcct, amount, j, *sponsorSle, WaiveTransferFee::Yes);
 }
 
 TER

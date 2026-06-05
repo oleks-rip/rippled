@@ -4,7 +4,9 @@
 #include <xrpl/beast/utility/Zero.h>
 #include <xrpl/ledger/ApplyView.h>
 #include <xrpl/ledger/ReadView.h>
+#include <xrpl/ledger/helpers/AccountRootHelpers.h>
 #include <xrpl/ledger/helpers/PaymentChannelHelpers.h>
+#include <xrpl/ledger/helpers/SponsorHelpers.h>
 #include <xrpl/protocol/AccountID.h>
 #include <xrpl/protocol/Indexes.h>
 #include <xrpl/protocol/Keylet.h>
@@ -80,12 +82,17 @@ PaymentChannelFund::doApply()
     {
         // Check reserve and funds availability
         auto const balance = (*sle)[sfBalance];
-        auto const reserve = ctx_.view().fees().accountReserve((*sle)[sfOwnerCount]);
+        auto const sponsorSle = getTxReserveSponsor(view(), ctx_.tx);
+        if (!sponsorSle)
+            return sponsorSle.error();  // LCOV_EXCL_LINE
+        if (auto const ret =
+                checkInsufficientReserve(ctx_.view(), ctx_.tx, sle, balance, *sponsorSle, 0, 0, j_);
+            !isTesSuccess(ret))
+            return ret;
 
-        if (balance < reserve)
-            return tecINSUFFICIENT_RESERVE;
-
-        if (balance < reserve + ctx_.tx[sfAmount])
+        if (auto const ret = checkInsufficientReserve(
+                ctx_.view(), ctx_.tx, sle, balance - ctx_.tx[sfAmount], {}, 0, 0, j_);
+            !isTesSuccess(ret))
             return tecUNFUNDED;
     }
 
