@@ -649,7 +649,7 @@ AMMWithdraw::withdraw(
             auto const balance = (*sleAccount)[sfBalance]->xrp();
             std::uint32_t const count =
                 ownerCount(view, sponsorSle ? sponsorSle : sleAccount, journal);
-            // See also TrustSet::doApply() and MPTokenAuthorize::authorize()
+            // See also TrustSet::doApply() and authorizeMPToken()
             if (count >= 2)
             {
                 if (auto const ret = checkInsufficientReserve(

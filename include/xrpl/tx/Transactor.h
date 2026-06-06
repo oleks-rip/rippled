@@ -118,7 +118,8 @@ enum class FeePayerType {
 
 struct FeePayer
 {
-    Keylet entry;
+    AccountID id;
+    Keylet keylet;
     SF_AMOUNT const& balanceField;
     FeePayerType type{FeePayerType::Account};
 };
@@ -370,12 +371,12 @@ protected:
         std::optional<T> value,
         unit::ValueUnit<Unit, T> min = unit::ValueUnit<Unit, T>{});
 
+    static FeePayer
+    getFeePayer(ReadView const& view, STTx const& tx);
+
 private:
     std::pair<TER, XRPAmount>
     reset(XRPAmount fee);
-
-    static FeePayer
-    getFeePayer(ReadView const& view, STTx const& tx);
 
     TER
     consumeSeqProxy(SLE::pointer const& sleAccount);

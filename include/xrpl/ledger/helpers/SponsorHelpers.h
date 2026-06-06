@@ -11,6 +11,12 @@
 namespace xrpl {
 
 inline bool
+isFeeSponsored(STTx const& tx)
+{
+    return (tx.getFieldU32(sfSponsorFlags) & spfSponsorFee) != 0u;
+}
+
+inline bool
 isReserveSponsored(STTx const& tx)
 {
     return (tx.getFieldU32(sfSponsorFlags) & spfSponsorReserve) != 0u;
@@ -19,9 +25,7 @@ isReserveSponsored(STTx const& tx)
 inline bool
 isSponsorReserveCoSigning(STTx const& tx)
 {
-    if (!tx.isFieldPresent(sfSponsorSignature))
-        return false;
-    return isReserveSponsored(tx);
+    return isReserveSponsored(tx) && tx.isFieldPresent(sfSponsorSignature);
 }
 
 inline std::optional<AccountID>
@@ -44,7 +48,7 @@ getTxReserveSponsor(ApplyView& view, STTx const& tx)
 
         // already checked in Transactor::checkSponsor
         if (!sle)
-            return Unexpected(tecINTERNAL);
+            return Unexpected(tecINTERNAL);  // LCOV_EXCL_LINE
         return sle;
     }
     return SLE::pointer();
@@ -60,7 +64,7 @@ getTxReserveSponsor(ReadView const& view, STTx const& tx)
 
         // already checked in Transactor::checkSponsor
         if (!sle)
-            return Unexpected(tecINTERNAL);
+            return Unexpected(tecINTERNAL);  // LCOV_EXCL_LINE
         return sle;
     }
     return SLE::pointer();
