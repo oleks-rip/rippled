@@ -78,7 +78,7 @@ NFTokenCreateOffer::doApply()
     return nft::tokenOfferCreateApply(
         view(),
         ctx_.tx,
-        ctx_.tx[sfAccount],
+        view().peek(keylet::account(accountID_)),
         ctx_.tx[sfAmount],
         ctx_.tx[~sfDestination],
         ctx_.tx[~sfExpiration],

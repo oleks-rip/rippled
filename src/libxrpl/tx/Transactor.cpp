@@ -378,11 +378,10 @@ Transactor::checkSponsor(ReadView const& view, STTx const& tx)
     if (!tx.isFieldPresent(sfSponsor))
         return tesSUCCESS;
 
-    if (auto const sponsorSle = getTxReserveSponsor(view, tx); !sponsorSle)
+    if (!view.exists(keylet::account(tx[sfSponsor])))
         return terNO_ACCOUNT;
 
     auto const hasSponsorSignature = tx.isFieldPresent(sfSponsorSignature);
-
     if (hasSponsorSignature)
         return tesSUCCESS;
 
@@ -1313,49 +1312,6 @@ Transactor::reset(XRPAmount fee)
     }
 
     return {ter, fee};
-}
-
-FeePayer
-Transactor::getFeePayer(ReadView const& view, STTx const& tx)
-{
-    if (tx.isFieldPresent(sfSponsor) && isFeeSponsored(tx))
-    {
-        auto const sponsorAccountID = tx.getAccountID(sfSponsor);
-        auto const sponseeAccountID = tx.getAccountID(sfAccount);
-        auto const sponsorshipKeylet = keylet::sponsor(sponsorAccountID, sponseeAccountID);
-
-        // if pre-funded sponsorship exists, prefer it
-        if (view.exists(sponsorshipKeylet))
-        {
-            // pre funded
-            return FeePayer{
-                .id = sponsorAccountID,
-                .keylet = sponsorshipKeylet,
-                .balanceField = sfFeeAmount,
-                .type = FeePayerType::SponsorPreFunded};
-        }
-
-        if (!tx.isFieldPresent(sfSponsorSignature))
-        {
-            Throw<std::logic_error>(
-                "Transactor::getFeePayer valid sponsor signature");  // LCOV_EXCL_LINE
-        }
-
-        // co-signed
-        return FeePayer{
-            .id = sponsorAccountID,
-            .keylet = keylet::account(sponsorAccountID),
-            .balanceField = sfBalance,
-            .type = FeePayerType::SponsorCoSigned};
-    }
-
-    auto const payerID = tx.getInitiator();
-    auto const payerKeylet = keylet::account(payerID);
-    auto const payerType =
-        tx.isFieldPresent(sfDelegate) ? FeePayerType::Delegate : FeePayerType::Account;
-
-    return FeePayer{
-        .id = payerID, .keylet = payerKeylet, .balanceField = sfBalance, .type = payerType};
 }
 
 // The sole purpose of this function is to provide a convenient, named

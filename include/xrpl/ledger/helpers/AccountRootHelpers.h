@@ -10,6 +10,7 @@
 #include <xrpl/protocol/TER.h>
 
 #include <set>
+#include <type_traits>
 #include <vector>
 
 namespace xrpl {
@@ -32,6 +33,21 @@ isGlobalFrozen(ReadView const& view, AccountID const& issuer);
 // @param ownerCountAdj positive to add to count, negative to reduce count.
 [[nodiscard]] XRPAmount
 xrpLiquid(ReadView const& view, AccountID const& id, std::int32_t ownerCountAdj, beast::Journal j);
+
+[[nodiscard]] XRPAmount
+xrpLiquid(
+    ReadView const& view,
+    SLE::const_ref accSle,
+    std::int32_t ownerCountAdj,
+    beast::Journal j);
+
+[[nodiscard]] XRPAmount
+xrpLiquid(
+    ApplyView const& view,
+    STTx const& tx,
+    SLE::const_ref accSle,
+    std::int32_t ownerCountAdj,
+    beast::Journal j);
 
 // Returns the account reserve.
 // Actual owner count and reserve count can be adjusted
@@ -62,20 +78,195 @@ accountReserve(
 XRPAmount
 baseAccountReserve(ReadView const& view, std::int32_t ownerCount);
 
-// Checks whether there are enough funds in the account to store objects
-// When only ownerCount is set, then it is equivalent to xrpLiquid() >= 0
-[[nodiscard]] TER
-checkInsufficientReserve(
+enum class FeePayerType {
+    Account,
+    Delegate,
+    SponsorCoSigned,
+    SponsorPreFunded,
+};
+struct FeePayer
+{
+    AccountID id;
+    Keylet keylet;
+    SF_AMOUNT const& balanceField;
+    FeePayerType type{FeePayerType::Account};
+};
+FeePayer
+getFeePayer(ReadView const& view, STTx const& tx);
+
+// checkXrpBalance - checks whether there are enough funds in the account for cover reserve and
+// additional expenses (balanceAdj). Works through xrpLiquid()
+
+TER
+checkXrpBalanceHlp(
     ReadView const& view,
+    bool apply,
+    STTx const& tx,
+    std::optional<AccountID> const& accID,
+    std::optional<std::reference_wrapper<SLE::const_pointer const>> const& accOpt,
+    XRPAmount balanceAcc,  // if set disable automatic balance calculation
+    std::optional<std::reference_wrapper<SLE::const_pointer const>> const& sponsorOpt,
+    std::int32_t ownerCountAdj,
+    std::int32_t reserveCountAdj,
+    XRPAmount balanceAdj,
+    bool moreThan2,  // special case, reserve doesn't check if current ownerCount < 2
+    beast::Journal j,
+    bool checkApplicability = true  // SponsorTransfer can break relations tx[sfAccount] === accSle
+);
+
+// simple case, only ownerAdjustment
+template <class V>
+[[nodiscard]] TER
+checkXrpBalance(
+    V const& view,
+    STTx const& tx,
+    AccountID const& accID,
+    std::int32_t ownerCountAdj,
+    beast::Journal j)
+{
+    static XRPAmount const a;
+    bool apply = false;
+    if constexpr (std::is_base_of_v<ApplyView, std::remove_cvref_t<decltype(view)>>)
+        apply = true;
+    return checkXrpBalanceHlp(view, apply, tx, accID, {}, a, {}, ownerCountAdj, 0, a, false, j);
+}
+
+// simple + balance adjustment
+template <class V>
+[[nodiscard]] TER
+checkXrpBalance(
+    V const& view,
+    STTx const& tx,
+    AccountID const& accID,
+    std::int32_t ownerCountAdj,
+    XRPAmount balanceAdj,
+    beast::Journal j)
+{
+    static XRPAmount const a;
+    bool apply = false;
+    if constexpr (std::is_base_of_v<ApplyView, std::remove_cvref_t<decltype(view)>>)
+        apply = true;
+    return checkXrpBalanceHlp(
+        view, apply, tx, accID, {}, a, {}, ownerCountAdj, 0, balanceAdj, false, j);
+}
+
+// simple/SLE + balance adjustment
+template <class V>
+[[nodiscard]] TER
+checkXrpBalance(
+    V const& view,
     STTx const& tx,
     SLE::const_ref accSle,
-    STAmount const& accBalance,
+    std::int32_t ownerCountAdj,
+    XRPAmount balanceAdj,
+    beast::Journal j)
+{
+    static XRPAmount const a;
+    bool apply = false;
+    if constexpr (std::is_base_of_v<ApplyView, std::remove_cvref_t<decltype(view)>>)
+        apply = true;
+    return checkXrpBalanceHlp(
+        view, apply, tx, {}, accSle, a, {}, ownerCountAdj, 0, balanceAdj, false, j);
+}
+
+// simple/Sle + sponsor(re-usage, checks on caller) + balance adjustment
+template <class V>
+[[nodiscard]] TER
+checkXrpBalance(
+    V const& view,
+    STTx const& tx,
+    SLE::const_ref accSle,
     SLE::const_ref sponsorSle,
     std::int32_t ownerCountAdj,
-    std::int32_t reserveCountAdj = 0,
-    beast::Journal j = beast::Journal{beast::Journal::getNullSink()});
+    XRPAmount balanceAdj,
+    beast::Journal j)
+{
+    static XRPAmount const a;
+    bool apply = false;
+    if constexpr (std::is_base_of_v<ApplyView, std::remove_cvref_t<decltype(view)>>)
+        apply = true;
+    return checkXrpBalanceHlp(
+        view, apply, tx, {}, accSle, a, sponsorSle, ownerCountAdj, 0, balanceAdj, false, j);
+}
 
-// Returns how many objects on account's reserve
+// simple + sponsor(re-usage, checks on caller) + balance adjustment
+template <class V>
+[[nodiscard]] TER
+checkXrpBalance(
+    V const& view,
+    STTx const& tx,
+    AccountID const& accID,
+    SLE::const_ref sponsorSle,
+    std::int32_t ownerCountAdj,
+    XRPAmount balanceAdj,
+    beast::Journal j)
+{
+    static XRPAmount const a;
+    bool apply = false;
+    if constexpr (std::is_base_of_v<ApplyView, std::remove_cvref_t<decltype(view)>>)
+        apply = true;
+    return checkXrpBalanceHlp(
+        view, apply, tx, accID, {}, a, sponsorSle, ownerCountAdj, 0, balanceAdj, false, j);
+}
+
+// simple/accountSle + balance(passed manually) + sponsor(re-usage, checks on caller) + moreThan2
+// check
+template <class V>
+[[nodiscard]] TER
+checkXrpBalance(
+    V const& view,
+    STTx const& tx,
+    SLE::const_ref accSle,
+    SLE::const_ref sponsorSle,
+    std::int32_t ownerCountAdj,
+    bool moreThan2,
+    beast::Journal j)
+{
+    static XRPAmount const a;
+
+    bool apply = false;
+    if constexpr (std::is_base_of_v<ApplyView, std::remove_cvref_t<decltype(view)>>)
+        apply = true;
+    return checkXrpBalanceHlp(
+        view, apply, tx, {}, accSle, a, sponsorSle, ownerCountAdj, 0, a, moreThan2, j);
+}
+
+// simple/accountSle + sponsor(re-usage, checks on caller)
+template <class V>
+[[nodiscard]] inline TER
+checkXrpBalance(
+    V const& view,
+    STTx const& tx,
+    SLE::const_ref accSle,
+    SLE::const_ref sponsorSle,
+    std::int32_t ownerCountAdj,
+    beast::Journal j = beast::Journal{beast::Journal::getNullSink()})
+{
+    return checkXrpBalance(view, tx, accSle, sponsorSle, ownerCountAdj, false, j);
+}
+
+// simple/accountSle + balance(passed manually) + sponsor(re-usage, checks on caller)
+template <class V>
+[[nodiscard]] inline TER
+checkXrpBalance(
+    V const& view,
+    STTx const& tx,
+    SLE::const_ref accSle,
+    XRPAmount balanceAcc,
+    SLE::const_ref sponsorSle,
+    std::int32_t ownerCountAdj,
+    beast::Journal j = beast::Journal{beast::Journal::getNullSink()})
+{
+    static XRPAmount const a;
+
+    bool apply = false;
+    if constexpr (std::is_base_of_v<ApplyView, std::remove_cvref_t<decltype(view)>>)
+        apply = true;
+    return checkXrpBalanceHlp(
+        view, apply, tx, {}, accSle, balanceAcc, sponsorSle, ownerCountAdj, 0, a, false, j);
+}
+
+// Returns the number of objects owned by the account
 std::uint32_t
 ownerCount(
     ReadView const& view,
@@ -109,8 +300,9 @@ adjustOwnerCount(
         j);
 }
 
-// Wrapper for adjustOwnerCount, retrive Sponsor(if exists) from the object. Mostly used when
-// deleting the object.
+// Wrappers for adjustOwnerCount, retrive Sponsor(if exists) from the object.
+// If |adjustment| > 0 then object is complex (like SignerList).
+// ownerCountAdj < 0
 void
 adjustOwnerCountObj(
     ApplyView& view,

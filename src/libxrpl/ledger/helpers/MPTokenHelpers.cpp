@@ -193,27 +193,18 @@ authorizeMPToken(
         //      - add the new mptokenKey to the owner directory
         //      - create the MPToken object for the holder
 
-        auto const sponsorSle = getTxReserveSponsor(view, tx);
-        if (!sponsorSle)
-            return sponsorSle.error();  // LCOV_EXCL_LINE
-
-        auto const isSponsoredAndPreFunded = *sponsorSle && !isSponsorReserveCoSigning(tx);
-
         // The reserve that is required to create the MPToken. Note
         // that although the reserve increases with every item
         // an account owns, in the case of MPTokens we only
         // *enforce* a reserve if the user owns more than two
         // items. This is similar to the reserve requirements of trust lines.
         // If PreFunded Sponsor, it must be checked whether sufficient
-        // ReserveCount exists.
-        if (ownerCount(view, *sponsorSle ? *sponsorSle : sleAcct, journal) >= 2 ||
-            isSponsoredAndPreFunded)
-        {
-            if (auto const ret = checkInsufficientReserve(
-                    view, tx, sleAcct, priorBalance, *sponsorSle, 1, 0, journal);
-                !isTesSuccess(ret))
-                return ret;
-        }
+        // ReserveCount exists. See also TrustSet::doApply() and AMMWithdraw::withdraw()
+
+        auto const sponsorSle = getTxReserveSponsor(view, tx, account);
+        if (auto const ter = checkXrpBalance(view, tx, sleAcct, sponsorSle, 1, true, journal);
+            !isTesSuccess(ter))
+            return tecINSUFFICIENT_RESERVE;
 
         // Defensive check before we attempt to create MPToken for the issuer
         auto const mpt = view.read(keylet::mptIssuance(mptIssuanceID));
@@ -234,11 +225,11 @@ authorizeMPToken(
         (*mptoken)[sfAccount] = account;
         (*mptoken)[sfMPTokenIssuanceID] = mptIssuanceID;
         (*mptoken)[sfFlags] = 0;
+        addSponsorToLedgerEntry(mptoken, sponsorSle);
         view.insert(mptoken);
 
         // Update owner count.
-        adjustOwnerCount(view, sleAcct, *sponsorSle, 1, journal);
-        addSponsorToLedgerEntry(mptoken, *sponsorSle);
+        adjustOwnerCount(view, sleAcct, sponsorSle, 1, journal);
 
         return tesSUCCESS;
     }
@@ -307,7 +298,7 @@ removeEmptyHolding(
     return authorizeMPToken(
         view,
         tx,
-        {},  // priorBalance
+        {},  // priorBalance, not used with tfMPTUnauthorize
         mptID,
         accountID,
         journal,
@@ -929,10 +920,7 @@ createMPToken(
     (*mptoken)[sfMPTokenIssuanceID] = mptIssuanceID;
     (*mptoken)[sfFlags] = flags;
     (*mptoken)[sfOwnerNode] = *ownerNode;
-
-    if (sponsorSle)
-        addSponsorToLedgerEntry(mptoken, sponsorSle);
-
+    addSponsorToLedgerEntry(mptoken, sponsorSle);
     view.insert(mptoken);
 
     return tesSUCCESS;

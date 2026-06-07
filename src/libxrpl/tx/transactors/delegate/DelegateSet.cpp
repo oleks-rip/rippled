@@ -96,12 +96,9 @@ DelegateSet::doApply()
         return tecINTERNAL;  // LCOV_EXCL_LINE
 
     auto const sponsorSle = getTxReserveSponsor(view(), ctx_.tx);
-    if (!sponsorSle)
-        return sponsorSle.error();  // LCOV_EXCL_LINE
-    if (auto const ret = checkInsufficientReserve(
-            view(), ctx_.tx, sleOwner, preFeeBalance_, *sponsorSle, 1, 0, ctx_.journal);
+    if (auto const ret = checkXrpBalance(view(), ctx_.tx, sleOwner, sponsorSle, 1, ctx_.journal);
         !isTesSuccess(ret))
-        return ret;
+        return tecINSUFFICIENT_RESERVE;
 
     sle = std::make_shared<SLE>(delegateKey);
     sle->setAccountID(sfAccount, accountID_);
@@ -129,8 +126,8 @@ DelegateSet::doApply()
     (*sle)[sfDestinationNode] = *destPage;
 
     ctx_.view().insert(sle);
-    adjustOwnerCount(ctx_.view(), sleOwner, *sponsorSle, 1, ctx_.journal);
-    addSponsorToLedgerEntry(sle, *sponsorSle);
+    adjustOwnerCount(ctx_.view(), sleOwner, sponsorSle, 1, ctx_.journal);
+    addSponsorToLedgerEntry(sle, sponsorSle);
 
     return tesSUCCESS;
 }

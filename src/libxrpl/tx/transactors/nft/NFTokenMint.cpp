@@ -279,8 +279,7 @@ NFTokenMint::doApply()
     if (!tokenSeq.has_value())
         return (tokenSeq.error());
 
-    std::uint32_t const ownerCountBefore =
-        view().read(keylet::account(accountID_))->getFieldU32(sfOwnerCount);
+
 
     // Assemble the new NFToken.
     SOTemplate const* nfTokenTemplate =
@@ -306,12 +305,10 @@ NFTokenMint::doApply()
             object.setFieldVL(sfURI, *uri);
     });
 
+    auto const accSle = view().peek(keylet::account(accountID_));
     auto const sponsorSle = getTxReserveSponsor(view(), ctx_.tx);
-    if (!sponsorSle)
-        return sponsorSle.error();  // LCOV_EXCL_LINE
-
-    if (TER const ret =
-            nft::insertToken(ctx_.view(), ctx_.tx, accountID_, *sponsorSle, std::move(newToken));
+    if (TER const ret = nft::insertToken(
+            ctx_.view(), ctx_.tx, accSle, preFeeBalance_, sponsorSle, std::move(newToken));
         !isTesSuccess(ret))
         return ret;
 
@@ -323,7 +320,7 @@ NFTokenMint::doApply()
         if (TER const ter = nft::tokenOfferCreateApply(
                 view(),
                 ctx_.tx,
-                ctx_.tx[sfAccount],
+                accSle,
                 ctx_.tx[sfAmount],
                 ctx_.tx[~sfDestination],
                 ctx_.tx[~sfExpiration],
@@ -335,26 +332,6 @@ NFTokenMint::doApply()
             return ter;
     }
 
-    // Only check the reserve if the owner count actually changed.  This
-    // allows NFTs to be added to the page (and burn fees) without
-    // requiring the reserve to be met each time.  The reserve is
-    // only managed when a new NFT page or sell offer is added.
-    if (auto const ownerCountAfter =
-            view().read(keylet::account(accountID_))->getFieldU32(sfOwnerCount);
-        ownerCountAfter > ownerCountBefore)
-    {
-        if (auto const ret = checkInsufficientReserve(
-                ctx_.view(),
-                ctx_.tx,
-                view().read(keylet::account(accountID_)),
-                preFeeBalance_,
-                *sponsorSle,
-                0,
-                0,
-                j_);
-            !isTesSuccess(ret))
-            return ret;
-    }
     return tesSUCCESS;
 }
 

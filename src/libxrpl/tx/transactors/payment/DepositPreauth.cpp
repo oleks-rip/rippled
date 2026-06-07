@@ -162,10 +162,7 @@ DepositPreauth::doApply()
         // check the starting balance because we want to allow dipping into the
         // reserve to pay fees.
         auto const sponsorSle = getTxReserveSponsor(view(), ctx_.tx);
-        if (!sponsorSle)
-            return sponsorSle.error();  // LCOV_EXCL_LINE
-        if (auto const ret = checkInsufficientReserve(
-                view(), ctx_.tx, sleOwner, preFeeBalance_, *sponsorSle, 1, 0, j_);
+        if (auto const ret = checkXrpBalance(view(), ctx_.tx, sleOwner, sponsorSle, 1, j_);
             !isTesSuccess(ret))
             return ret;
 
@@ -191,8 +188,8 @@ DepositPreauth::doApply()
         slePreauth->setFieldU64(sfOwnerNode, *page);
 
         // If we succeeded, the new entry counts against the creator's reserve.
-        adjustOwnerCount(view(), sleOwner, *sponsorSle, 1, j_);
-        addSponsorToLedgerEntry(slePreauth, *sponsorSle);
+        adjustOwnerCount(view(), sleOwner, sponsorSle, 1, j_);
+        addSponsorToLedgerEntry(slePreauth, sponsorSle);
     }
     else if (ctx_.tx.isFieldPresent(sfUnauthorize))
     {
@@ -210,10 +207,7 @@ DepositPreauth::doApply()
         // check the starting balance because we want to allow dipping into the
         // reserve to pay fees.
         auto const sponsorSle = getTxReserveSponsor(view(), ctx_.tx);
-        if (!sponsorSle)
-            return sponsorSle.error();  // LCOV_EXCL_LINE
-        if (auto const ret = checkInsufficientReserve(
-                view(), ctx_.tx, sleOwner, preFeeBalance_, *sponsorSle, 1, 0, j_);
+        if (auto const ret = checkXrpBalance(view(), ctx_.tx, sleOwner, sponsorSle, 1, j_);
             !isTesSuccess(ret))
             return ret;
 
@@ -253,8 +247,8 @@ DepositPreauth::doApply()
         slePreauth->setFieldU64(sfOwnerNode, *page);
 
         // If we succeeded, the new entry counts against the creator's reserve.
-        adjustOwnerCount(view(), sleOwner, *sponsorSle, 1, j_);
-        addSponsorToLedgerEntry(slePreauth, *sponsorSle);
+        adjustOwnerCount(view(), sleOwner, sponsorSle, 1, j_);
+        addSponsorToLedgerEntry(slePreauth, sponsorSle);
     }
     else if (ctx_.tx.isFieldPresent(sfUnauthorizeCredentials))
     {

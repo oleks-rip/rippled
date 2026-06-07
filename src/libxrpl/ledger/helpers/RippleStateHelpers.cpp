@@ -231,7 +231,7 @@ trustCreate(
         return tecDIR_FULL;  // LCOV_EXCL_LINE
 
     bool const bSetDst = saLimit.getIssuer() == uDstAccountID;
-    bool const bSetHigh = bSrcHigh ^ bSetDst;
+    bool const bSetHigh = bSrcHigh != bSetDst;
 
     XRPL_ASSERT(sleAccount, "xrpl::trustCreate : non-null SLE");
     if (!sleAccount)
@@ -285,8 +285,8 @@ trustCreate(
     }
 
     sleRippleState->setFieldU32(sfFlags, uFlags);
-    adjustOwnerCount(view, sleAccount, sponsorSle, 1, j);
 
+    adjustOwnerCount(view, sleAccount, sponsorSle, 1, j);
     addSponsorToLedgerEntry(sleRippleState, sponsorSle, bSetHigh ? sfHighSponsor : sfLowSponsor);
 
     // ONLY: Create ripple balance.
@@ -664,18 +664,11 @@ addEmptyHolding(
     if (view.read(index))
         return tecDUPLICATE;
 
-    SLE::pointer sponsorSle;
-    if (!isPseudoAccount(sleDst))
-    {
-        auto sle = getTxReserveSponsor(view, tx);
-        if (!sle)
-            return sle.error();  // LCOV_EXCL_LINE
-        sponsorSle = std::move(*sle);
-    }
+    SLE::pointer sponsorSle =
+        !isPseudoAccount(sleDst) ? getTxReserveSponsor(view, tx, dstId) : SLE::pointer();
 
     // Can the account cover the trust line reserve ?
-    if (auto const ret =
-            checkInsufficientReserve(view, tx, sleDst, priorBalance, sponsorSle, 1, 0, journal);
+    if (auto const ret = checkXrpBalance(view, tx, sleDst, sponsorSle, 1, journal);
         !isTesSuccess(ret))
         return tecNO_LINE_INSUF_RESERVE;
 

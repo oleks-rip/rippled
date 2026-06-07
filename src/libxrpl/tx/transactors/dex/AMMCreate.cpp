@@ -148,32 +148,31 @@ AMMCreate::preclaim(PreclaimContext const& ctx)
         return terNO_RIPPLE;
     }
 
+    // Check the reserve for LPToken trustline
     if (ctx.view.rules().enabled(featureSponsor))
     {
-        auto const sponsorSle = getTxReserveSponsor(ctx.view, ctx.tx);
-        if (!sponsorSle)
-            return sponsorSle.error();  // LCOV_EXCL_LINE
-
-        // Check the reserve for LPToken trustline
-        // Insufficient reserve
-        auto const accountSle = ctx.view.read(keylet::account(accountID));
-        if (auto const ret = checkInsufficientReserve(
-                ctx.view,
-                ctx.tx,
-                accountSle,
-                accountSle->getFieldAmount(sfBalance),
-                *sponsorSle,
-                1,
-                0,
-                ctx.j);
+        XRPAmount const balanceAdj =
+            isXRP(amount) ? amount.xrp() : (isXRP(amount2) ? amount2.xrp() : XRPAmount());
+        if (auto const ret = checkXrpBalance(ctx.view, ctx.tx, accountID, 1, -balanceAdj, ctx.j);
             !isTesSuccess(ret))
         {
-            JLOG(ctx.j.debug()) << "AMM Instance: insufficient reserves";
-            return tecINSUF_RESERVE_LINE;
+            if (ret == tecINSUFFICIENT_FUNDS)
+            {
+                JLOG(ctx.j.debug())
+                    << "AMM Instance: insufficient funds, " << amount << " " << amount2;
+                return tecUNFUNDED_AMM;
+            }
+            else
+            {
+                JLOG(ctx.j.debug()) << "AMM Instance: insufficient reserves";
+                return tecINSUF_RESERVE_LINE;
+            }
         }
     }
     else
     {
+        // <= beast::kZero is non standard case (standard is < beast::kZero) so we can't remove
+        // it until the Sponsor Amendment is fully adopted
         STAmount const xrpBalance = xrpLiquid(ctx.view, accountID, 1, ctx.j);
         // Insufficient reserve
         if (xrpBalance <= beast::kZero)
@@ -183,18 +182,26 @@ AMMCreate::preclaim(PreclaimContext const& ctx)
         }
     }
 
-    auto const ownerCountAdj = isReserveSponsored(ctx.tx) ? 0 : 1;
-    STAmount const xrpBalance = xrpLiquid(ctx.view, accountID, ownerCountAdj, ctx.j);
     auto insufficientBalance = [&](STAmount const& amount) {
         if (isXRP(amount))
+        {
+            // featureSponsor already check both amount and reserve
+            if (ctx.view.rules().enabled(featureSponsor))
+                return false;
+
+            auto const ownerCountAdj = isReserveSponsored(ctx.tx) ? 0 : 1;
+            STAmount const xrpBalance = xrpLiquid(ctx.view, accountID, ownerCountAdj, ctx.j);
             return xrpBalance < amount;
-        return accountFunds(
-                   ctx.view,
-                   accountID,
-                   amount,
-                   FreezeHandling::ZeroIfFrozen,
-                   AuthHandling::ZeroIfUnauthorized,
-                   ctx.j) < amount;
+        }
+
+        auto const funds = accountFunds(
+            ctx.view,
+            accountID,
+            amount,
+            FreezeHandling::ZeroIfFrozen,
+            AuthHandling::ZeroIfUnauthorized,
+            ctx.j);
+        return funds < amount;
     };
 
     if (insufficientBalance(amount) || insufficientBalance(amount2))
@@ -324,10 +331,7 @@ applyCreate(ApplyContext& ctx, Sandbox& sb, AccountID const& account, beast::Jou
 
     // Send LPT to LP.
     auto const sponsorSle = getTxReserveSponsor(sb, ctx.tx);
-    if (!sponsorSle)
-        return {sponsorSle.error(), false};  // LCOV_EXCL_LINE
-
-    auto res = accountSend(sb, accountId, account, lpTokens, ctx.journal, *sponsorSle);
+    auto res = accountSend(sb, accountId, account, lpTokens, ctx.journal, sponsorSle);
     if (!isTesSuccess(res))
     {
         JLOG(j.debug()) << "AMM Instance: failed to send LPT " << lpTokens;
@@ -353,25 +357,15 @@ applyCreate(ApplyContext& ctx, Sandbox& sb, AccountID const& account, beast::Jou
                     return err;
                 // Don't adjust AMM owner count.
                 // It's irrelevant for pseudo-account like AMM.
+                // Don't sponsor for AMM Trustline
                 return accountSend(
-                    sb,
-                    account,
-                    accountId,
-                    amount,
-                    ctx.journal,
-                    {},  // don't sponsor for AMM Trustline
-                    WaiveTransferFee::Yes);
+                    sb, account, accountId, amount, ctx.journal, {}, WaiveTransferFee::Yes);
             },
             // Set AMM flag on AMM trustline
+            // Don't sponsor for AMM Trustline
             [&](Issue const& issue) -> TER {
                 if (auto const res = accountSend(
-                        sb,
-                        account,
-                        accountId,
-                        amount,
-                        ctx.journal,
-                        {},  // don't sponsor for AMM Trustline
-                        WaiveTransferFee::Yes))
+                        sb, account, accountId, amount, ctx.journal, {}, WaiveTransferFee::Yes))
                     return res;
                 // Set AMM flag on AMM trustline
                 if (!isXRP(amount))

@@ -109,21 +109,6 @@ struct PreflightResult;
 // Needed for preflight specialization
 class Change;
 
-enum class FeePayerType {
-    Account,
-    Delegate,
-    SponsorCoSigned,
-    SponsorPreFunded,
-};
-
-struct FeePayer
-{
-    AccountID id;
-    Keylet keylet;
-    SF_AMOUNT const& balanceField;
-    FeePayerType type{FeePayerType::Account};
-};
-
 class Transactor
 {
 protected:
@@ -370,9 +355,6 @@ protected:
     validNumericMinimum(
         std::optional<T> value,
         unit::ValueUnit<Unit, T> min = unit::ValueUnit<Unit, T>{});
-
-    static FeePayer
-    getFeePayer(ReadView const& view, STTx const& tx);
 
 private:
     std::pair<TER, XRPAmount>

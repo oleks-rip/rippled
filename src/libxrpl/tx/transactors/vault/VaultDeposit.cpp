@@ -344,9 +344,6 @@ VaultDeposit::doApply()
     }
 
     auto const sponsorSle = getTxReserveSponsor(view(), ctx_.tx);
-    if (!sponsorSle)
-        return sponsorSle.error();  // LCOV_EXCL_LINE
-
     // Transfer shares from vault to depositor.
     if (auto const ter = accountSend(
             view(),
@@ -354,7 +351,7 @@ VaultDeposit::doApply()
             accountID_,
             sharesCreated,
             j_,
-            *sponsorSle,
+            sponsorSle,
             WaiveTransferFee::Yes);
         !isTesSuccess(ter))
         return ter;

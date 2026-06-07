@@ -149,11 +149,12 @@ public:
         Account const alice("alice");
         Account const bob("bob");
         Account const sponsor("sponsor");
+        Account const sponsor2("sponsor2");
         Account const noFunded("noFunded");
         Account const gw("gw");
 
         auto const usd = gw["usd"];
-        env.fund(XRP(10000), alice, sponsor, gw);
+        env.fund(XRP(10000), alice, sponsor, sponsor2, gw, bob);
         env.close();
 
         //
@@ -259,9 +260,14 @@ public:
         env(sponsor::set_fee(sponsor, 0, XRP(4)), sponsor::SponseeAcc(alice), Ter(tecUNFUNDED));
         env.close();
 
-        // insufficent reserve to create sponsorship
+        // Fee can be borrowed from reserve
+        adjustAccountXRPBalance(env, sponsor2, XRP(100) + XRP(1) + reserve(env, 1));
+        env(sponsor::set(sponsor2, 0, 100, XRP(101)), sponsor::SponseeAcc(bob), Fee(XRP(1)));
+        env.close();
+
+        // insufficent reserve to create sponsorship (balance like previous but -1 drop)
         adjustAccountXRPBalance(env, sponsor, XRP(100) + XRP(1) + reserve(env, 1) - drops(1));
-        env(sponsor::set(sponsor, 0, 100, XRP(100)),
+        env(sponsor::set(sponsor, 0, 100, XRP(101)),
             sponsor::SponseeAcc(alice),
             Fee(XRP(1)),
             Ter(tecUNFUNDED));
@@ -3688,14 +3694,19 @@ public:
             env(noop(sponsor), ticket::Use(ticketSeq));
             env.close();
 
-            // pass (free mptoken)
             if (cosigning)
             {
+                // Sponsor reserve full tokens (no sponsor - free mptoken, rule ownerCount < 2)
                 adjustAccountXRPBalance(env, sponsor, reserve(env, 2) - drops(1));
                 env(jv,
                     sponsor::As(sponsor, spfSponsorReserve),
                     Sig(sfSponsorSignature, sponsor),
-                    Ter(tesSUCCESS));
+                    Ter(tecINSUFFICIENT_RESERVE));
+                env.close();
+
+                // full reserve pass
+                adjustAccountXRPBalance(env, sponsor, reserve(env, 2));
+                env(jv, sponsor::As(sponsor, spfSponsorReserve), Sig(sfSponsorSignature, sponsor));
                 env.close();
             }
             else

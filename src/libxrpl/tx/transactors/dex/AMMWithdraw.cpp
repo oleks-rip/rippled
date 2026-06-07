@@ -611,14 +611,8 @@ AMMWithdraw::withdraw(
 
     // this is also called from AMMClawback, but only AMMWithdraw does sponsor
     // the new trustline
-    SLE::pointer sponsorSle;
-    if (tx[sfAccount] == account)
-    {
-        auto sle = getTxReserveSponsor(view, tx);
-        if (!sle)
-            return {sle.error(), STAmount{}, STAmount{}, STAmount{}};  // LCOV_EXCL_LINE
-        sponsorSle = std::move(*sle);
-    }
+    SLE::pointer sponsorSle =
+        tx[sfAccount] == account ? getTxReserveSponsor(view, tx) : SLE::pointer();
 
     // Check the reserve in case a trustline or MPT has to be created
     bool const enabledFixAmMv12 = view.rules().enabled(fixAMMv1_2);
@@ -646,24 +640,12 @@ AMMWithdraw::withdraw(
             if (!sleAccount)
                 return tecINTERNAL;  // LCOV_EXCL_LINE
 
-            auto const balance = (*sleAccount)[sfBalance]->xrp();
-            std::uint32_t const count =
-                ownerCount(view, sponsorSle ? sponsorSle : sleAccount, journal);
-            // See also TrustSet::doApply() and authorizeMPToken()
-            if (count >= 2)
-            {
-                if (auto const ret = checkInsufficientReserve(
-                        view,
-                        tx,
-                        sleAccount,
-                        std::max(priorBalance, balance),
-                        sponsorSle,
-                        1,
-                        0,
-                        journal);
-                    !isTesSuccess(ret))
-                    return ret;
-            }
+            // See also TrustSet::doApply() and authorizeMPToken() for ownerCount >=2.
+            // Here "true" means it
+            if (auto const ter =
+                    checkXrpBalance(view, tx, sleAccount, sponsorSle, 1, true, journal);
+                !isTesSuccess(ter))
+                return tecINSUFFICIENT_RESERVE;
         }
         return tesSUCCESS;
     };

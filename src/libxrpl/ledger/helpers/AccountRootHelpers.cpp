@@ -24,11 +24,15 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <set>
 #include <stdexcept>
+#include <tuple>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace xrpl {
@@ -168,19 +172,24 @@ baseReserveHlp(ReadView const& view, std::uint32_t ownerCount, std::uint32_t res
     return (fees.reserve * reserveCount) + (fees.increment * ownerCount);
 }
 
-static XRPAmount
-reserveHlp(
+// reserve, ownerCount, reserveCount
+static std::tuple<XRPAmount, std::uint32_t, std::uint32_t>
+accountReserveHlp(
     ReadView const& view,
-    SLE::const_ref sle,
-    std::uint32_t ownerCount,
-    std::uint32_t reserveCount)
+    SLE::const_ref accSle,
+    std::uint32_t ownerCountAdj,
+    std::uint32_t reserveCountAdj,
+    bool reportConfine,
+    beast::Journal j)
 {
     // Pseudo-accounts have no reserve requirement
-    if (isPseudoAccount(sle))
-        return XRPAmount(0);
+    if (isPseudoAccount(accSle))
+        return {XRPAmount(), 0, 0};
 
+    std::uint32_t const ownerCount = ownerCountHlp(view, accSle, ownerCountAdj, reportConfine, j);
+    std::uint32_t const reserveCount = reserveCountHlp(accSle, reserveCountAdj, j);
     auto const reserve = baseReserveHlp(view, ownerCount, reserveCount);
-    return reserve;
+    return {reserve, ownerCount, reserveCount};
 }
 
 std::uint32_t
@@ -190,6 +199,9 @@ ownerCount(
     beast::Journal j,
     std::int32_t ownerCountAdj)
 {
+    if (!accSle)
+        Throw<std::logic_error>("xrpl::ownerCount: empty sle type");
+
     auto const sleType = accSle->getType();
     bool const validType = sleType == ltLOAN_BROKER || sleType == ltACCOUNT_ROOT;
     if (!validType)
@@ -198,33 +210,109 @@ ownerCount(
     return ownerCountHlp(view, accSle, ownerCountAdj, true, j);
 }
 
-static STAmount
+static FeePayer
+getFeePayerHlp(
+    ReadView const& view,
+    STTx const& tx,
+    std::optional<std::reference_wrapper<SLE::const_pointer const>> const& sponsorshipSle)
+{
+    if (tx.isFieldPresent(sfDelegate))
+    {
+        AccountID const payerID = tx[sfDelegate];
+        return FeePayer{
+            .id = payerID,
+            .keylet = keylet::account(payerID),
+            .balanceField = sfBalance,
+            .type = FeePayerType::Delegate};
+    }
+
+    if (tx.isFieldPresent(sfSponsor) && isFeeSponsored(tx))
+    {
+        AccountID const sponsorAccountID = tx.getAccountID(sfSponsor);
+        AccountID const sponseeAccountID = tx.getAccountID(sfAccount);
+        auto const sponsorshipKeylet = keylet::sponsor(sponsorAccountID, sponseeAccountID);
+
+        if (sponsorshipSle)
+        {
+            if (sponsorshipSle->get())
+            {
+                // pre funded
+                if (!sponsorshipKeylet.check(*(sponsorshipSle->get())))
+                    Throw<std::logic_error>(
+                        "getFeePayerHlp Invalid sponsorship");  // LCOV_EXCL_LINE
+
+                return FeePayer{
+                    .id = sponsorAccountID,
+                    .keylet = sponsorshipKeylet,
+                    .balanceField = sfFeeAmount,
+                    .type = FeePayerType::SponsorPreFunded};
+            }
+        }
+        else if (view.exists(sponsorshipKeylet))
+        {
+            // pre funded
+            return FeePayer{
+                .id = sponsorAccountID,
+                .keylet = sponsorshipKeylet,
+                .balanceField = sfFeeAmount,
+                .type = FeePayerType::SponsorPreFunded};
+        }
+
+        if (!tx.isFieldPresent(sfSponsorSignature))
+        {
+            Throw<std::logic_error>(
+                "Transactor::getFeePayer valid sponsor signature");  // LCOV_EXCL_LINE
+        }
+
+        // co-signed
+        return FeePayer{
+            .id = sponsorAccountID,
+            .keylet = keylet::account(sponsorAccountID),
+            .balanceField = sfBalance,
+            .type = FeePayerType::SponsorCoSigned};
+    }
+
+    AccountID const payerID = tx[sfAccount];
+    return FeePayer{
+        .id = payerID,
+        .keylet = keylet::account(payerID),
+        .balanceField = sfBalance,
+        .type = FeePayerType::Account};
+}
+
+FeePayer
+getFeePayer(ReadView const& view, STTx const& tx)
+{
+    return getFeePayerHlp(view, tx, {});
+}
+
+static XRPAmount
 xrpLiquidHlp(
     ReadView const& view,
-    AccountID const& id,
     SLE::const_ref accSle,
     std::int32_t ownerCountAdj,
     std::int32_t reserveCountAdj,
+    std::pair<AccountID, XRPAmount> feeAdj,
     beast::Journal j)
 {
-    if (!accSle)
-        return beast::kZero;
+    AccountID const id = accSle->at(sfAccount);
+    auto [reserve, ownerCount, reserveCount] =
+        accountReserveHlp(view, accSle, ownerCountAdj, reserveCountAdj, false, j);
 
-    std::uint32_t const ownerCount = ownerCountHlp(view, accSle, ownerCountAdj, false, j);
-    std::uint32_t const reserveCount = reserveCountHlp(accSle, reserveCountAdj, j);
-    auto const reserve = reserveHlp(view, accSle, ownerCount, reserveCount);
+    STAmount const fullBalance = accSle->at(sfBalance);
+    XRPAmount const balance = view.balanceHookIOU(id, xrpAccount(), fullBalance).xrp();
 
-    auto const fullBalance = accSle->at(sfBalance);
-    auto const balance = view.balanceHookIOU(id, xrpAccount(), fullBalance);
-
-    STAmount const amount = balance - reserve;
+    XRPAmount const fee = feeAdj.first == id ? feeAdj.second : XRPAmount();
+    XRPAmount const preFeeBalance = balance + fee;
+    XRPAmount const amount = preFeeBalance - std::max(reserve, fee);
 
     JLOG(j.trace()) << "accountHolds:" << " account=" << to_string(id)
-                    << " amount=" << amount.getFullText()
+                    << " amount=" << amount.decimalXRP()
                     << " fullBalance=" << fullBalance.getFullText()
-                    << " balance=" << balance.getFullText() << " reserve=" << reserve
-                    << " ownerCount=" << ownerCount << " ownerCountAdj=" << ownerCountAdj;
-
+                    << " balance=" << balance.decimalXRP() << " reserve=" << reserve.decimalXRP()
+                    << " ownerCount=" << ownerCount << " ownerCountAdj=" << ownerCountAdj
+                    << " reserveCount=" << reserveCount << " reserveCountAdj=" << reserveCountAdj
+                    << " fee adj=" << fee.decimalXRP();
     return amount;
 }
 
@@ -235,8 +323,37 @@ xrpLiquid(ReadView const& view, AccountID const& id, std::int32_t ownerCountAdj,
     if (!accSle)
         return beast::kZero;
 
-    auto const x = xrpLiquidHlp(view, id, accSle, ownerCountAdj, 0, j);
-    return x.negative() ? XRPAmount(beast::kZero) : x.xrp();
+    auto const x =
+        xrpLiquidHlp(view, accSle, ownerCountAdj, 0, std::pair<AccountID, XRPAmount>(), j);
+    return x.negative() ? XRPAmount() : x;
+}
+
+XRPAmount
+xrpLiquid(ReadView const& view, SLE::const_ref accSle, std::int32_t ownerCountAdj, beast::Journal j)
+{
+    if (!accSle)
+        return beast::kZero;
+
+    auto const x =
+        xrpLiquidHlp(view, accSle, ownerCountAdj, 0, std::pair<AccountID, XRPAmount>(), j);
+    return x.negative() ? XRPAmount() : x;
+}
+
+XRPAmount
+xrpLiquid(
+    ApplyView const& view,
+    STTx const& tx,
+    SLE::const_ref accSle,
+    std::int32_t ownerCountAdj,
+    beast::Journal j)
+{
+    if (!accSle)
+        return beast::kZero;
+
+    XRPAmount const feePayed(tx[sfFee].xrp());
+    AccountID const feePayer = getFeePayerHlp(view, tx, {}).id;
+    auto const x = xrpLiquidHlp(view, accSle, ownerCountAdj, 0, {feePayer, feePayed}, j);
+    return x.negative() ? XRPAmount() : x;
 }
 
 Rate
@@ -250,6 +367,23 @@ transferRate(ReadView const& view, AccountID const& issuer)
     return kParityRate;
 }
 
+static std::uint32_t
+confineOwnerCountSponsorship(
+    std::uint32_t ownerCount,
+    std::int32_t ownerCountAdj,
+    AccountID const& accID,
+    beast::Journal j)
+{
+    if (ownerCountAdj < 0)
+    {
+        std::int64_t const absOca = -static_cast<int64_t>(ownerCountAdj);
+        if (ownerCount < absOca)
+            return 0;
+    }
+
+    return confineOwnerCount(ownerCount, ownerCountAdj, accID, j);
+}
+
 static void
 adjustOwnerCountHlp(
     ApplyView& view,
@@ -258,12 +392,16 @@ adjustOwnerCountHlp(
     AccountID const& accID,
     std::int32_t ownerCountAdj,
     beast::Journal j,
-    bool callHook = true)
+    bool isSponsorship = false)
 {
     std::uint32_t const current = sle->at(sfield);
-    std::uint32_t const adjusted = confineOwnerCount(current, ownerCountAdj, accID, j);
-    if (callHook)
+    std::uint32_t const adjusted = !isSponsorship
+        ? confineOwnerCount(current, ownerCountAdj, accID, j)
+        : confineOwnerCountSponsorship(current, ownerCountAdj, accID, j);
+
+    if (!isSponsorship)
         view.adjustOwnerCountHook(accID, current, adjusted);
+
     sle->at(sfield) = adjusted;
     view.update(sle);
 }
@@ -296,16 +434,22 @@ adjustOwnerCount(
             Throw<std::logic_error>("xrpl::adjustOwnerCount : valid sponsor sle type");
         auto const sponsorID = sponsorSle->getAccountID(sfAccount);
 
+        if (accountID == sponsorID)
+            Throw<std::logic_error>("adjustOwnerCount : account can't be sponsor foor themself");
+
         adjustOwnerCountHlp(view, accountSle, sfSponsoredOwnerCount, accountID, ownerCountAdj, j);
         adjustOwnerCountHlp(view, sponsorSle, sfSponsoringOwnerCount, sponsorID, ownerCountAdj, j);
 
         auto sponsorshipSle = view.peek(keylet::sponsor(sponsorID, accountID));
         if (sponsorshipSle && ownerCountAdj > 0)
         {
-            // update the pre-funded ReserveCount on Sponsorship ledger object
-            // Reserve count moves opposite to adjustment: +adjustment => consume reserve (-),
+            // Only decrease the pre-funded ReserveCount on Sponsorship if we assign new objects.
+            // Removing/reassigning ownership of the object doesn't increase ReserveCount back.
+            // Don't call hook because this counter is not something that require reserve (like
+            // other sf...OwnerCounts do). If sfReserveCount goes < 0, it just set to 0. It means tx
+            // is co-signed, checkXrpBalance verify that
             adjustOwnerCountHlp(
-                view, sponsorshipSle, sfReserveCount, sponsorID, -ownerCountAdj, j, false);
+                view, sponsorshipSle, sfReserveCount, sponsorID, -ownerCountAdj, j, true);
         }
     }
     adjustOwnerCountHlp(view, accountSle, sfOwnerCount, accountID, ownerCountAdj, j);
@@ -320,9 +464,15 @@ adjustOwnerCountObj(
     beast::Journal j)
 {
     if (!objectSle)
-        Throw<std::runtime_error>("xrpl::adjustOwnerCount : valid object sle");
+        Throw<std::runtime_error>("xrpl::adjustOwnerCountObj : valid object sle");
     if (objectSle->getType() == ltACCOUNT_ROOT)
-        Throw<std::logic_error>("xrpl::adjustOwnerCount : valid object sle type");
+        Throw<std::logic_error>("xrpl::adjustOwnerCountObj : valid object sle type");
+    if (ownerCountAdj >= 0)
+        Throw<std::logic_error>("xrpl::adjustOwnerCountObj : adjustment >= 0");
+
+    XRPL_ASSERT(ownerCountAdj, "xrpl::adjustOwnerCount : nonzero adjustment input");
+    if (ownerCountAdj == 0)
+        return;
 
     SLE::ref sponsorSle = getLedgerEntryReserveSponsor(view, objectSle);
     adjustOwnerCount(view, accountSle, sponsorSle, ownerCountAdj, j);
@@ -341,10 +491,10 @@ accountReserve(
     if (sle->getType() != ltACCOUNT_ROOT)
         Throw<std::logic_error>("xrpl::accountReserve : valid sle type");
 
-    std::uint32_t const ownerCount = ownerCountHlp(view, sle, ownerCountAdj, true, j);
-    std::uint32_t const reserveCount = reserveCountHlp(sle, reserveCountAdj, j);
+    [[maybe_unused]] auto [reserve, _1, _2] =
+        accountReserveHlp(view, sle, ownerCountAdj, reserveCountAdj, true, j);
 
-    return reserveHlp(view, sle, ownerCount, reserveCount);
+    return reserve;
 }
 
 XRPAmount
@@ -354,50 +504,157 @@ baseAccountReserve(ReadView const& view, std::int32_t ownerCount)
     return reserve;
 }
 
-TER
-checkInsufficientReserve(
+static TER
+checkXrpBalanceGeneral(
     ReadView const& view,
+    bool apply,
     STTx const& tx,
     SLE::const_ref accSle,
-    STAmount const& accBalance,
+    XRPAmount balanceAcc,
     SLE::const_ref sponsorSle,
     std::int32_t ownerCountAdj,
     std::int32_t reserveCountAdj,
-    beast::Journal j)
+    XRPAmount balanceAdj,
+    bool moreThan2,
+    beast::Journal j,
+    bool checkApplicability)
 {
+    // Passed 'balance' means checks are on caller, needs for some non-standard checks
+    if (balanceAcc && balanceAdj)
+        return tecINTERNAL;  // LCOV_EXCL_LINE
+
+    if (balanceAcc.negative())
+        return tecINSUFFICIENT_FUNDS;
+
+    XRPL_ASSERT(!moreThan2 || (!balanceAcc && !balanceAdj), "small owner count with balance");
+
+    // With sponsored account reserve requirements can be 0. But some checks for liquidity assume we
+    // have reserve and we can borrow fee from it in edge cases. We can end up in potential negative
+    // balance. Here is 'apply' for - to distinguish if sfBalance contains preFee or postFee amount.
+    // Then fee participating in xrpLiquid calculation.
+    XRPAmount const feePayed(apply ? tx[sfFee].xrp() : XRPAmount());
+    AccountID feePayer;
+
     if (sponsorSle)
     {
-        auto const isCoSigning = isSponsorReserveCoSigning(tx);
-        auto const sponsorshipSle =
-            view.read(keylet::sponsor(sponsorSle->at(sfAccount), accSle->at(sfAccount)));
-
-        // prefunded sponsor should have a sponsorship entry
-        if (!isCoSigning && !sponsorshipSle)
+        auto const accID = accSle->at(sfAccount);
+        // Check if sponsor applicable (for manually passed sponsorSle)
+        if (checkApplicability && (accID != tx[sfAccount]))
             return tecINTERNAL;  // LCOV_EXCL_LINE
 
-        // If sponsorship doesn't have enough ownerCount, we still can try fallback directly to
-        // sponsor if tx reserve co-signed.
-        if (sponsorshipSle)  // && !isCoSigning ??
+        bool const delegated = tx.isFieldPresent(sfDelegate);
+        AccountID const sponsorID = sponsorSle->at(sfAccount);
+
+        bool const isCoSigning = isSponsorReserveCoSigning(tx);
+        // || isCoSigning  if co-signing be prioritizing
+        bool const skipSponsorshipReserve = (ownerCountAdj <= 0);
+
+        bool const sponsorshipLoad = !delegated || !skipSponsorshipReserve;
+        auto const sponsorshipSle =
+            sponsorshipLoad ? view.read(keylet::sponsor(sponsorID, accID)) : SLE::pointer();
+
+        // Sponsorship have priority before co-signing
+        if (!skipSponsorshipReserve)
         {
-            auto const remainingOwnerCount = sponsorshipSle->at(sfReserveCount);
-            if ((remainingOwnerCount < ownerCountAdj))
-                return tecINSUFFICIENT_RESERVE;
+            if (!isCoSigning && !sponsorshipSle)  // checked in Transactor::checkSponsor
+                return tecINTERNAL;               // LCOV_EXCL_LINE
+
+            if (sponsorshipSle)
+            {
+                std::uint32_t const remainingOwnerCount = sponsorshipSle->at(sfReserveCount);
+                if (std::cmp_less(remainingOwnerCount, ownerCountAdj))
+                    return tecINSUFFICIENT_RESERVE;
+            }
         }
 
-        auto const sponsorBalance = sponsorSle->getFieldAmount(sfBalance);
-        STAmount const sponsorReserve =
-            accountReserve(view, sponsorSle, j, ownerCountAdj, reserveCountAdj);
+        feePayer = getFeePayerHlp(view, tx, sponsorshipSle).id;
 
-        if (sponsorBalance < sponsorReserve)
+        // co-signing or pre-fund still check sponsor capabilities
+        auto const sponsorLiquid =
+            xrpLiquidHlp(view, sponsorSle, ownerCountAdj, reserveCountAdj, {feePayer, feePayed}, j);
+        if (sponsorLiquid.negative())
             return tecINSUFFICIENT_RESERVE;
     }
     else
     {
-        STAmount const reserve = accountReserve(view, accSle, j, ownerCountAdj, reserveCountAdj);
-        if (accBalance < reserve)
-            return tecINSUFFICIENT_RESERVE;
+        // Special case for amm/trustlines/authorizemptoken -  to not to demand reserve if
+        // ownerCount less than 2. Sponsor still check reserve for full count.
+        if (moreThan2 && (ownerCountHlp(view, accSle, 0, true, j) < 2))
+            return tesSUCCESS;
+
+        feePayer = getFeePayerHlp(view, tx, {}).id;
     }
+
+    auto const oca = sponsorSle ? 0 : ownerCountAdj;
+    auto const rca = sponsorSle ? 0 : reserveCountAdj;
+
+    if (balanceAcc)
+    {
+        // balance passed, fee checks on caller, just check for reserve
+        [[maybe_unused]] auto [reserve, _1, _2] =
+            accountReserveHlp(view, accSle, oca, rca, true, j);
+        XRPAmount const accLiquid = balanceAcc - reserve;
+        if (accLiquid.negative())
+            return tecINSUFFICIENT_RESERVE;
+        return tesSUCCESS;
+    }
+
+    {
+        XRPAmount const accLiquid = xrpLiquidHlp(view, accSle, oca, rca, {feePayer, feePayed}, j);
+        auto const accAdjusted = accLiquid + balanceAdj;
+        // positive balance can improve liquidity
+        if (accLiquid.negative() && accAdjusted.negative())
+            return tecINSUFFICIENT_RESERVE;
+        if (accAdjusted.negative())
+            return tecINSUFFICIENT_FUNDS;
+    }
+
     return tesSUCCESS;
+}
+
+TER
+checkXrpBalanceHlp(
+    ReadView const& view,
+    bool apply,
+    STTx const& tx,
+    std::optional<AccountID> const& accID,
+    std::optional<std::reference_wrapper<SLE::const_pointer const>> const& accOpt,
+    XRPAmount balanceAcc,
+    std::optional<std::reference_wrapper<SLE::const_pointer const>> const& sponsorOpt,
+    std::int32_t ownerCountAdj,
+    std::int32_t reserveCountAdj,
+    XRPAmount balanceAdj,
+    bool moreThan2,
+    beast::Journal j,
+    bool checkApplicability)
+{
+    if ((!accID && !accOpt) || (accID && accOpt))
+        return tecINTERNAL;  // LCOV_EXCL_LINE
+
+    SLE::const_ref accSle = !accOpt ? view.read(keylet::account(*accID)) : accOpt->get();
+    if (!accSle || (accSle->getType() != ltACCOUNT_ROOT))
+        return tecINTERNAL;  // LCOV_EXCL_LINE
+
+    SLE::const_ref sponsorSle = !sponsorOpt
+        ? getTxReserveSponsor(
+              view,
+              tx,
+              checkApplicability ? std::make_optional(accSle->at(sfAccount)) : std::nullopt)
+        : sponsorOpt->get();
+
+    return checkXrpBalanceGeneral(
+        view,
+        apply,
+        tx,
+        accSle,
+        balanceAcc,
+        sponsorSle,
+        ownerCountAdj,
+        reserveCountAdj,
+        balanceAdj,
+        moreThan2,
+        j,
+        checkApplicability);
 }
 
 // ----------------------------------------------------

@@ -113,21 +113,14 @@ MPTokenIssuanceCreate::create(
     if (!acct)
         return Unexpected(tecINTERNAL);  // LCOV_EXCL_LINE
 
-    SLE::pointer sponsorSle;
-    if (!isPseudoAccount(acct))
-    {
-        auto sle = getTxReserveSponsor(view, tx);
-        if (!sle)
-            return Unexpected(sle.error());
-        sponsorSle = std::move(*sle);
-    }
+    SLE::pointer sponsorSle =
+        !isPseudoAccount(acct) ? getTxReserveSponsor(view, tx, args.account) : SLE::pointer();
 
     if (args.priorBalance)
     {
-        if (auto const ret = checkInsufficientReserve(
-                view, tx, acct, *(args.priorBalance), sponsorSle, 1, 0, journal);
+        if (auto const ret = checkXrpBalance(view, tx, acct, sponsorSle, 1, journal);
             !isTesSuccess(ret))
-            return Unexpected(ret);  // tecINSUFFICIENT_RESERVE
+            return Unexpected(tecINSUFFICIENT_RESERVE);
     }
 
     auto const mptId = makeMptID(args.sequence, args.account);
@@ -187,7 +180,6 @@ MPTokenIssuanceCreate::create(
         view.insert(mptIssuance);
     }
 
-    // Update owner count.
     adjustOwnerCount(view, acct, sponsorSle, 1, journal);
 
     return mptId;

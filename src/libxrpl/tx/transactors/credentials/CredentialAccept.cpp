@@ -95,12 +95,9 @@ CredentialAccept::doApply()
         return tefINTERNAL;  // LCOV_EXCL_LINE
 
     auto const sponsorSle = getTxReserveSponsor(view(), ctx_.tx);
-    if (!sponsorSle)
-        return sponsorSle.error();  // LCOV_EXCL_LINE
-    if (auto const ret = checkInsufficientReserve(
-            view(), ctx_.tx, sleSubject, preFeeBalance_, *sponsorSle, 1, 0, ctx_.journal);
+    if (auto const ret = checkXrpBalance(view(), ctx_.tx, sleSubject, sponsorSle, 1, ctx_.journal);
         !isTesSuccess(ret))
-        return ret;
+        return tecINSUFFICIENT_RESERVE;
 
     auto const credType(ctx_.tx[sfCredentialType]);
     Keylet const credentialKey = keylet::credential(accountID_, issuer, credType);
@@ -121,8 +118,8 @@ CredentialAccept::doApply()
 
     adjustOwnerCountObj(view(), sleIssuer, sleCred, -1, j_);
     removeSponsorFromLedgerEntry(sleCred);
-    adjustOwnerCount(view(), sleSubject, *sponsorSle, 1, j_);
-    addSponsorToLedgerEntry(sleCred, *sponsorSle);
+    adjustOwnerCount(view(), sleSubject, sponsorSle, 1, j_);
+    addSponsorToLedgerEntry(sleCred, sponsorSle);
 
     return tesSUCCESS;
 }

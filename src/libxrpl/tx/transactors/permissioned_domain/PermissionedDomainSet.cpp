@@ -106,14 +106,12 @@ PermissionedDomainSet::doApply()
     {
         // Create new permissioned domain.
         // Check reserve availability for new object creation
-        auto const balance = STAmount((*ownerSle)[sfBalance]).xrp();
+        auto const balance = ownerSle->at(sfBalance)->xrp();
         auto const sponsorSle = getTxReserveSponsor(view(), ctx_.tx);
-        if (!sponsorSle)
-            return sponsorSle.error();  // LCOV_EXCL_LINE
-        if (auto const ret = checkInsufficientReserve(
-                ctx_.view(), ctx_.tx, ownerSle, balance, *sponsorSle, 1, 0, j_);
+        if (auto const ret =
+                checkXrpBalance(ctx_.view(), ctx_.tx, ownerSle, balance, sponsorSle, 1, j_);
             !isTesSuccess(ret))
-            return ret;
+            return tecINSUFFICIENT_RESERVE;
 
         bool const fixEnabled = view().rules().enabled(fixCleanup3_1_3);
         auto const seq = fixEnabled ? ctx_.tx.getSeqValue() : ctx_.tx.getFieldU32(sfSequence);
@@ -130,8 +128,8 @@ PermissionedDomainSet::doApply()
 
         slePd->setFieldU64(sfOwnerNode, *page);
         // If we succeeded, the new entry counts against the creator's reserve.
-        adjustOwnerCount(view(), ownerSle, *sponsorSle, 1, ctx_.journal);
-        addSponsorToLedgerEntry(slePd, *sponsorSle);
+        adjustOwnerCount(view(), ownerSle, sponsorSle, 1, ctx_.journal);
+        addSponsorToLedgerEntry(slePd, sponsorSle);
         view().insert(slePd);
     }
 
