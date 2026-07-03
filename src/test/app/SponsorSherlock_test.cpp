@@ -2399,11 +2399,13 @@ protected:
         // set very low (reserve + 5 XRP - 1 drop) for the test, so they cannot create NEW
         // reserve-bearing objects like tickets (which need an additional 50 XRP increment).
         // But they CAN still perform non-reserve operations and their state is valid.
-        // Creating a ticket would fail because: balance (reserve + 5 XRP) < required (reserve + 50 XRP)
+        // Creating a ticket would fail because: balance (reserve + 5 XRP) < required (reserve + 50
+        // XRP)
         env(ticket::create(grantor, 1), Ter(tecINSUFFICIENT_RESERVE));
         env.close();
 
-        // To verify grantor is NOT broken, give them more funds and verify they can now create objects
+        // To verify grantor is NOT broken, give them more funds and verify they can now create
+        // objects
         env(pay(env.master, grantor, XRP(100)));
         env.close();
         env(ticket::create(grantor, 1), Ter(tesSUCCESS));
@@ -2711,7 +2713,7 @@ protected:
         // With the fix: getTxReserveSponsor() checks if the account parameter
         // matches tx[sfAccount], preventing sponsor misroute to counterparty.
 
-        testcase("test2178 TrustSet modify with sponsor does not misroute onto counterparty side");
+        testcase("TrustSet modify with sponsor does not misroute onto counterparty side");
 
         using namespace test::jtx;
 
@@ -2721,65 +2723,83 @@ protected:
         Account const carol{"carol_t2178"};
 
         // Fund without auto-setting asfDefaultRipple
-        env.fund(XRP(100'000), alice);
-        env.fund(XRP(100'000), bob);
-        env.fund(XRP(100'000), carol);
+        env.fund(XRP(100'000), alice, bob, carol);
         env.close();
 
-        auto const usd = bob["USD"];
-
-        // Alice creates the trust line. trustCreate sets only Alice's reserve flag
-        // and (because Bob has no DefaultRipple yet) sets lsfHighNoRipple on Bob's side.
-        // No sponsor attached.
-        env(trust(alice, usd(1'000)));
-        env.close();
-
-        // Bob now enables asfDefaultRipple (canonical issuer-side flow).
-        // The line still carries lsfHighNoRipple on Bob's side, so on Alice's next
-        // TrustSet the gate ((uFlagsOut & lsfHighNoRipple) == 0) != bHighDefRipple
-        // evaluates to (false != true) = true, and bHighReserved is still false.
-        env(fset(bob, asfDefaultRipple));
-        env.close();
-
+        // Determine account ordering
         bool const aliceIsHigh = alice.id() > bob.id();
-        SF_ACCOUNT const& bobSponsorField = aliceIsHigh ? sfLowSponsor : sfHighSponsor;
-        SF_ACCOUNT const& aliceSponsorField = aliceIsHigh ? sfHighSponsor : sfLowSponsor;
+
+        // To trigger the bug, we need the COUNTERPARTY's reserve gate to trip
+        // We use issuer/holder terminology where:
+        // - holder creates the trust line (their reserve is set first)
+        // - issuer enables DefaultRipple after (creates flag mismatch)
+        // - holder's second TrustSet triggers issuer's reserve gate
+
+        auto const issuer = aliceIsHigh ? bob : alice;
+        auto const holder = aliceIsHigh ? alice : bob;
+        auto const usd = issuer["USD"];
+
+        // Issuer must NOT have DefaultRipple set initially
+        // Clear it explicitly (env.fund may have set it)
+        env(fclear(issuer, asfDefaultRipple));
+        env.close();
+
+        // Holder creates the trust line first (holder's reserve flag is set)
+        // At this point, issuer does NOT have DefaultRipple set, so
+        // the NoRipple bit on issuer's side is set according to issuer's current flag
+        env(trust(holder, usd(1'000)));
+        env.close();
+
+        // Issuer now enables asfDefaultRipple (canonical issuer flow)
+        // This creates a mismatch: issuer's account flag says DefaultRipple=true
+        // but the trust line's NoRipple bit on issuer's side is still set
+        env(fset(issuer, asfDefaultRipple));
+        env.close();
+
+        SF_ACCOUNT const& issuerSponsorField = aliceIsHigh ? sfLowSponsor : sfHighSponsor;
+        SF_ACCOUNT const& holderSponsorField = aliceIsHigh ? sfHighSponsor : sfLowSponsor;
 
         auto const lineKey = keylet::line(alice, bob, usd.currency);
         auto const sleLineBefore = env.le(lineKey);
-        BEAST_EXPECT(sleLineBefore);
+        if (!BEAST_EXPECT(sleLineBefore))
+            return;
         BEAST_EXPECT(!sleLineBefore->isFieldPresent(sfLowSponsor));
         BEAST_EXPECT(!sleLineBefore->isFieldPresent(sfHighSponsor));
 
-        auto const carolBefore = (*env.le(carol))[~sfSponsoringOwnerCount].value_or(0u);
-        auto const bobBefore = (*env.le(bob))[~sfSponsoredOwnerCount].value_or(0u);
+        auto const carolBefore = sponsoringOwnerCount(env, carol);
+        BEAST_EXPECT(carolBefore == 0);
+        auto const issuerSponsoredBefore = sponsoredOwnerCount(env, issuer);
+        BEAST_EXPECT(issuerSponsoredBefore == 0);
 
-        // Alice modifies the trust line with Carol as sponsor
-        env(trust(alice, usd(2'000)),
+        // Holder modifies the trust line with Carol as sponsor
+        // This should trigger the issuer's reserve gate because of the DefaultRipple mismatch
+        // WITHOUT the fix: Carol would be incorrectly applied to issuer's side
+        // WITH the fix: Carol should NOT be applied to issuer's side (issuer != tx submitter)
+        env(trust(holder, usd(2'000)),
             sponsor::As(carol, spfSponsorReserve),
             Sig(sfSponsorSignature, carol),
             Ter(tesSUCCESS));
         env.close();
 
         auto const sleLineAfter = env.le(lineKey);
-        BEAST_EXPECT(sleLineAfter);
+        if (!BEAST_EXPECT(sleLineAfter))
+            return;
 
-        // With the fix: Bob's side should NOT have Carol as sponsor
-        // Carol only agreed to back Alice
-        BEAST_EXPECT(!sleLineAfter->isFieldPresent(bobSponsorField));
+        // With the fix: Issuer's side should NOT have Carol as sponsor
+        // Carol only agreed to back the holder, not the issuer
+        BEAST_EXPECT(!sleLineAfter->isFieldPresent(issuerSponsorField));
 
-        // Alice's side also has no sponsor because Alice's reserve flag was
-        // already set on the FIRST TrustSet (no sponsor in scope then), so
-        // bAliceReserveSet && !bAliceReserved is false on the modify path
-        BEAST_EXPECT(!sleLineAfter->isFieldPresent(aliceSponsorField));
+        // Holder's side also has no sponsor because holder's reserve flag was
+        // already set on the FIRST TrustSet (no sponsor in scope then)
+        BEAST_EXPECT(!sleLineAfter->isFieldPresent(holderSponsorField));
 
         // Carol's sponsoring count should remain unchanged (no misroute)
-        auto const carolAfter = (*env.le(carol))[~sfSponsoringOwnerCount].value_or(0u);
+        auto const carolAfter = sponsoringOwnerCount(env, carol);
         BEAST_EXPECT(carolAfter == carolBefore);
 
-        // Bob's sponsored count should remain unchanged
-        auto const bobAfter = (*env.le(bob))[~sfSponsoredOwnerCount].value_or(0u);
-        BEAST_EXPECT(bobAfter == bobBefore);
+        // Issuer's sponsored count should remain unchanged (no misroute)
+        auto const issuerSponsoredAfter = sponsoredOwnerCount(env, issuer);
+        BEAST_EXPECT(issuerSponsoredAfter == issuerSponsoredBefore);
     }
 
     void
@@ -4018,46 +4038,46 @@ public:
     {
         using namespace test::jtx;
 
-        // test168CoSignedBlockedWithFeeOnlySponsorship();
-        // test251AMMDepositRejectXRPDeposits();
-        // test750SponsorFeeQueueAdmissionBug();
-        // test750AdversarialSponsorBlocksVictim();
-        // test1033SponsoredWitnessCanChargeDoorOwnedClaimObjectsToUnrelatedSponsor();
-        // test1186AMMCreateUsesPreFeeReserveBalance();
-        // test1186AMMDepositUsesPreFeeReserveBalance();
-        // test1350ReserveCountSilentWrap(testableAmendments());
-        // test1364AmmWithdrawSponsoredMptBypass();
-        // test1365OracleReserveDecreaseRejection();
-        // test1380AmmClawbackReserveBypass();
-        // test1468PathPaymentExploit();
-        // test1563OracleIncorrectAdjustment();
-        // test1675SponsoredXRPEscrowCreate();
-        // test1678SameSponsorCredentialAccept();
-        // test1680SponsoredPayChanTrapsReserve();
-        // test1736CrossCurrencyTfSponsorCreatedAccountBypassesReserve();
-        // test1779BrokerSponsorMisroutedToBorrowerLoanSle();
-        // test1814AMMDepositLPTokenNonSponsoredReserveBypass();
-        // test1814ExistingLPCorrectlyChecked();
-        // test1814SingleAssetCaughtByPreclaim();
+        test168CoSignedBlockedWithFeeOnlySponsorship();
+        test251AMMDepositRejectXRPDeposits();
+        test750SponsorFeeQueueAdmissionBug();
+        test750AdversarialSponsorBlocksVictim();
+        test1033SponsoredWitnessCanChargeDoorOwnedClaimObjectsToUnrelatedSponsor();
+        test1186AMMCreateUsesPreFeeReserveBalance();
+        test1186AMMDepositUsesPreFeeReserveBalance();
+        test1350ReserveCountSilentWrap(testableAmendments());
+        test1364AmmWithdrawSponsoredMptBypass();
+        test1365OracleReserveDecreaseRejection();
+        test1380AmmClawbackReserveBypass();
+        test1468PathPaymentExploit();
+        test1563OracleIncorrectAdjustment();
+        test1675SponsoredXRPEscrowCreate();
+        test1678SameSponsorCredentialAccept();
+        test1680SponsoredPayChanTrapsReserve();
+        test1736CrossCurrencyTfSponsorCreatedAccountBypassesReserve();
+        test1779BrokerSponsorMisroutedToBorrowerLoanSle();
+        test1814AMMDepositLPTokenNonSponsoredReserveBypass();
+        test1814ExistingLPCorrectlyChecked();
+        test1814SingleAssetCaughtByPreclaim();
         test1926ChainedSponsorshipCreateBypassesGrantorReserveFloor();
-        // test2022UnsignedUnderflowAccountReserveOfferCrossing();
-        // test2065SponsorVaultFeeInvariantDeposit();
-        // test2065SponsorVaultFeeInvariantWithdraw();
-        // test2158SponsorLoanBrokerSetMPTPseudoAccountInvariant();
-        // test2178TrustSetCounterpartySponsorMisroute();
-        // test2241AlternateFeePayerQueueAdmissionDelegate();
-        // test2241AlternateFeePayerQueueAdmissionSponsored();
-        // test2284LegacySignerListReserveMismatch();
-        // test2320LoanSetBorrowerSponsorNotAppliedToLenderTrustline();
-        // test2320LoanSetBorrowerSponsorNotAppliedToLenderMptHolding();
-        // test2320LoanSetBorrowerSponsorOnlySponsorsIntendedBorrowerLoan();
-        // test2320BorrowerSponsorReserveLockScalesAcrossManyLenders();
-        // test2342EscrowFinishIouSameSponsorRecycleReserve();
-        // test2342EscrowCancelIouSameSponsorRecycleReserve();
-        // test2342EscrowFinishMptSameSponsorRecycleReserve();
-        // test2671TicketCoSignedWithoutSponsorshipInflatesReserveCount();
-        // test2721ZeroBalanceSponsoredPaymentFeePayerCheck();
-        // test2731OracleSetDropsSponsorSwitchWhenReserveUnchanged();
+        test2022UnsignedUnderflowAccountReserveOfferCrossing();
+        test2065SponsorVaultFeeInvariantDeposit();
+        test2065SponsorVaultFeeInvariantWithdraw();
+        test2158SponsorLoanBrokerSetMPTPseudoAccountInvariant();
+        test2178TrustSetCounterpartySponsorMisroute();
+        test2241AlternateFeePayerQueueAdmissionDelegate();
+        test2241AlternateFeePayerQueueAdmissionSponsored();
+        test2284LegacySignerListReserveMismatch();
+        test2320LoanSetBorrowerSponsorNotAppliedToLenderTrustline();
+        test2320LoanSetBorrowerSponsorNotAppliedToLenderMptHolding();
+        test2320LoanSetBorrowerSponsorOnlySponsorsIntendedBorrowerLoan();
+        test2320BorrowerSponsorReserveLockScalesAcrossManyLenders();
+        test2342EscrowFinishIouSameSponsorRecycleReserve();
+        test2342EscrowCancelIouSameSponsorRecycleReserve();
+        test2342EscrowFinishMptSameSponsorRecycleReserve();
+        test2671TicketCoSignedWithoutSponsorshipInflatesReserveCount();
+        test2721ZeroBalanceSponsoredPaymentFeePayerCheck();
+        test2731OracleSetDropsSponsorSwitchWhenReserveUnchanged();
     }
 };
 
